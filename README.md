@@ -4,9 +4,12 @@
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2.5-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
+[![Vue 3](https://img.shields.io/badge/Vue-3-4fc08d.svg)](https://vuejs.org/)
+[![UniApp](https://img.shields.io/badge/UniApp-3.0-2b9939.svg)](https://uniapp.dcloud.net.cn/)
+[![WeChat Mini Program](https://img.shields.io/badge/WeChat-小程序-07c160.svg)](https://developers.weixin.qq.com/miniprogram/dev/framework/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178c6.svg)](https://www.typescriptlang.org/)
 
-**HelloJourney（HelloAgents 智能旅行助手）** 是一款基于大语言模型（LLM）的 AI 旅行规划平台。输入目的地、偏好和预算，系统自动利用小红书真实游记数据、地图服务和知识图谱，生成完整的个性化旅行方案。
+**HelloJourney（HelloAgents 智能旅行助手）** 是一款基于大语言模型（LLM）的 AI 旅行规划平台。输入目的地、偏好和预算，系统自动利用小红书真实游记数据、地图服务和知识图谱，生成完整的个性化旅行方案。项目提供 **Web 端**（React）和 **微信小程序**（UniApp）双端体验。
 
 ## 功能特性
 
@@ -32,6 +35,7 @@
 | 暗色主题 UI | ✅ 完成 | 全站暗色毛玻璃风格，Hero 视差滚动 + 云层/雾气动画 |
 | Mock 开发环境 | ✅ 完成 | MSW 完整 Mock 7 个 API 端点，支持 `VITE_USE_MOCK=true` 开关 |
 | 后端单元测试 | ✅ 完成 | JUnit 5 + Mockito 覆盖 Controller/Service/Agent/WebSocket 各层 |
+| 微信小程序端 | ✅ 完成 | UniApp + Vue 3 实现，支持行程规划/结果查看/历史记录/设置四大页面 |
 
 ### 部分实现 / 待完善
 
@@ -53,7 +57,7 @@
 | 5 | ⚙️ 前端设置页面 | 实现 API Key、LLM 供应商、地图服务等配置的 UI 管理界面（后端 API 已就绪） |
 | 6 | 🔗 真正的工具调用（Tool Use） | 实现标准 Function Calling 协议，让 LLM 真正调用天气/酒店/POI API 获取实时数据，而非依赖 LLM 编造 |
 | 7 | 🌐 Google Maps 代理支持 | 完善 GoogleMapService 的代理配置，使中国大陆用户可正常访问 Google API |
-| 8 | 📱 移动端适配优化 | 完善响应式布局，实现汉堡菜单、触屏手势、PWA 离线支持 |
+| 8 | 📱 移动端适配优化 | 完善响应式布局，实现汉堡菜单、触屏手势、PWA 离线支持（微信小程序端已实现基础功能） |
 | 9 | 🤖 多 Agent 协作增强 | 拆分为景点 Agent、酒店 Agent、美食 Agent 等专业子 Agent，支持并行执行和结果融合 |
 | 10 | 💬 AI 聊天增强 | 支持 Markdown 渲染、流式输出（SSE）、多轮对话记忆、图片/语音输入 |
 
@@ -69,7 +73,7 @@
 | Lombok | 代码简化 |
 | JUnit 5 + Mockito | 测试框架 |
 
-### 前端
+### 前端（Web）
 | 技术 | 说明 |
 |------|------|
 | React 19 | UI 框架 |
@@ -81,6 +85,15 @@
 | React Router 7 | 路由管理 |
 | MSW | Mock Service Worker |
 
+### 移动端（微信小程序）
+| 技术 | 说明 |
+|------|------|
+| UniApp 3.0 | 跨平台框架 |
+| Vue 3 | UI 框架 |
+| TypeScript 5.5 | 类型安全 |
+| Vite 5 | 构建工具 |
+| Sass | 样式预处理 |
+
 ## 快速开始
 
 ### 环境要求
@@ -89,6 +102,7 @@
 - **Maven 3.8+**
 - **Node.js 20+**
 - **npm 10+**
+- **微信开发者工具**（小程序开发时需要）
 
 ### 1. 克隆项目
 
@@ -149,6 +163,22 @@ app:
 
 也可以通过前端的「设置」页面动态配置，配置会持久化到 `runtime_settings.json`。
 
+### 5. 启动微信小程序端
+
+```bash
+cd uniapp
+
+# 安装依赖
+npm install
+
+# 编译为微信小程序
+npm run dev:mp-weixin
+```
+
+编译产物位于 `uniapp/dist/dev/mp-weixin`，使用**微信开发者工具**导入该目录即可预览。
+
+小程序默认连接 `http://127.0.0.1:8000` 后端，可在小程序「设置」页面修改 API 地址。
+
 ## 项目结构
 
 ```
@@ -187,6 +217,29 @@ HelloJourney/
 │   │   ├── services/                 # API 调用层
 │   │   ├── types/                    # TypeScript 类型定义
 │   │   └── mocks/                    # MSW Mock 数据
+│   └── package.json
+├── uniapp/                           # 微信小程序端（UniApp + Vue 3）
+│   ├── src/
+│   │   ├── api/                      # API 接口层
+│   │   │   ├── chat.ts               # 聊天接口
+│   │   │   ├── poi.ts                # POI 接口
+│   │   │   ├── settings.ts           # 设置接口
+│   │   │   └── trip.ts               # 行程接口
+│   │   ├── components/
+│   │   │   └── AiChat/               # AI 聊天组件
+│   │   ├── pages/
+│   │   │   ├── index/                # 首页 / 行程输入
+│   │   │   ├── result/               # 行程结果展示
+│   │   │   ├── history/              # 历史记录
+│   │   │   └── settings/             # 设置页面
+│   │   ├── types/                    # TypeScript 类型定义
+│   │   ├── utils/
+│   │   │   ├── http.ts               # HTTP 请求封装
+│   │   │   └── websocket.ts          # WebSocket 封装
+│   │   ├── App.vue                   # 应用入口
+│   │   ├── main.ts                   # 入口文件
+│   │   ├── manifest.json             # 小程序配置
+│   │   └── pages.json                # 页面路由配置
 │   └── package.json
 ├── data/                             # 运行时数据（.gitignore）
 ├── .gitignore
