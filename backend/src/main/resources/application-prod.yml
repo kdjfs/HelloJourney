@@ -1,0 +1,8 @@
+app:
+  debug: false
+  cors-origins: https://your-domain.com,https://www.your-domain.com
+
+logging:
+  level:
+    root: WARN
+    com.hellojourney: INFO
