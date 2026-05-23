@@ -10,22 +10,21 @@ app:
   version: 2.0.0
 
   tencent-maps:
-    key: "DCMBZ-W7KL5-CJ5IT-IX5V2-BGTM7-5FBZV"
+    key: "DCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
   google-maps:
     api-key: ""
     proxy: ""
 
   xhs:
-    cookie: "abRequestId=a146fe18-7dcd-511c-824f-e2d3c976f2b1; ets=1779510645488; webBuild=6.12.1; xsecappid=xhs-pc-web; loadts=1779510645575; a1=19e53199350rqua74u6kk0he97diq9r0gjqdtdkdh50000940647; webId=d78769f724d10708540fb0c7e0f29bb4; acw_tc=0a50862217795106467568743e9fed5cf5dda8dec48cbc2a2c12a1fd2a7685; gid=yjd2qyj02qkfyjd2qyjjqVfT28FA70W47KTTAfx8xdjWff283AjF89888j48K4W8jS8j8y22; web_session=040069b4acd85943b11cfe6524384b6908151b; id_token=VjEAAEReOm9cz6TsgkKQPS+wGlTwbzpm6suN2/A5R1sWtcLQJQLtUIVM1x8vkIcdHWXs53LogTBVlcJmLnfTXZjTM0Se+DUsyqf8gldq2YPyaQfIWyDwaoU+USGmfWDrGm5dWOHQ; x-rednote-datactry=CN; x-rednote-holderctry=CN; unread={%22ub%22:%2269fc7da2000000003501fdc5%22%2C%22ue%22:%2269fa9a8d0000000036032381%22%2C%22uc%22:22}; websectiga=cf46039d1971c7b9a650d87269f31ac8fe3bf71d61ebf9d9a0a87efb414b816c; sec_poison_id=3dad87f7-e342-42ae-8214-53c56fc6e90c"
-
+    cookie: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   llm:
     active-provider: deepseek
     timeout: 60
     providers:
       deepseek:
         name: DeepSeek
-        api-key: "sk-e6c0715428f741888eb00fa22db646c9"
+        api-key: "xxxxxxxxxxxxxxxxxxx46c9"
         base-url: https://api.deepseek.com/v1
         model: deepseek-chat
       glm:
