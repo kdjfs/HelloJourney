@@ -17,6 +17,7 @@ import OverviewAttractionCard, { type OverviewAttractionItem } from '../../compo
 import KnowledgeGraph from '../../components/KnowledgeGraph'
 import AIChat from '../../components/AIChat'
 import { getPoiPhoto } from '../../services/poiApi'
+import { pollTaskStatus } from '../../services/tripApi'
 import type { TripPlan, KnowledgeGraphData, WeatherInfo } from '../../types/api'
 import './index.css'
 
@@ -200,20 +201,21 @@ function Result() {
   const [searchParams] = useSearchParams()
   const urlPlanId = searchParams.get('plan_id')
 
-  const [tripPlan] = useState<TripPlan | null>(() => {
+  const [tripPlan, setTripPlan] = useState<TripPlan | null>(() => {
     const raw = sessionStorage.getItem('tripPlan')
     if (!raw) return null
     try { return JSON.parse(raw) } catch { return null }
   })
 
-  const [graphData] = useState<KnowledgeGraphData | null>(() => {
+  const [graphData, setGraphData] = useState<KnowledgeGraphData | null>(() => {
     const raw = sessionStorage.getItem('graphData')
     if (!raw || raw === 'null') return null
     try { return JSON.parse(raw) } catch { return null }
   })
 
   const [planId] = useState(urlPlanId || sessionStorage.getItem('planId') || '')
-  const loading = false
+  const [loading, setLoading] = useState(false)
+  const [recoveryError, setRecoveryError] = useState('')
   const [activeSection, setActiveSection] = useState('overview')
   const [activeWeatherIndex, setActiveWeatherIndex] = useState(0)
   const [activeOverviewCard, setActiveOverviewCard] = useState(1)
@@ -243,6 +245,36 @@ function Result() {
 
     void loadPhotos()
   }, [tripPlan])
+
+  useEffect(() => {
+    if (tripPlan || !urlPlanId || loading) return
+
+    const recoverPlan = async () => {
+      setLoading(true)
+      try {
+        const status = await pollTaskStatus(urlPlanId)
+        if (status.status === 'completed' && status.result) {
+          const data: TripPlan = status.result.data || status.result
+          const gData: KnowledgeGraphData | null = status.result.graph_data || null
+          setTripPlan(data)
+          setGraphData(gData)
+          sessionStorage.setItem('tripPlan', JSON.stringify(data))
+          if (gData) sessionStorage.setItem('graphData', JSON.stringify(gData))
+          sessionStorage.setItem('planId', urlPlanId)
+        } else if (status.status === 'failed') {
+          setRecoveryError(status.error || '计划生成失败')
+        } else {
+          setRecoveryError('历史计划详情不可恢复，请重新生成')
+        }
+      } catch {
+        setRecoveryError('历史计划详情不可恢复，请重新生成')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void recoverPlan()
+  }, [tripPlan, urlPlanId, loading])
 
   const overviewAttractions: OverviewAttractionItem[] = tripPlan
     ? tripPlan.days.flatMap((day, dayIdx) =>
@@ -293,7 +325,7 @@ function Result() {
   if (!tripPlan) {
     return (
       <div className="result-empty">
-        <Empty description="没有找到旅行计划数据">
+        <Empty description={recoveryError || '没有找到旅行计划数据'}>
           <Button type="primary" onClick={() => navigate('/')} icon={<ArrowLeftOutlined />}>
             返回首页生成计划
           </Button>

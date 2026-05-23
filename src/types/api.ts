@@ -162,7 +162,7 @@ export interface BackendRuntimeSettings {
   vite_amap_web_key: string
   vite_amap_web_js_key: string
   google_maps_api_key: string
-  google_maps_proxy: string
+  google_maps_proxy?: string
   xhs_cookie: string
   openai_api_key: string
   openai_base_url: string
@@ -180,7 +180,7 @@ export interface ChatMessage {
 
 export interface TripChatRequest {
   message: string
-  trip_plan: Record<string, unknown>
+  trip_plan: TripPlan | Record<string, unknown>
   history: ChatMessage[]
 }
 

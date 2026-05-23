@@ -68,7 +68,7 @@ function AIChat({ tripPlan }: AIChatProps) {
     try {
       const res = await apiClient.post<TripChatResponse>('/api/chat/ask', {
         message: text,
-        trip_plan: tripPlan as unknown as Record<string, unknown>,
+        trip_plan: tripPlan,
         history: chatHistory,
       } satisfies TripChatRequest)
 

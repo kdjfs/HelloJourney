@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Form, Input, Select, DatePicker, Button, message, Progress } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import { generateTripPlan, getTripHistory } from '../../services/tripApi'
+import { isMockEnabled } from '../../utils/env'
 import NavBar from '../../components/NavBar'
 import type { TripFormData, TripHistoryItem } from '../../types/api'
 import './index.css'
@@ -197,35 +198,37 @@ function Landing() {
     }
 
     try {
-      // Mock 模式：模拟4个阶段的进度动画
-      const mockStages = [
-        { progress: 30, label: 'attraction_search' },
-        { progress: 50, label: 'weather_search' },
-        { progress: 70, label: 'hotel_search' },
-        { progress: 90, label: 'planning' },
-      ]
+      const useMock = isMockEnabled()
 
-      for (const stage of mockStages) {
-        setLoadingProgress(stage.progress)
-        setLoadingStatus(stageLabels[stage.label])
-        await new Promise((resolve) => setTimeout(resolve, 800))
+      if (useMock) {
+        // Mock 模式：模拟4个阶段的进度动画
+        const mockStages = [
+          { progress: 30, label: 'attraction_search' },
+          { progress: 50, label: 'weather_search' },
+          { progress: 70, label: 'hotel_search' },
+          { progress: 90, label: 'planning' },
+        ]
+
+        for (const stage of mockStages) {
+          setLoadingProgress(stage.progress)
+          setLoadingStatus(stageLabels[stage.label])
+          await new Promise((resolve) => setTimeout(resolve, 800))
+        }
       }
 
-      /*
-       * 真实后端模式：解除注释以下代码，替换上面的 Mock 进度模拟：
-       *
-       * const response = await generateTripPlan(requestData, (event) => {
-       *   if (event.plan_id) setPlanCode(event.plan_id)
-       *   if (typeof event.progress === 'number') {
-       *     setLoadingProgress(Math.max(0, Math.min(100, event.progress)))
-       *   }
-       *   setLoadingStatus(event.message || stageLabels[event.stage] || '处理中...')
-       * })
-       */
-
-      const response = await generateTripPlan(requestData, undefined, {
-        mockByPolling: true,
-      })
+      const response = await generateTripPlan(
+        requestData,
+        useMock
+          ? undefined
+          : (event) => {
+              if (event.plan_id) setPlanCode(event.plan_id)
+              if (typeof event.progress === 'number') {
+                setLoadingProgress(Math.max(0, Math.min(100, event.progress)))
+              }
+              setLoadingStatus(event.message || stageLabels[event.stage] || '处理中...')
+            },
+        { mockByPolling: useMock },
+      )
 
       setLoadingProgress(100)
       setLoadingStatus('生成完成！')
@@ -301,10 +304,10 @@ function Landing() {
           >
             <div className="container">
               <div className="title-brand">
-                <h1 className="presentation-title">TRIPSTAR</h1>
+                <h1 className="presentation-title">LINGJING</h1>
               </div>
               <h2 className="presentation-subtitle text-center">
-                智能旅行规划助手，AI 为您定制专属行程
+                你的专属 AI 旅行规划师
               </h2>
             </div>
           </div>

@@ -18,7 +18,7 @@ function NavBar({ onBrandClick, onCtaClick }: NavBarProps) {
             <span className="navbar-toggler-bar" />
           </button>
           <button className="navbar-brand landing-brand" type="button" onClick={onBrandClick}>
-            TripStar
+            LINGJING
           </button>
         </div>
         <div className="navbar-collapse landing-navbar-collapse">
@@ -29,7 +29,7 @@ function NavBar({ onBrandClick, onCtaClick }: NavBarProps) {
                 rel="tooltip"
                 title="Star on GitHub"
                 data-placement="bottom"
-                href="https://github.com/1sdv/TripStar"
+                href="https://github.com/kdjfs/lingjing"
                 target="_blank"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
