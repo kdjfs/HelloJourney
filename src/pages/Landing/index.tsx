@@ -304,7 +304,7 @@ function Landing() {
           >
             <div className="container">
               <div className="title-brand">
-                <h1 className="presentation-title">LINGJING</h1>
+                <h1 className="presentation-title">HelloJourney</h1>
               </div>
               <h2 className="presentation-subtitle text-center">
                 你的专属 AI 旅行规划师

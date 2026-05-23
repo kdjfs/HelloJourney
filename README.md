@@ -1,4 +1,4 @@
-# LINGJING - AI Travel Planner
+# HelloJourney - AI Travel Planner
 
 > 你的专属 AI 旅行规划师，输入目的地即可智能生成完整旅行方案。
 

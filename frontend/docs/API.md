@@ -1,4 +1,4 @@
-﻿# LINGJING API 接口文档
+﻿# HelloJourney API 接口文档
 
 本项目兼容原 TripStar 后端 API�?
 > **基础 URL**：`http://localhost:8000`（开发）/ 同源部署（Docker 生产�?> **最后更�?*�?026-05-23（基于后端源码重新生成）

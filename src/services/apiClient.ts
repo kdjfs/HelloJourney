@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const ENV_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
-const RUNTIME_API_BASE_STORAGE_KEY = 'lingjing.runtime.api_base_url'
+const RUNTIME_API_BASE_STORAGE_KEY = 'HelloJourney.runtime.api_base_url'
 const OLD_RUNTIME_API_BASE_STORAGE_KEY = 'tripstar.runtime.api_base_url'
 
 const normalizeBaseUrl = (value?: string | null) => String(value ?? '').trim().replace(/\/+$/, '')
