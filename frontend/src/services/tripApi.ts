@@ -34,7 +34,17 @@ export function connectTripTaskWebSocket(
   },
 ) {
   const wsBase = getRuntimeApiBaseUrl().replace(/^http/i, 'ws').replace(/\/+$/, '')
-  const finalWsUrl = wsUrl.startsWith('ws://') || wsUrl.startsWith('wss://') ? wsUrl : `${wsBase}${wsUrl}`
+  let finalWsUrl: string
+  if (wsUrl.startsWith('ws://') || wsUrl.startsWith('wss://')) {
+    try {
+      const url = new URL(wsUrl)
+      finalWsUrl = `${wsBase}${url.pathname}${url.search}`
+    } catch {
+      finalWsUrl = wsUrl
+    }
+  } else {
+    finalWsUrl = `${wsBase}${wsUrl}`
+  }
   const socket = new WebSocket(finalWsUrl)
   socket.onmessage = (ev) => callbacks.onEvent(JSON.parse(ev.data))
   socket.onerror = (err) => callbacks.onError?.(err)

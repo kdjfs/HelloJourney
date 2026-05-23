@@ -22,7 +22,7 @@ export const getRuntimeApiBaseUrl = () => {
   const saved = normalizeBaseUrl(localStorage.getItem(RUNTIME_API_BASE_STORAGE_KEY))
   const migrated = normalizeBaseUrl(migrateOldKey())
   const env = normalizeBaseUrl(ENV_API_BASE_URL)
-  return saved || migrated || env || window.location.origin || 'http://localhost:8000'
+  return saved || migrated || env || window.location.origin
 }
 
 export const setRuntimeApiBaseUrl = (value: string) => {
@@ -47,7 +47,7 @@ apiClient.interceptors.response.use(
     if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
       console.error(
         `[API] 网络请求失败 (${error.config?.url || 'unknown'})。`,
-        '请检查 VITE_USE_MOCK 是否开启，或真实后端 http://localhost:8000 是否已启动。',
+        '请检查 VITE_USE_MOCK 是否开启，或真实后端是否已启动。',
         error,
       )
     }
