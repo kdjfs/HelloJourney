@@ -1,0 +1,112 @@
+package com.hellojourney.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hellojourney.agent.TripPlannerAgent;
+import com.hellojourney.config.AppSettings;
+import com.hellojourney.model.dto.TripRequest;
+import com.hellojourney.service.KnowledgeGraphService;
+import com.hellojourney.util.TestDataFactory;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(TripController.class)
+class TripControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
+    private TripPlannerAgent tripPlannerAgent;
+
+    @MockBean
+    private KnowledgeGraphService knowledgeGraphService;
+
+    @MockBean
+    private AppSettings appSettings;
+
+    @Autowired
+    private TripController tripController;
+
+    @BeforeEach
+    void setUp() {
+        tripController.tasks.clear();
+    }
+
+    @Test
+    @DisplayName("POST /plan - valid request returns 200 with task_id")
+    void planTrip_validRequest_returnsTaskId() throws Exception {
+        TripRequest request = TestDataFactory.buildTripRequest();
+
+        mockMvc.perform(post("/api/trip/plan")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.task_id").exists())
+                .andExpect(jsonPath("$.plan_id").exists())
+                .andExpect(jsonPath("$.status").value("processing"))
+                .andExpect(jsonPath("$.ws_url").exists())
+                .andExpect(jsonPath("$.message").exists());
+
+        assertThat(tripController.tasks).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("GET /status/{taskId} - existing task returns status")
+    void getTaskStatus_existingTask_returnsStatus() throws Exception {
+        TripController.TaskState task = new TripController.TaskState();
+        task.setTaskId("abc12345");
+        task.setPlanId("abc12345");
+        task.setStatus("processing");
+        task.setStage("attraction_search");
+        task.setProgress(30);
+        task.setMessage("正在搜索景点...");
+        tripController.tasks.put("abc12345", task);
+
+        mockMvc.perform(get("/api/trip/status/abc12345"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.task_id").value("abc12345"))
+                .andExpect(jsonPath("$.plan_id").value("abc12345"))
+                .andExpect(jsonPath("$.status").value("processing"))
+                .andExpect(jsonPath("$.stage").value("attraction_search"))
+                .andExpect(jsonPath("$.progress").value(30));
+    }
+
+    @Test
+    @DisplayName("GET /status/{taskId} - non-existing task returns 404")
+    void getTaskStatus_nonExistingTask_returns404() throws Exception {
+        mockMvc.perform(get("/api/trip/status/nonexistent"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("GET /health - returns healthy status")
+    void healthCheck_returnsHealthy() throws Exception {
+        mockMvc.perform(get("/api/trip/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("healthy"))
+                .andExpect(jsonPath("$.service").value("trip-planner"));
+    }
+
+    @Test
+    @DisplayName("GET /history - returns trip history")
+    void getTripHistory_returnsHistory() throws Exception {
+        mockMvc.perform(get("/api/trip/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").exists());
+    }
+}

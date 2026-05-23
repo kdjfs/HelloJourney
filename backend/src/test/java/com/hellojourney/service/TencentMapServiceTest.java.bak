@@ -1,0 +1,465 @@
+package com.hellojourney.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hellojourney.config.AppSettings;
+import com.hellojourney.model.entity.Location;
+import com.hellojourney.model.entity.WeatherInfo;
+import com.hellojourney.model.vo.POIInfo;
+import com.hellojourney.util.TestDataFactory;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.ConnectionPool;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.*;
+
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+
+class TencentMapServiceTest {
+
+    private MockWebServer mockWebServer;
+    private AppSettings appSettings;
+    private ObjectMapper objectMapper;
+    private TencentMapService tencentMapService;
+
+    @BeforeEach
+    void setUp() throws IOException, NoSuchFieldException, IllegalAccessException {
+        mockWebServer = new MockWebServer();
+        mockWebServer.start();
+        appSettings = TestDataFactory.buildAppSettings();
+        objectMapper = new ObjectMapper();
+        tencentMapService = new TencentMapService(appSettings, objectMapper);
+        injectMockHttpClient();
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        mockWebServer.shutdown();
+    }
+
+    private void injectMockHttpClient() throws NoSuchFieldException, IllegalAccessException {
+        int port = mockWebServer.getPort();
+        OkHttpClient mockClient = new OkHttpClient.Builder()
+                .connectionPool(new ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
+                .connectTimeout(2, TimeUnit.SECONDS)
+                .readTimeout(2, TimeUnit.SECONDS)
+                .addInterceptor(chain -> {
+                    Request original = chain.request();
+                    HttpUrl originalUrl = original.url();
+                    HttpUrl newUrl = originalUrl.newBuilder()
+                            .scheme("http")
+                            .host("localhost")
+                            .port(port)
+                            .build();
+                    Request newRequest = original.newBuilder().url(newUrl).build();
+                    return chain.proceed(newRequest);
+                })
+                .build();
+        Field httpClientField = TencentMapService.class.getDeclaredField("httpClient");
+        httpClientField.setAccessible(true);
+        httpClientField.set(tencentMapService, mockClient);
+    }
+
+    private String geocodeResponse(double lat, double lng) {
+        return "{\"status\":0,\"result\":{\"location\":{\"lat\":" + lat + ",\"lng\":" + lng + "}}}";
+    }
+
+    private String geocodeEmptyResponse() {
+        return "{\"status\":0,\"result\":{\"location\":{\"lat\":0,\"lng\":0}}}";
+    }
+
+    private String poiSearchResponse() {
+        return "{\"status\":0,\"data\":[" +
+                "{\"id\":\"POI001\",\"title\":\"故宫博物院\",\"category\":\"旅游景点\",\"address\":\"北京市东城区景山前街4号\",\"location\":{\"lat\":39.916527,\"lng\":116.397128},\"tel\":\"010-85007114\"}," +
+                "{\"id\":\"POI002\",\"title\":\"天坛公园\",\"category\":\"公园\",\"address\":\"北京市东城区天坛内东里7号\",\"location\":{\"lat\":39.882229,\"lng\":116.406626},\"tel\":\"010-67012483\"}" +
+                "]}";
+    }
+
+    private String weatherResponse() {
+        return "{\"status\":0,\"result\":{\"forecast_24h\":{" +
+                "\"0\":{\"date\":\"2025-06-01\",\"time\":8,\"weather\":\"晴\",\"temperature\":25,\"wind_direction\":\"南风\",\"wind_power\":\"1-3级\"}," +
+                "\"1\":{\"date\":\"2025-06-01\",\"time\":14,\"weather\":\"多云\",\"temperature\":32,\"wind_direction\":\"东南风\",\"wind_power\":\"2-4级\"}," +
+                "\"2\":{\"date\":\"2025-06-01\",\"time\":22,\"weather\":\"阴\",\"temperature\":22,\"wind_direction\":\"南风\",\"wind_power\":\"1-3级\"}," +
+                "\"3\":{\"date\":\"2025-06-02\",\"time\":8,\"weather\":\"晴\",\"temperature\":26,\"wind_direction\":\"北风\",\"wind_power\":\"1-3级\"}," +
+                "\"4\":{\"date\":\"2025-06-02\",\"time\":22,\"weather\":\"晴\",\"temperature\":20,\"wind_direction\":\"北风\",\"wind_power\":\"1-3级\"}" +
+                "}}}";
+    }
+
+    private String drivingRouteResponse() {
+        return "{\"status\":0,\"result\":{\"routes\":[{\"distance\":15000,\"duration\":2400}]}}";
+    }
+
+    private String walkingRouteResponse() {
+        return "{\"status\":0,\"result\":{\"distance\":3000,\"duration\":3600}}";
+    }
+
+    private String transitRouteResponse() {
+        return "{\"status\":0,\"result\":{\"routes\":[{\"distance\":18000,\"duration\":5400}]}}";
+    }
+
+    private String poiDetailResponse() {
+        return "{\"status\":0,\"data\":{\"id\":\"POI001\",\"title\":\"故宫博物院\",\"category\":\"旅游景点\",\"address\":\"北京市东城区景山前街4号\"}}";
+    }
+
+    private MockResponse jsonMockResponse(String body) {
+        return new MockResponse()
+                .setBody(body)
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json");
+    }
+
+    @Nested
+    @DisplayName("geocode")
+    class GeocodeTests {
+
+        @Test
+        @DisplayName("geocode - success returns Location")
+        void geocode_success_returnsLocation() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+
+            Location result = tencentMapService.geocode("北京市东城区景山前街4号", null);
+
+            assertThat(result).isNotNull();
+            assertThat(result.getLatitude()).isEqualTo(39.916527);
+            assertThat(result.getLongitude()).isEqualTo(116.397128);
+
+            RecordedRequest request = takeRequest();
+            assertThat(request.getPath()).contains("/ws/geocoder/v1");
+            assertThat(request.getPath()).contains("key=test-tencent-key");
+        }
+
+        @Test
+        @DisplayName("geocode - failure returns null")
+        void geocode_failure_returnsNull() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeEmptyResponse()));
+
+            Location result = tencentMapService.geocode("invalid-address", null);
+
+            assertThat(result).isNull();
+        }
+
+        @Test
+        @DisplayName("geocode - with city param includes region")
+        void geocode_withCity_includesRegion() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(31.230416, 121.473701)));
+
+            Location result = tencentMapService.geocode("南京路", "上海");
+
+            assertThat(result).isNotNull();
+            assertThat(result.getLatitude()).isEqualTo(31.230416);
+            assertThat(result.getLongitude()).isEqualTo(121.473701);
+
+            RecordedRequest request = takeRequest();
+            assertThat(request.getPath()).contains("region=");
+        }
+
+        @Test
+        @DisplayName("geocode - HTTP error returns null")
+        void geocode_httpError_returnsNull() {
+            mockWebServer.enqueue(new MockResponse().setResponseCode(500));
+
+            Location result = tencentMapService.geocode("北京", null);
+
+            assertThat(result).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("searchPoi")
+    class SearchPoiTests {
+
+        @Test
+        @DisplayName("searchPoi - success returns POI list")
+        void searchPoi_success_returnsPoiList() {
+            mockWebServer.enqueue(jsonMockResponse(poiSearchResponse()));
+
+            List<POIInfo> results = tencentMapService.searchPoi("景点", "北京", false);
+
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0).getId()).isEqualTo("POI001");
+            assertThat(results.get(0).getName()).isEqualTo("故宫博物院");
+            assertThat(results.get(0).getType()).isEqualTo("旅游景点");
+            assertThat(results.get(0).getAddress()).isEqualTo("北京市东城区景山前街4号");
+            assertThat(results.get(0).getLocation().getLatitude()).isEqualTo(39.916527);
+            assertThat(results.get(0).getLocation().getLongitude()).isEqualTo(116.397128);
+            assertThat(results.get(0).getTel()).isEqualTo("010-85007114");
+            assertThat(results.get(1).getName()).isEqualTo("天坛公园");
+
+            RecordedRequest request = takeRequest();
+            assertThat(request.getPath()).contains("/ws/place/v1/search");
+            assertThat(request.getPath()).contains("keyword=");
+        }
+
+        @Test
+        @DisplayName("searchPoi - error returns empty list")
+        void searchPoi_error_returnsEmptyList() {
+            mockWebServer.enqueue(new MockResponse().setResponseCode(500));
+
+            List<POIInfo> results = tencentMapService.searchPoi("景点", "北京", false);
+
+            assertThat(results).isEmpty();
+        }
+
+        @Test
+        @DisplayName("searchPoi - with citylimit makes geocode call first")
+        void searchPoi_withCitylimit_makesGeocodeCallFirst() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(poiSearchResponse()));
+
+            List<POIInfo> results = tencentMapService.searchPoi("景点", "北京", true);
+
+            assertThat(results).hasSize(2);
+
+            RecordedRequest geocodeRequest = takeRequest();
+            assertThat(geocodeRequest.getPath()).contains("/ws/geocoder/v1");
+            RecordedRequest poiRequest = takeRequest();
+            assertThat(poiRequest.getPath()).contains("/ws/place/v1/search");
+            assertThat(poiRequest.getPath()).contains("boundary=nearby");
+        }
+
+        @Test
+        @DisplayName("searchPoi - with citylimit but geocode failure skips boundary")
+        void searchPoi_citylimitGeocodeFailure_skipsBoundary() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeEmptyResponse()));
+            mockWebServer.enqueue(jsonMockResponse(poiSearchResponse()));
+
+            List<POIInfo> results = tencentMapService.searchPoi("景点", "北京", true);
+
+            assertThat(results).hasSize(2);
+
+            takeRequest();
+            RecordedRequest poiRequest = takeRequest();
+            assertThat(poiRequest.getPath()).contains("/ws/place/v1/search");
+            assertThat(poiRequest.getPath()).doesNotContain("boundary=nearby");
+        }
+    }
+
+    @Nested
+    @DisplayName("getWeather")
+    class GetWeatherTests {
+
+        @Test
+        @DisplayName("getWeather - success returns weather list")
+        void getWeather_success_returnsWeatherList() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(weatherResponse()));
+
+            List<WeatherInfo> results = tencentMapService.getWeather("北京");
+
+            assertThat(results).isNotEmpty();
+            assertThat(results.get(0).getDate()).isEqualTo("2025-06-01");
+            assertThat(results.get(0).getCity()).isEqualTo("北京");
+
+            RecordedRequest geocodeRequest = takeRequest();
+            assertThat(geocodeRequest.getPath()).contains("/ws/geocoder/v1");
+            RecordedRequest weatherRequest = takeRequest();
+            assertThat(weatherRequest.getPath()).contains("/ws/weather/v1");
+        }
+
+        @Test
+        @DisplayName("getWeather - geocode failure returns empty list")
+        void getWeather_geocodeFailure_returnsEmptyList() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeEmptyResponse()));
+
+            List<WeatherInfo> results = tencentMapService.getWeather("unknown-city");
+
+            assertThat(results).isEmpty();
+        }
+
+        @Test
+        @DisplayName("getWeather - city with dash uses last part")
+        void getWeather_cityWithDash_usesLastPart() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(weatherResponse()));
+
+            tencentMapService.getWeather("中国-北京");
+
+            RecordedRequest geocodeRequest = takeRequest();
+            assertThat(geocodeRequest.getPath()).contains("/ws/geocoder/v1");
+        }
+
+        @Test
+        @DisplayName("getWeather - HTTP error returns empty list")
+        void getWeather_httpError_returnsEmptyList() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(new MockResponse().setResponseCode(500));
+
+            List<WeatherInfo> results = tencentMapService.getWeather("北京");
+
+            assertThat(results).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("planRoute")
+    class PlanRouteTests {
+
+        @Test
+        @DisplayName("planRoute - walking mode returns distance and duration")
+        void planRoute_walking_returnsDistanceAndDuration() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.882229, 116.406626)));
+            mockWebServer.enqueue(jsonMockResponse(walkingRouteResponse()));
+
+            Map<String, Object> result = tencentMapService.planRoute("故宫", "天坛", "北京", "北京", "walking");
+
+            assertThat(result).containsEntry("distance", 3000.0);
+            assertThat(result).containsEntry("duration", 3600);
+            assertThat(result).containsEntry("route_type", "walking");
+
+            RecordedRequest routeRequest = findRouteRequest();
+            assertThat(routeRequest.getPath()).contains("/ws/direction/v1/walking");
+        }
+
+        @Test
+        @DisplayName("planRoute - driving mode returns distance and duration")
+        void planRoute_driving_returnsDistanceAndDuration() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.882229, 116.406626)));
+            mockWebServer.enqueue(jsonMockResponse(drivingRouteResponse()));
+
+            Map<String, Object> result = tencentMapService.planRoute("故宫", "天坛", "北京", "北京", "driving");
+
+            assertThat(result).containsEntry("distance", 15000.0);
+            assertThat(result).containsEntry("duration", 2400);
+            assertThat(result).containsEntry("route_type", "driving");
+
+            RecordedRequest routeRequest = findRouteRequest();
+            assertThat(routeRequest.getPath()).contains("/ws/direction/v1/driving");
+        }
+
+        @Test
+        @DisplayName("planRoute - transit mode returns distance and duration")
+        void planRoute_transit_returnsDistanceAndDuration() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.882229, 116.406626)));
+            mockWebServer.enqueue(jsonMockResponse(transitRouteResponse()));
+
+            Map<String, Object> result = tencentMapService.planRoute("故宫", "天坛", "北京", "北京", "transit");
+
+            assertThat(result).containsEntry("distance", 18000.0);
+            assertThat(result).containsEntry("duration", 5400);
+            assertThat(result).containsEntry("route_type", "transit");
+
+            RecordedRequest routeRequest = findRouteRequest();
+            assertThat(routeRequest.getPath()).contains("/ws/direction/v1/transit");
+            assertThat(routeRequest.getPath()).contains("city=");
+        }
+
+        @Test
+        @DisplayName("planRoute - default mode uses walking")
+        void planRoute_defaultMode_usesWalking() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.882229, 116.406626)));
+            mockWebServer.enqueue(jsonMockResponse(walkingRouteResponse()));
+
+            Map<String, Object> result = tencentMapService.planRoute("故宫", "天坛", "北京", "北京", "unknown");
+
+            assertThat(result).containsEntry("route_type", "unknown");
+
+            RecordedRequest routeRequest = findRouteRequest();
+            assertThat(routeRequest.getPath()).contains("/ws/direction/v1/walking");
+        }
+
+        @Test
+        @DisplayName("planRoute - origin geocode failure returns empty map")
+        void planRoute_originGeocodeFailure_returnsEmptyMap() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeEmptyResponse()));
+
+            Map<String, Object> result = tencentMapService.planRoute("invalid-origin", "天坛", "北京", "北京", "driving");
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("planRoute - destination geocode failure returns empty map")
+        void planRoute_destinationGeocodeFailure_returnsEmptyMap() {
+            mockWebServer.enqueue(jsonMockResponse(geocodeResponse(39.916527, 116.397128)));
+            mockWebServer.enqueue(jsonMockResponse(geocodeEmptyResponse()));
+
+            Map<String, Object> result = tencentMapService.planRoute("故宫", "invalid-dest", "北京", "北京", "driving");
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("getPoiDetail")
+    class GetPoiDetailTests {
+
+        @Test
+        @DisplayName("getPoiDetail - success returns detail map")
+        void getPoiDetail_success_returnsDetailMap() {
+            mockWebServer.enqueue(jsonMockResponse(poiDetailResponse()));
+
+            Map<String, Object> result = tencentMapService.getPoiDetail("POI001");
+
+            assertThat(result).isNotEmpty();
+            assertThat(result).containsEntry("id", "POI001");
+            assertThat(result).containsEntry("title", "故宫博物院");
+
+            RecordedRequest request = takeRequest();
+            assertThat(request.getPath()).contains("/ws/place/v1/detail");
+            assertThat(request.getPath()).contains("id=POI001");
+        }
+
+        @Test
+        @DisplayName("getPoiDetail - error returns empty map")
+        void getPoiDetail_error_returnsEmptyMap() {
+            mockWebServer.enqueue(new MockResponse().setResponseCode(500));
+
+            Map<String, Object> result = tencentMapService.getPoiDetail("INVALID");
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("getPoiDetail - missing data node returns empty map")
+        void getPoiDetail_missingDataNode_returnsEmptyMap() {
+            mockWebServer.enqueue(jsonMockResponse("{\"status\":0}"));
+
+            Map<String, Object> result = tencentMapService.getPoiDetail("POI001");
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("reset")
+    class ResetTests {
+
+        @Test
+        @DisplayName("reset - does not throw exception")
+        void reset_doesNotThrowException() {
+            assertThatCode(() -> tencentMapService.reset()).doesNotThrowAnyException();
+        }
+    }
+
+    private RecordedRequest takeRequest() {
+        try {
+            return mockWebServer.takeRequest();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while waiting for request", e);
+        }
+    }
+
+    private RecordedRequest findRouteRequest() {
+        for (int i = 0; i < 3; i++) {
+            RecordedRequest request = takeRequest();
+            if (request.getPath().contains("/ws/direction/")) {
+                return request;
+            }
+        }
+        throw new AssertionError("No route request found");
+    }
+}
