@@ -1,0 +1,109 @@
+import { delay, http, HttpResponse } from 'msw'
+import { mockTripPlanResponse } from './mockData'
+
+const taskId = 'mock1234'
+
+export const handlers = [
+  http.get('*/health', () => {
+    return HttpResponse.json({
+      status: 'healthy',
+      service: 'HelloAgents智能旅行助手',
+      version: '2.0.0',
+    })
+  }),
+
+  http.post('*/api/trip/plan', async ({ request }) => {
+    const body = await request.json()
+
+    console.log('[MSW] 命中 Mock：POST /api/trip/plan')
+    console.log('[MSW] 请求参数：', body)
+
+    await delay(800)
+
+    return HttpResponse.json({
+      task_id: taskId,
+      plan_id: taskId,
+      status: 'processing',
+      ws_url: `/api/trip/ws/${taskId}`,
+      message: 'Mock 任务已提交',
+    })
+  }),
+
+  http.get('*/api/trip/status/:taskId', async () => {
+    console.log('[MSW] 命中 Mock：GET /api/trip/status/:taskId')
+
+    await delay(800)
+
+    return HttpResponse.json({
+      task_id: taskId,
+      plan_id: taskId,
+      status: 'completed',
+      result: mockTripPlanResponse,
+    })
+  }),
+
+  http.get('*/api/trip/history', () => {
+    return HttpResponse.json({
+      items: [
+        {
+          plan_id: taskId,
+          task_id: taskId,
+          city: '北京',
+          start_date: '2026-06-01',
+          end_date: '2026-06-03',
+          travel_days: 3,
+          updated_at: new Date().toISOString(),
+          overall_suggestions: '建议提前预约热门景点。',
+        },
+      ],
+    })
+  }),
+
+  http.get('*/api/poi/photo', ({ request }) => {
+    const url = new URL(request.url)
+    const name = url.searchParams.get('name') || '景点'
+
+    return HttpResponse.json({
+      success: true,
+      message: '获取图片成功',
+      data: {
+        name,
+        photo_url: `https://picsum.photos/seed/${encodeURIComponent(name)}/800/600`,
+      },
+    })
+  }),
+
+  http.post('*/api/chat/ask', () => {
+    return HttpResponse.json({
+      success: true,
+      reply: '这是 Mock AI 回复：这个行程整体预算约 1540 元，适合第一次来北京的游客。',
+    })
+  }),
+
+  http.get('*/api/settings', () => {
+    return HttpResponse.json({
+      success: true,
+      message: 'ok',
+      data: {
+        vite_amap_web_key: '',
+        vite_amap_web_js_key: '',
+        google_maps_api_key: '',
+        google_maps_proxy: '',
+        xhs_cookie: '',
+        openai_api_key: '',
+        openai_base_url: '',
+        openai_model: '',
+      },
+    })
+  }),
+
+  http.put('*/api/settings', async ({ request }) => {
+    const body = await request.json()
+
+    return HttpResponse.json({
+      success: true,
+      message: '配置已保存并立即生效',
+      data: body,
+    })
+  }),
+]

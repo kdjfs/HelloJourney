@@ -1,0 +1,1041 @@
+/* ---------- Result Page Layout ---------- */
+.result-container {
+  min-height: 100dvh;
+  background:
+    #05101b;
+  position: relative;
+  padding-bottom: 120px;
+}
+
+.result-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+  background: #05101b;
+}
+
+.result-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+  background: #05101b;
+}
+
+.lower-shade {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(1200px 800px at 50% 0%, rgba(66, 103, 178, 0.18), transparent 65%),
+    var(--bg-lower, #05101b);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.result-main {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+}
+
+.content-wrapper {
+  position: relative;
+}
+
+/* ---------- Top Switch Nav ---------- */
+.top-switch-nav {
+  position: sticky;
+  top: 16px;
+  z-index: 50;
+  margin-bottom: 24px;
+}
+
+.top-switch-menu-wrap {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 6px 8px;
+  display: inline-flex;
+}
+
+.nav-pill {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  border: none;
+  padding: 7px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s;
+  white-space: nowrap;
+}
+
+.nav-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-pill.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- Section Shellless ---------- */
+.section-shellless {
+  background: rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 18px !important;
+  overflow: hidden;
+}
+
+/* ---------- Budget Card (remove default padding) ---------- */
+.budget-card.section-shellless {
+  background: transparent !important;
+  backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ---------- Overview Swiper ---------- */
+.overview-swiper {
+  position: relative;
+  width: 100%;
+  height: 520px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg-overview, #021124);
+  border-radius: 18px 18px 0 0;
+}
+
+.overview-swiper-track {
+  display: flex;
+  height: 100%;
+  padding: 0 32px;
+  gap: 24px;
+}
+
+.overview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 28px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Overview Slide Card ---------- */
+.overview-slide {
+  flex-shrink: 0;
+  width: 260px;
+  height: 100%;
+  padding: 60px 0 40px;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  transition: width 0.35s ease, filter 0.3s ease, opacity 0.3s ease;
+}
+
+.overview-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 20px;
+  transition: transform 0.3s ease;
+}
+
+.overview-slide:hover img {
+  transform: scale(1.04);
+}
+
+.overview-slide.overview-slide-active {
+  width: 360px;
+}
+
+.overview-slide:not(.overview-slide-active) {
+  opacity: 0.55;
+  filter: brightness(0.65);
+}
+
+.overview-slide:not(.overview-slide-active):hover {
+  opacity: 0.85;
+}
+
+.overview-slide-img {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 0 0 18px 18px;
+}
+
+.overview-slide-img img {
+  display: block;
+}
+
+.overview-shape {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: auto;
+  z-index: 1;
+}
+
+.shape-fill {
+  fill: var(--bg-overview, #021124);
+}
+
+.overview-slide-content {
+  position: relative;
+  z-index: 2;
+  padding: 24px 18px 12px;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  width: 100%;
+}
+
+.overview-slide-content h2 {
+  font-size: 21px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.overview-slide-content p {
+  font-size: 13px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.overview-slide:not(.overview-slide-active) .overview-slide-content {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.overview-slide-active .overview-slide-content {
+  opacity: 1;
+}
+
+.show-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  margin-top: 10px;
+  transition: background 0.2s;
+}
+
+.show-more:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.show-more svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Attraction Card (inside TripDayCard) ---------- */
+.attraction-card {
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.attraction-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.attraction-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  background: #f0f0f0;
+}
+
+.attraction-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attraction-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.badge-number {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.price-tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(245, 89, 61, 0.9);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+}
+
+.hotel-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.day-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- Weather Dashboard ---------- */
+.weather-section-card {
+  border-radius: 18px !important;
+  overflow: hidden;
+}
+
+.weather-dashboard {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  min-height: 400px;
+}
+
+@media (max-width: 768px) {
+  .weather-dashboard {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+}
+
+.weather-side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 30px 28px 24px;
+  color: #fff;
+  overflow: hidden;
+  min-height: 380px;
+}
+
+.weather-gradient {
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  pointer-events: none;
+}
+
+.weather-side .date-container {
+  position: relative;
+  z-index: 1;
+}
+
+.date-dayname {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.date-day {
+  display: block;
+  font-size: 14px;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+
+.location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.location-icon {
+  display: inline-flex;
+}
+
+.weather-container {
+  position: relative;
+  z-index: 1;
+  text-align: left;
+}
+
+.weather-temp {
+  margin: 8px 0 4px;
+  font-size: 64px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.weather-desc {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* Weather Info Side */
+.weather-info-side {
+  padding: 24px 24px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+}
+
+.week-container ul {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+}
+
+.week-container li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.week-container li:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.week-container li.active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.day-name {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.day-temp {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.today-info-container {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.today-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.today-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wea-title {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.today-info-item .value {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ---------- Knowledge Graph ---------- */
+.kg-card {
+  border-radius: 18px !important;
+}
+
+.kg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 0 16px;
+}
+
+/* ---------- Back Top ---------- */
+.back-top-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.back-top-button:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ========== WEATHER ICON CSS ========== */
+
+.weather-hero-icon {
+  position: relative;
+  width: 130px;
+  height: 130px;
+}
+
+.weather-icon--small {
+  width: 42px;
+  height: 42px;
+}
+
+.weather-icon {
+  position: relative;
+}
+
+/* ---------- Sunny ---------- */
+.weather-icon .sun {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #ffd700;
+  box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.3);
+  animation: pulse 2s infinite alternate;
+}
+
+.weather-icon .rays {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16%;
+  height: 20%;
+  background: #ffd700;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 5px #ffd700,
+    0 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.2); }
+  100% { box-shadow: 0 0 35px 10px rgba(255, 215, 0, 0.35); }
+}
+
+/* ---------- Cloud ---------- */
+.weather-icon .cloud {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 40%;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.weather-icon .cloud::before,
+.weather-icon .cloud::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+
+.weather-icon .cloud::before {
+  width: 60%;
+  height: 100%;
+  top: -50%;
+  left: 10%;
+}
+
+.weather-icon .cloud::after {
+  width: 40%;
+  height: 80%;
+  top: -35%;
+  right: 10%;
+}
+
+/* ---------- Rain ---------- */
+.weather-icon .rain {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  width: 4px;
+  height: 25%;
+  background: #89cff0;
+  border-radius: 0 0 5px 5px;
+  animation: rainFall 0.8s infinite linear;
+  box-shadow:
+    16px 5px 0 -2px #89cff0,
+    -16px 10px 0 -3px #89cff0,
+    30px 15px 0 -2px #89cff0,
+    -30px 0px 0 -2px #89cff0;
+}
+
+@keyframes rainFall {
+  0% { transform: translate(-50%, 0); opacity: 0.6; }
+  100% { transform: translate(-50%, 60%); opacity: 0; }
+}
+
+/* ---------- Lightning ---------- */
+.weather-icon .lightning {
+  position: absolute;
+  top: 55%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.weather-icon .bolt {
+  width: 3px;
+  height: 35%;
+  background: #ffd700;
+  position: absolute;
+  border-radius: 4px;
+  animation: flash 1.5s infinite;
+}
+
+.weather-icon .bolt:first-child {
+  left: -8px;
+  animation-delay: 0s;
+}
+
+.weather-icon .bolt:last-child {
+  left: 5px;
+  animation-delay: 0.75s;
+}
+
+@keyframes flash {
+  0%, 20%, 40%, 100% { opacity: 0; }
+  10%, 30% { opacity: 1; box-shadow: 0 0 10px 2px rgba(255, 215, 0, 0.6); }
+}
+
+/* ---------- Snow ---------- */
+.weather-icon .snow {
+  position: absolute;
+  top: 55%;
+  left: 50%;
+}
+
+.weather-icon .flake {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: #fff;
+  border-radius: 50%;
+  animation: snowFall 1.5s infinite linear;
+}
+
+.weather-icon .flake:first-child {
+  left: -10px;
+  animation-delay: 0s;
+}
+
+.weather-icon .flake:last-child {
+  left: 8px;
+  animation-delay: 0.75s;
+}
+
+@keyframes snowFall {
+  0% { transform: translateY(0); opacity: 0.9; }
+  100% { transform: translateY(40px); opacity: 0; }
+}
+
+/* Small icon adjustments */
+.weather-icon--small .sun {
+  box-shadow: 0 0 8px 2px rgba(255, 215, 0, 0.2);
+}
+
+.weather-icon--small .rain {
+  animation: rainFallSmall 0.6s infinite linear;
+}
+
+@keyframes rainFallSmall {
+  0% { transform: translate(-50%, 0); opacity: 0.6; }
+  100% { transform: translate(-50%, 20px); opacity: 0; }
+}
+
+/* ========== AI CHAT FLOATING ========== */
+
+.ai-chat-floating {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  font-family: inherit;
+}
+
+.container-ai-chat {
+  position: relative;
+  width: 300px;
+}
+
+/* ---------- Chat History ---------- */
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.chat-bot {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chat-history {
+  flex: 1;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 14px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-empty {
+  text-align: center;
+  padding: 20px 8px;
+}
+
+.chat-empty p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.chat-suggestion {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.chat-suggestion:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.chat-suggestion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-msg {
+  max-width: 85%;
+  padding: 8px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.chat-msg.user {
+  align-self: flex-end;
+  background: rgba(66, 103, 178, 0.45);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-msg.assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom-left-radius: 4px;
+}
+
+/* Typing indicator */
+.chat-msg.typing {
+  display: flex;
+  gap: 4px;
+  padding: 10px 18px;
+}
+
+.chat-msg.typing .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  animation: typingBounce 1.4s infinite both;
+}
+
+.chat-msg.typing .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chat-msg.typing .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+}
+
+/* ---------- Chat Input ---------- */
+.options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.options textarea {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  height: 40px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.options textarea:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.options textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.options textarea:disabled {
+  opacity: 0.4;
+}
+
+.btns-add {
+  display: none;
+}
+
+.btn-submit {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, opacity 0.2s;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background: rgba(66, 103, 178, 0.6);
+}
+
+.btn-submit:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn-submit svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- Cat Owl Face (closed state) ---------- */
+.container-wrap {
+  position: relative;
+}
+
+.container-wrap .card {
+  position: relative;
+}
+
+.background-blur-balls {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.balls {
+  position: absolute;
+  inset: 0;
+}
+
+.ball {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  filter: blur(10px);
+  animation: ballFloat 4s infinite ease-in-out;
+}
+
+.ball.rosa {
+  background: rgba(245, 89, 61, 0.35);
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.ball.violet {
+  background: rgba(127, 90, 240, 0.3);
+  top: 60%;
+  right: 15%;
+  animation-delay: -1.5s;
+}
+
+.ball.green {
+  background: rgba(46, 213, 115, 0.25);
+  bottom: 15%;
+  left: 20%;
+  animation-delay: -3s;
+}
+
+.ball.cyan {
+  background: rgba(72, 219, 251, 0.25);
+  top: 30%;
+  right: 25%;
+  animation-delay: -0.8s;
+}
+
+@keyframes ballFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-8px) scale(1.1); }
+}
+
+.content-card {
+  position: relative;
+  width: 70px;
+  height: 70px;
+}
+
+.background-blur-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eyes {
+  display: flex;
+  gap: 10px;
+  transition: opacity 0.3s;
+}
+
+.eye {
+  width: 12px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  position: relative;
+  animation: blink 3s infinite;
+}
+
+.eye::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  background: #05101b;
+  border-radius: 50%;
+}
+
+.eyes.happy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.3s;
+}
+
+.eyes.happy svg {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes blink {
+  0%, 45%, 55%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.1); }
+}
