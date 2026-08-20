@@ -431,6 +431,9 @@ public class TripController {
             String startDate = (String) plan.getOrDefault("start_date", requestPayload.getOrDefault("start_date", ""));
             String endDate = (String) plan.getOrDefault("end_date", requestPayload.getOrDefault("end_date", ""));
             String overallSuggestions = (String) plan.getOrDefault("overall_suggestions", result.getOrDefault("message", ""));
+            int travelDays = requestPayload.get("travel_days") instanceof Number number
+                    ? number.intValue()
+                    : plan.get("days") instanceof List<?> days ? days.size() : 0;
 
             if ((city == null || city.isEmpty()) && cities.isEmpty()) return null;
 
@@ -444,6 +447,7 @@ public class TripController {
             item.put("cities", cities);
             item.put("start_date", startDate);
             item.put("end_date", endDate);
+            item.put("travel_days", travelDays);
             item.put("updated_at", updatedAt);
             item.put("overall_suggestions", overallSuggestions);
             return item;
