@@ -87,8 +87,8 @@ class AppSettingsTest {
             AppSettings.LlmProviderProps props = new AppSettings.LlmProviderProps();
             props.setName("DeepSeek");
             props.setApiKey("sk-ds");
-            props.setBaseUrl("https://api.deepseek.com/v1");
-            props.setModel("deepseek-chat");
+            props.setBaseUrl("https://api.deepseek.com");
+            props.setModel("deepseek-v4-pro");
             settings.getLlm().getProviders().put("deepseek", props);
 
             LlmProviderConfig config = settings.getLlm().getActiveProviderConfig();

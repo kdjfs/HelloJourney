@@ -51,6 +51,8 @@ public class AppSettings {
     public static class LlmConfig {
         private String activeProvider = "openai";
         private int timeout = 60;
+        private int maxRetries = 2;
+        private long retryBaseDelayMs = 250;
         private Map<String, LlmProviderProps> providers = new LinkedHashMap<>();
 
         public LlmProviderConfig getActiveProviderConfig() {

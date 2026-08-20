@@ -32,13 +32,15 @@ app:
 
   llm:
     active-provider: ${LLM_ACTIVE_PROVIDER:deepseek}
-    timeout: ${LLM_TIMEOUT:60}
+    timeout: ${LLM_TIMEOUT:120}
+    max-retries: ${LLM_MAX_RETRIES:2}
+    retry-base-delay-ms: ${LLM_RETRY_BASE_DELAY_MS:250}
     providers:
       deepseek:
         name: DeepSeek
         api-key: ${LLM_DEEPSEEK_API_KEY:}
-        base-url: ${LLM_DEEPSEEK_BASE_URL:https://api.deepseek.com/v1}
-        model: ${LLM_DEEPSEEK_MODEL:deepseek-chat}
+        base-url: ${LLM_DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        model: ${LLM_DEEPSEEK_MODEL:deepseek-v4-pro}
       glm:
         name: GLM (智谱)
         api-key: ${LLM_GLM_API_KEY:}

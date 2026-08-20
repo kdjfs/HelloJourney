@@ -1,197 +1,193 @@
 package com.hellojourney.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hellojourney.config.AppSettings;
+import com.hellojourney.model.llm.LlmApiException;
+import com.hellojourney.model.llm.LlmChatRequest;
+import com.hellojourney.model.llm.LlmChatResult;
+import com.hellojourney.model.llm.LlmMessage;
 import com.hellojourney.util.TestDataFactory;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.io.TempDir;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LlmServiceTest {
 
-    private MockWebServer mockWebServer;
+    private MockWebServer server;
     private AppSettings appSettings;
     private ObjectMapper objectMapper;
-    private LlmService llmService;
-
-    @TempDir
-    Path tempDir;
+    private LlmService service;
 
     @BeforeEach
     void setUp() throws IOException {
-        mockWebServer = new MockWebServer();
-        mockWebServer.start();
+        server = new MockWebServer();
+        server.start();
         appSettings = TestDataFactory.buildAppSettings();
         objectMapper = new ObjectMapper();
-
-        String baseUrl = mockWebServer.url("/v1").toString();
-        appSettings.getLlm().getProviders().get("openai").setBaseUrl(baseUrl.replaceAll("/$", ""));
-
-        llmService = new LlmService(appSettings, objectMapper);
+        var provider = appSettings.getLlm().getProviders().get("openai");
+        provider.setName("DeepSeek");
+        provider.setApiKey("test-only-api-key");
+        provider.setBaseUrl(server.url("/").toString().replaceAll("/$", ""));
+        provider.setModel("deepseek-v4-pro");
+        appSettings.getLlm().setMaxRetries(1);
+        appSettings.getLlm().setRetryBaseDelayMs(1);
+        service = new LlmService(appSettings, objectMapper);
     }
 
     @AfterEach
     void tearDown() throws IOException {
-        mockWebServer.shutdown();
+        server.shutdown();
     }
 
-    private List<Map<String, String>> defaultMessages() {
-        return List.of(
-                Map.of("role", "system", "content", "test"),
-                Map.of("role", "user", "content", "hello")
-        );
+    @Test
+    void complete_usesV4ProtocolAndReturnsMetadata() throws Exception {
+        server.enqueue(jsonResponse(200, """
+                {
+                  "id":"chatcmpl-request-123",
+                  "model":"deepseek-v4-pro",
+                  "choices":[{"index":0,"finish_reason":"stop","message":{
+                    "role":"assistant","content":"北京三日行程", "reasoning_content":"private reasoning"
+                  }}],
+                  "usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28,
+                    "prompt_cache_hit_tokens":5,"prompt_cache_miss_tokens":15}
+                }
+                """).addHeader("x-request-id", "gateway-request-456"));
+
+        LlmChatResult result = service.complete(LlmChatRequest.builder()
+                .messages(List.of(LlmMessage.system("请规划行程"), LlmMessage.user("北京三天")))
+                .maxTokens(1024)
+                .build());
+
+        assertThat(result.content()).isEqualTo("北京三日行程");
+        assertThat(result.reasoningContent()).isEqualTo("private reasoning");
+        assertThat(result.model()).isEqualTo("deepseek-v4-pro");
+        assertThat(result.responseId()).isEqualTo("chatcmpl-request-123");
+        assertThat(result.requestId()).isEqualTo("gateway-request-456");
+        assertThat(result.finishReason()).isEqualTo("stop");
+        assertThat(result.usage().getTotalTokens()).isEqualTo(28);
+
+        RecordedRequest recorded = server.takeRequest(1, TimeUnit.SECONDS);
+        assertThat(recorded).isNotNull();
+        assertThat(recorded.getPath()).isEqualTo("/chat/completions");
+        assertThat(recorded.getHeader("Authorization")).isEqualTo("Bearer test-only-api-key");
+        JsonNode payload = objectMapper.readTree(recorded.getBody().readUtf8());
+        assertThat(payload.path("model").asText()).isEqualTo("deepseek-v4-pro");
+        assertThat(payload.path("thinking").path("type").asText()).isEqualTo("enabled");
+        assertThat(payload.path("reasoning_effort").asText()).isEqualTo("high");
+        assertThat(payload.has("temperature")).isFalse();
     }
 
-    @Nested
-    @DisplayName("Chat with valid response")
-    class ValidResponse {
+    @Test
+    void complete_retriesRateLimitThenSucceeds() throws Exception {
+        server.enqueue(jsonResponse(429, "{\"error\":{\"message\":\"slow down\",\"code\":\"rate_limit\"}}"));
+        server.enqueue(successResponse("ok"));
 
-        @Test
-        @DisplayName("Valid response returns content")
-        void chat_validResponse_returnsContent() throws IOException {
-            String jsonBody = TestDataFactory.buildLlmChatResponse("你好！有什么可以帮你的？");
-            mockWebServer.enqueue(new MockResponse()
-                    .setBody(jsonBody)
-                    .setResponseCode(200)
-                    .addHeader("Content-Type", "application/json"));
+        LlmChatResult result = service.complete(defaultRequest());
 
-            String result = llmService.chat(defaultMessages(), 0.7, 1024);
-
-            assertThat(result).isEqualTo("你好！有什么可以帮你的？");
-        }
+        assertThat(result.content()).isEqualTo("ok");
+        assertThat(server.getRequestCount()).isEqualTo(2);
     }
 
-    @Nested
-    @DisplayName("Chat with HTTP error")
-    class HttpError {
+    @Test
+    void complete_doesNotRetryAuthenticationFailureOrExposeProviderBody() {
+        server.enqueue(jsonResponse(401, "{\"error\":{\"message\":\"bad test-only-api-key\",\"code\":\"auth\"}}"));
 
-        @Test
-        @DisplayName("HTTP error throws IOException")
-        void chat_httpError_throwsIOException() {
-            mockWebServer.enqueue(new MockResponse().setResponseCode(500));
-
-            assertThatThrownBy(() -> llmService.chat(defaultMessages(), 0.7, 1024))
-                    .isInstanceOf(IOException.class)
-                    .hasMessageContaining("LLM API error");
-        }
+        assertThatThrownBy(() -> service.complete(defaultRequest()))
+                .isInstanceOf(LlmApiException.class)
+                .satisfies(error -> {
+                    LlmApiException apiError = (LlmApiException) error;
+                    assertThat(apiError.getStatusCode()).isEqualTo(401);
+                    assertThat(apiError.isRetryable()).isFalse();
+                    assertThat(apiError.getMessage()).doesNotContain("test-only-api-key");
+                    assertThat(apiError.getMessage()).doesNotContain("bad");
+                });
+        assertThat(server.getRequestCount()).isEqualTo(1);
     }
 
-    @Nested
-    @DisplayName("Chat with null response body")
-    class NullResponseBody {
+    @Test
+    void legacyChat_returnsOnlyFinalContent() throws Exception {
+        server.enqueue(successResponse("final only"));
 
-        @Test
-        @DisplayName("Null response body throws IOException")
-        void chat_nullResponseBody_throwsIOException() throws IOException {
-            mockWebServer.enqueue(new MockResponse()
-                    .setResponseCode(200)
-                    .setBody("")
-                    .addHeader("Content-Type", "application/json"));
+        String content = service.chat(defaultLegacyMessages(), 0.7, 1024);
 
-            String result = llmService.chat(defaultMessages(), 0.7, 1024);
-
-            assertThat(result).isEmpty();
-        }
+        assertThat(content).isEqualTo("final only");
     }
 
-    @Nested
-    @DisplayName("Chat with timeout")
-    class ChatWithTimeout {
+    @Test
+    void chatWithTimeout_usesCompatibilityEntryPoint() throws Exception {
+        server.enqueue(successResponse("custom timeout"));
 
-        @Test
-        @DisplayName("Custom timeout returns content")
-        void chatWithTimeout_usesCustomTimeout_returnsContent() throws IOException {
-            String jsonBody = TestDataFactory.buildLlmChatResponse("timeout response");
-            mockWebServer.enqueue(new MockResponse()
-                    .setBody(jsonBody)
-                    .setResponseCode(200)
-                    .addHeader("Content-Type", "application/json"));
+        String content = service.chatWithTimeout(defaultLegacyMessages(), 0.7, 1024, 5);
 
-            String result = llmService.chatWithTimeout(defaultMessages(), 0.7, 1024, 30);
-
-            assertThat(result).isEqualTo("timeout response");
-        }
+        assertThat(content).isEqualTo("custom timeout");
     }
 
-    @Nested
-    @DisplayName("No active provider")
-    class NoActiveProvider {
+    @Test
+    void complete_stripsTrailingSlashFromProviderUrl() throws Exception {
+        appSettings.getLlm().getProviders().get("openai")
+                .setBaseUrl(server.url("/v1/").toString());
+        service.reset();
+        server.enqueue(successResponse("ok"));
 
-        @Test
-        @DisplayName("No provider configured throws IOException")
-        void chat_noActiveProvider_throwsIOException() {
-            appSettings.getLlm().getProviders().clear();
+        service.complete(defaultRequest());
 
-            assertThatThrownBy(() -> llmService.chat(defaultMessages(), 0.7, 1024))
-                    .isInstanceOf(IOException.class)
-                    .hasMessageContaining("未配置API Key");
-        }
+        assertThat(server.takeRequest(1, TimeUnit.SECONDS).getPath())
+                .isEqualTo("/v1/chat/completions");
     }
 
-    @Nested
-    @DisplayName("Provider not available")
-    class ProviderNotAvailable {
+    @Test
+    void reset_reinitializesClientAndKeepsServiceUsable() throws Exception {
+        service.reset();
+        server.enqueue(successResponse("after reset"));
 
-        @Test
-        @DisplayName("Provider exists but no API key throws IOException")
-        void chat_providerNotAvailable_throwsIOException() {
-            appSettings.getLlm().getProviders().get("openai").setApiKey("");
-
-            assertThatThrownBy(() -> llmService.chat(defaultMessages(), 0.7, 1024))
-                    .isInstanceOf(IOException.class)
-                    .hasMessageContaining("未配置API Key");
-        }
+        assertThat(service.complete(defaultRequest()).content()).isEqualTo("after reset");
     }
 
-    @Nested
-    @DisplayName("Reset client")
-    class Reset {
+    @Test
+    void complete_rejectsMissingProviderCredentialWithoutNetworkCall() {
+        appSettings.getLlm().getProviders().get("openai").setApiKey("");
 
-        @Test
-        @DisplayName("Reset reinitializes client without exception")
-        void reset_reinitializesClient() {
-            llmService.reset();
-
-            assertThatNoException();
-        }
-
-        private static void assertThatNoException() {
-        }
+        assertThatThrownBy(() -> service.complete(defaultRequest()))
+                .isInstanceOf(LlmApiException.class)
+                .hasMessageContaining("未配置");
+        assertThat(server.getRequestCount()).isZero();
     }
 
-    @Nested
-    @DisplayName("URL trailing slash")
-    class TrailingSlash {
+    private LlmChatRequest defaultRequest() {
+        return LlmChatRequest.builder()
+                .messages(List.of(LlmMessage.user("hello")))
+                .maxTokens(256)
+                .build();
+    }
 
-        @Test
-        @DisplayName("Trailing slash stripped in URL")
-        void chat_urlTrailingSlash_stripped() throws Exception {
-            String baseUrl = mockWebServer.url("/v1/").toString();
-            appSettings.getLlm().getProviders().get("openai").setBaseUrl(baseUrl);
-            llmService.reset();
+    private List<Map<String, String>> defaultLegacyMessages() {
+        return List.of(Map.of("role", "user", "content", "hello"));
+    }
 
-            String jsonBody = TestDataFactory.buildLlmChatResponse("ok");
-            mockWebServer.enqueue(new MockResponse()
-                    .setBody(jsonBody)
-                    .setResponseCode(200)
-                    .addHeader("Content-Type", "application/json"));
+    private MockResponse successResponse(String content) {
+        return jsonResponse(200, """
+                {"id":"id-1","model":"deepseek-v4-pro",
+                 "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"%s"}}],
+                 "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
+                """.formatted(content));
+    }
 
-            String result = llmService.chat(defaultMessages(), 0.7, 1024);
-
-            assertThat(result).isEqualTo("ok");
-
-            String recordedPath = mockWebServer.takeRequest().getPath();
-            assertThat(recordedPath).doesNotContain("//chat");
-            assertThat(recordedPath).endsWith("/chat/completions");
-        }
+    private MockResponse jsonResponse(int status, String body) {
+        return new MockResponse()
+                .setResponseCode(status)
+                .addHeader("Content-Type", "application/json")
+                .setBody(body);
     }
 }
