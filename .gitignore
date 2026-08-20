@@ -17,6 +17,7 @@ dist-ssr
 !.env.production.example
 runtime_settings.json
 **/runtime_settings.json
+/data/
 
 # Editor directories and files
 .vscode/*
