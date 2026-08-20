@@ -62,6 +62,13 @@ public class PoiController {
             @Parameter(name = "name", description = "景点名称", required = true) @RequestParam String name,
             @Parameter(name = "city", description = "城市名称", required = true) @RequestParam String city,
             @Parameter(name = "poiId", description = "已有POI ID") @RequestParam(required = false) String poiId) {
+        if (name.isBlank() || name.length() > 80 || city.isBlank() || city.length() > 80
+                || poiId != null && poiId.length() > 128) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "景点名称、城市或 POI ID 参数无效"
+            ));
+        }
         try {
             var data = attractionImageService.resolveImage(name, city, poiId);
             Map<String, Object> response = new LinkedHashMap<>();

@@ -124,4 +124,12 @@ class PoiControllerTest {
         mockMvc.perform(get("/api/poi/photo").param("name", "广州塔"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void getAttractionPhoto_blankName_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/poi/photo")
+                        .param("name", " ")
+                        .param("city", "广州"))
+                .andExpect(status().isBadRequest());
+    }
 }
