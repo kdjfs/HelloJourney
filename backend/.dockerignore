@@ -1,0 +1,7 @@
+target
+.idea
+.git
+.env
+runtime_settings.json
+data
+*.log

@@ -9,7 +9,7 @@
 [![WeChat Mini Program](https://img.shields.io/badge/WeChat-小程序-07c160.svg)](https://developers.weixin.qq.com/miniprogram/dev/framework/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178c6.svg)](https://www.typescriptlang.org/)
 
-**HelloJourney（HelloAgents 智能旅行助手）** 是一款基于大语言模型（LLM）的 AI 旅行规划平台。输入目的地、偏好和预算，系统自动利用小红书真实游记数据、地图服务和知识图谱，生成完整的个性化旅行方案。项目提供 **Web 端**（React）和 **微信小程序**（UniApp）双端体验。
+**HelloJourney** 是一个可验证、可编辑、可局部重新规划、可撤销的 AI Travel Workspace。系统通过原生 Tool Calling 调用地图与天气能力，用结构化输出和 Review Agent 约束行程质量，并提供 **Web 端**（React）和 **微信小程序**（UniApp）体验。
 
 ## 功能特性
 
@@ -27,12 +27,13 @@
 | 多 LLM 供应商 | ✅ 完成 | 支持 DeepSeek、OpenAI、GLM、豆包、Kimi、Grok、MiniMax、阿里百炼、硅基流动等 9 种模型 |
 | AI 上下文对话 | ✅ 完成 | 基于旅行计划上下文的智能问答，浮动聊天面板 + 快捷问题按钮 |
 | WebSocket 实时推送 | ✅ 完成 | 任务进度实时推送，支持 BlockingQueue 订阅和自动重连 |
-| 运行时配置管理 | ✅ 完成 | 前后端动态配置 API Key、供应商切换，持久化到 `runtime_settings.json` |
+| 安全配置状态 | ✅ 完成 | Web 端仅查看 Provider 是否已配置；Secret 写入默认关闭并受独立管理令牌保护 |
 | 异步任务系统 | ✅ 完成 | 旅行规划异步执行，支持状态轮询和 WebSocket 双模式获取进度 |
-| 多重 JSON 容错 | ✅ 完成 | LLM 输出 JSON 自动修复：去注释、修标点、补括号、修引号、LLM 修复兜底 |
+| Structured Output | ✅ 完成 | JSON Schema、DTO 与业务规则三层校验，有限次数自动修复 |
+| 可编辑工作区 | ✅ 完成 | 景点增删改、跨天移动、草稿、撤销/重做、AI Change Set 预览 |
 | 历史记录 | ✅ 完成 | 展示最近 8 条历史计划，支持刷新和跳转查看 |
 | 预算面板 | ✅ 完成 | 总额 + 景点/酒店/餐饮/交通四项分类展示 |
-| 暗色主题 UI | ✅ 完成 | 全站暗色毛玻璃风格，Hero 视差滚动 + 云层/雾气动画 |
+| 响应式 UI | ✅ 完成 | Travel Workspace、来源标签、Agent Timeline 与移动端布局 |
 | Mock 开发环境 | ✅ 完成 | MSW 完整 Mock 7 个 API 端点，支持 `VITE_USE_MOCK=true` 开关 |
 | 后端单元测试 | ✅ 完成 | JUnit 5 + Mockito 覆盖 Controller/Service/Agent/WebSocket 各层 |
 | 微信小程序端 | ✅ 完成 | UniApp + Vue 3 实现，支持行程规划/结果查看/历史记录/设置四大页面 |
@@ -55,7 +56,7 @@
 | 3 | 🔐 用户认证与授权 | 实现用户注册/登录、OAuth 第三方登录，支持个人行程管理和隐私保护 |
 | 4 | 📤 行程分享与导出 | 支持生成分享链接、导出 PDF/图片行程单，方便离线查看和社交分享 |
 | 5 | ⚙️ 前端设置页面 | 实现 API Key、LLM 供应商、地图服务等配置的 UI 管理界面（后端 API 已就绪） |
-| 6 | 🔗 真正的工具调用（Tool Use） | 实现标准 Function Calling 协议，让 LLM 真正调用天气/酒店/POI API 获取实时数据，而非依赖 LLM 编造 |
+| 6 | 🧪 Agent 评测体系 | 建立 Prompt、Tool Calling、结构化输出和路线质量的回归数据集 |
 | 7 | 🌐 Google Maps 代理支持 | 完善 GoogleMapService 的代理配置，使中国大陆用户可正常访问 Google API |
 | 8 | 📱 移动端适配优化 | 完善响应式布局，实现汉堡菜单、触屏手势、PWA 离线支持（微信小程序端已实现基础功能） |
 | 9 | 🤖 多 Agent 协作增强 | 拆分为景点 Agent、酒店 Agent、美食 Agent 等专业子 Agent，支持并行执行和结果融合 |
@@ -107,7 +108,7 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/your-org/HelloJourney.git
+git clone https://github.com/kdjfs/HelloJourney.git
 cd HelloJourney
 ```
 
@@ -127,8 +128,8 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```bash
 cd frontend
 
-# 安装依赖
-npm install
+# 按锁文件安装依赖
+npm ci
 
 # 启动开发服务器
 npm run dev
@@ -138,30 +139,30 @@ npm run dev
 
 ### 4. 配置
 
-后端配置位于 `backend/src/main/resources/application.yml`，核心配置项：
+后端配置全部支持环境变量。复制 `backend/.env.example` 仅作本地模板；Spring Boot 不会自动加载 `.env`。核心配置示例：
 
 ```yaml
 app:
   xhs:
-    cookie: "你的小红书Cookie"          # 用于抓取小红书内容
+    cookie: ${XHS_COOKIE:}              # 可选内容适配器
 
   llm:
     active-provider: deepseek           # 当前使用的 LLM
     providers:
       deepseek:
         name: DeepSeek
-        api-key: "sk-xxxxxxxxxxxxx"
-        base-url: https://api.deepseek.com/v1
-        model: deepseek-chat
+        api-key: ${LLM_DEEPSEEK_API_KEY:}
+        base-url: ${LLM_DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        model: ${LLM_DEEPSEEK_MODEL:deepseek-v4-pro}
 
   tencent-maps:
-    key: "你的腾讯地图KEY"              # 腾讯地图服务
+    key: ${TENCENT_MAPS_KEY:}           # 腾讯地图服务
 
   google-maps:
-    api-key: "你的GoogleMaps API KEY"  # Google Maps 服务（可选）
+    api-key: ${GOOGLE_MAPS_API_KEY:}    # Google Maps 服务（可选）
 ```
 
-也可以通过前端的「设置」页面动态配置，配置会持久化到 `runtime_settings.json`。
+普通前端不会读取或修改服务器 Secret。生产环境默认关闭 `PUT /api/settings`；详细部署与 Secret 管理见 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)。
 
 ### 5. 启动微信小程序端
 

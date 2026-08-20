@@ -10,6 +10,10 @@ export default defineConfig({
     globals: true,
     css: true,
   },
+  build: {
+    // ECharts is isolated behind a lazy route; keep the initial workspace chunks below 300 kB.
+    chunkSizeWarningLimit: 600,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

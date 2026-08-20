@@ -15,7 +15,7 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(appSettings.getCorsOriginsList().toArray(new String[0]))
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("Content-Type", "Authorization", "X-HelloJourney-Admin-Token")
+                .allowedHeaders("Content-Type", "Authorization", "Idempotency-Key", "X-HelloJourney-Admin-Token")
                 .allowCredentials(true);
     }
 }

@@ -14,6 +14,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.production.example
 runtime_settings.json
 **/runtime_settings.json
 

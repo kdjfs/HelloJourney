@@ -1,6 +1,26 @@
 app:
   debug: false
-  cors-origins: https://your-domain.com,https://www.your-domain.com
+  cors-origins: ${CORS_ALLOWED_ORIGINS:https://your-domain.com}
+
+server:
+  forward-headers-strategy: framework
+  shutdown: graceful
+  compression:
+    enabled: true
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 logging:
   level:
