@@ -73,6 +73,32 @@ class AmapAttractionImageProviderTest {
     }
 
     @Test
+    void resolveImage_suffixVariantOfficialName_returnsVerified() {
+        enqueuePoi("长隆野生动物世界", "广州市", "B0FFFYPEE9", "香江野生动物世界",
+                "http://store.is.autonavi.com/showpic/a918f102ea95db24dba028144b854df0");
+
+        AttractionImageResult result = provider.resolveImage("长隆野生动物园", "广州", null);
+
+        assertThat(result.isVerified()).isTrue();
+        assertThat(result.getMatchedName()).isEqualTo("长隆野生动物世界");
+        assertThat(result.getConfidence()).isEqualTo(0.95);
+        assertThat(result.getImageUrl()).isEqualTo(
+                "https://store.is.autonavi.com/showpic/a918f102ea95db24dba028144b854df0");
+    }
+
+    @Test
+    void resolveImage_suffixVariantNationalPrefix_returnsVerified() {
+        enqueuePoi("华南国家植物园", "广州市", "B00141U8TO", "植物园|中国科学院华南植物园",
+                "http://store.is.autonavi.com/showpic/5a4052c4d5cc29c94f986f5e6e75b8a2");
+
+        AttractionImageResult result = provider.resolveImage("华南植物园", "广州", null);
+
+        assertThat(result.isVerified()).isTrue();
+        assertThat(result.getMatchedName()).isEqualTo("华南国家植物园");
+        assertThat(result.getConfidence()).isEqualTo(0.95);
+    }
+
+    @Test
     void resolveImage_similarNameButNotExact_returnsNotFound() {
         enqueuePoi("广州塔蜡像馆", "广州市", "nearby", "", "https://aos-cdn-image.amap.com/wrong.jpg");
 
@@ -95,6 +121,28 @@ class AmapAttractionImageProviderTest {
     @Test
     void resolveImage_unsafePhotoScheme_returnsNotFound() {
         enqueuePoi("广州塔", "广州市", "unsafe", "", "javascript:alert(1)");
+
+        AttractionImageResult result = provider.resolveImage("广州塔", "广州", null);
+
+        assertThat(result.isVerified()).isFalse();
+        assertThat(result.getImageUrl()).isEmpty();
+    }
+
+    @Test
+    void resolveImage_httpAmapCdnPhoto_isUpgradedToHttps() {
+        enqueuePoi("广州塔", "广州市", "B00140WBI1", "",
+                "http://store.is.autonavi.com/showpic/d5b56df50d024cbd33e4e1a16f77d419");
+
+        AttractionImageResult result = provider.resolveImage("广州塔", "广州", null);
+
+        assertThat(result.isVerified()).isTrue();
+        assertThat(result.getImageUrl()).isEqualTo(
+                "https://store.is.autonavi.com/showpic/d5b56df50d024cbd33e4e1a16f77d419");
+    }
+
+    @Test
+    void resolveImage_httpForeignHostPhoto_staysRejected() {
+        enqueuePoi("广州塔", "广州市", "B00140WBI1", "", "http://evil.example.com/guangzhou-tower.jpg");
 
         AttractionImageResult result = provider.resolveImage("广州塔", "广州", null);
 

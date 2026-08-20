@@ -209,3 +209,29 @@ AMAP_API_BASE_URL=https://restapi.amap.com
 - `poiId` 当前作为候选排序依据，严格门禁仍是城市和名称/官方别名准确匹配。后续统一地图 Provider ID 后，可把 `poiId` 升级为强一致条件。
 - 前端首次渲染先显示占位卡，图片验证成功后再替换为真实照片；本期未增加骨架屏。
 - 高德真实线上照片仍需在部署环境配置合法 Web 服务 Key 后完成一次生产前冒烟验证。
+
+## 10. V3.1.1 真实高德 Key 联调修复（2026-08-20 晚）
+
+用户提供真实高德 Web 服务 Key 后，本机完成了第一次真实线上联调，发现并修复三处问题：
+
+1. **docker-compose.dev.yml 未注入高德配置**：V3.1 只修改了 `application.yml`，compose 缺少 `AMAP_API_KEY` / `AMAP_API_BASE_URL` 环境变量。已补上，Docker 部署路线现在可用。
+2. **高德 CDN 照片多为 http 协议**：真实 `v5/place/text` 返回的部分照片（如广州塔）URL 是 `http://store.is.autonavi.com/...`。原实现只接受 HTTPS，导致广州塔等景点全部静默降级为占位卡。现已将高德自有图片域名（`*.is.autonavi.com`、`*.amap.com`）的 http URL 升级为 https（同一 CDN 支持 TLS），外部 http 域名仍拒绝。
+3. **口语后缀变体无法匹配**：真实数据中官方名与口语名存在后缀差异（长隆野生动物园 ↔ 官方「长隆野生动物世界」；华南植物园 ↔ 官方「华南国家植物园」）。新增封闭词表后缀归一化（野生动物园/动物世界/国家植物园/风景名胜区等），仅在剥离后缀后核心名完全一致且非平凡（≥2 字）时接受，置信度 0.95（官方名）/ 0.93（别名）；「广州塔蜡像馆」类相似名称仍被拒绝。
+
+真实 Key 联调证据（本机 8001 验证后端，`AMAP_API_KEY` 已配置）：
+
+| 输入景点 | 结果 | 置信度 | 高德 POI |
+| --- | --- | --- | --- |
+| 广州塔 | verified | 1.0 | B00140WBI1 |
+| 长隆野生动物园 | verified | 0.95 | B00141TJLD |
+| 陈家祠 | verified | 1.0 | B0FFHOSV0F |
+| 北京路步行街 | verified | 1.0 | B00141RH20 |
+| 白云山 / 白云山风景名胜区 | verified | 1.0 / 0.98 | B0H1GHTHZO |
+| 越秀公园 | verified | 1.0 | B00140BNNF |
+| 华南植物园 | verified | 0.95 | B00140UEO5 |
+| 海珠湖公园 | verified | 1.0 | B0IUUGIMOP |
+| 沙面岛 | verified | 1.0 | — |
+
+图片 URL 抽样验证均返回 HTTP 200（image/jpeg、image/png）。端到端验收：真实 DeepSeek 生成广州 2 日计划 → 提取 4 个景点 → 图片解析 4/4 命中真实高德照片。
+
+测试：新增 4 个单元测试（http CDN 升级、外部 http 拒绝、两种后缀变体），后端全量 **152 个测试 0 失败 0 错误**。

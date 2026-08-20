@@ -135,10 +135,32 @@ public class AmapAttractionImageProvider implements AttractionImageProvider {
 
     private double matchConfidence(String requestedName, String officialName, List<String> aliases) {
         String requested = normalizeName(requestedName);
-        if (requested.equals(normalizeName(officialName))) {
+        String official = normalizeName(officialName);
+        if (requested.equals(official)) {
             return 1.0;
         }
-        return aliases.stream().map(this::normalizeName).anyMatch(requested::equals) ? 0.98 : 0.0;
+        if (aliases.stream().map(this::normalizeName).anyMatch(requested::equals)) {
+            return 0.98;
+        }
+        // Colloquial suffix variants are common in official POI data (e.g. 长隆野生动物园 vs
+        // 长隆野生动物世界, 华南植物园 vs 华南国家植物园). Accept them only when the stripped
+        // core is identical and non-trivial; unrelated near-matches (e.g. 广州塔蜡像馆) stay rejected.
+        String requestedCore = stripCommonSuffixes(requested);
+        if (!requestedCore.equals(requested) && requestedCore.equals(stripCommonSuffixes(official))) {
+            return 0.95;
+        }
+        if (!requestedCore.equals(requested)
+                && aliases.stream().map(this::normalizeName).map(this::stripCommonSuffixes)
+                .anyMatch(requestedCore::equals)) {
+            return 0.93;
+        }
+        return 0.0;
+    }
+
+    private String stripCommonSuffixes(String name) {
+        String core = name.replaceFirst(
+                "(野生动物园|野生动物世界|国家植物园|动物园|动物世界|植物园|风景名胜区|风景区|景区|公园|世界|园|国家)$", "");
+        return core.length() >= 2 ? core : name;
     }
 
     private List<String> aliases(JsonNode poi) {
@@ -169,14 +191,29 @@ public class AmapAttractionImageProvider implements AttractionImageProvider {
             String rawUrl = photo.path("url").asText("").trim();
             try {
                 URI uri = URI.create(rawUrl);
-                if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null) {
-                    return uri.toASCIIString();
+                String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+                String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+                if (host.isEmpty()) {
+                    continue;
                 }
-            } catch (IllegalArgumentException ignored) {
+                if (!"https".equals(scheme)) {
+                    // AMap CDN hosts serve the same files over TLS; upgrade their http URLs
+                    // so the frontend never loads mixed content. Foreign hosts stay rejected.
+                    if (!"http".equals(scheme) || !isTrustedAmapImageHost(host)) {
+                        continue;
+                    }
+                    uri = new URI("https", uri.getUserInfo(), host, uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
+                }
+                return uri.toASCIIString();
+            } catch (IllegalArgumentException | java.net.URISyntaxException ignored) {
                 // Ignore malformed provider data and continue looking for a safe photo.
             }
         }
         return "";
+    }
+
+    private boolean isTrustedAmapImageHost(String host) {
+        return host.endsWith(".is.autonavi.com") || host.endsWith(".amap.com");
     }
 
     private boolean sameCity(String expected, String actual) {
