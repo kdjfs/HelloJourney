@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Form, Input, Select, DatePicker, Button, message, Progress } from 'antd'
+import { Alert, Form, Input, InputNumber, Select, DatePicker, Button, message, Progress } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import { generateTripPlan, getTripHistory } from '../../services/tripApi'
 import { isMockEnabled } from '../../utils/env'
@@ -182,6 +182,8 @@ function Landing() {
 
     const transportation = form.getFieldValue('transportation') || '公共交通'
     const accommodation = form.getFieldValue('accommodation') || '经济型酒店'
+    const travelers = form.getFieldValue('travelers') || 1
+    const budgetLimit = form.getFieldValue('budget_limit')
 
     // 保存面板高度以保持布局稳定
     if (panelRef.current) {
@@ -216,6 +218,8 @@ function Landing() {
       travel_days: travelDays,
       transportation,
       accommodation,
+      travelers,
+      budget_limit: budgetLimit,
       preferences,
       free_text_input: freeTextInput,
       language: 'zh',
@@ -378,6 +382,7 @@ function Landing() {
               city: '北京',
               transportation: '公共交通',
               accommodation: '经济型酒店',
+              travelers: 2,
             }}>
               {generationError && (
                 <Alert className="generation-alert" type="error" showIcon title="上次生成未完成" description={generationError} closable onClose={() => setGenerationError('')} />
@@ -473,6 +478,15 @@ function Landing() {
                         { value: '民宿', label: '民宿' },
                       ]}
                     />
+                  </Form.Item>
+                </div>
+
+                <div className="grid grid2">
+                  <Form.Item name="travelers" label="出行人数" rules={[{ required: true, message: '请输入出行人数' }]}>
+                    <InputNumber min={1} max={20} precision={0} size="large" className="field-number" addonAfter="人" aria-label="出行人数" />
+                  </Form.Item>
+                  <Form.Item name="budget_limit" label="整趟预算（可选）">
+                    <InputNumber min={0} max={10000000} precision={0} step={500} size="large" className="field-number" addonBefore="¥" placeholder="例如 8000" aria-label="整趟预算" />
                   </Form.Item>
                 </div>
 

@@ -791,6 +791,10 @@
   text-align: left;
 }
 
+.field-number {
+  width: 100%;
+}
+
 .agent-activity {
   width: min(100%, 640px);
   margin: 20px 0 0;

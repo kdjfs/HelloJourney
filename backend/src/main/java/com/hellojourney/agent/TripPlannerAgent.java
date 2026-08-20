@@ -187,6 +187,8 @@ public class TripPlannerAgent {
         }
         context.append("- 日期：").append(request.getStartDate()).append(" 至 ").append(request.getEndDate()).append('\n')
                 .append("- 总天数：").append(request.getTravelDays()).append('\n')
+                .append("- 出行人数：").append(request.getTravelers()).append('\n')
+                .append("- 预算上限：").append(request.getBudgetLimit() == null ? "未指定" : "¥" + request.getBudgetLimit()).append('\n')
                 .append("- 交通：").append(request.getTransportation()).append('\n')
                 .append("- 住宿：").append(request.getAccommodation()).append('\n')
                 .append("- 偏好：").append(request.getPreferences() == null ? "无" : String.join("、", request.getPreferences())).append('\n');

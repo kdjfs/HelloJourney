@@ -1045,3 +1045,20 @@
   border-radius: 12px;
   text-align: left;
 }
+.result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.result-actions .ant-btn-default {
+  border-color: rgba(236, 243, 250, 0.34);
+  color: #ecf3fa;
+  background: rgba(15, 36, 52, 0.45);
+}
+
+@media (max-width: 600px) {
+  .result-actions { align-items: flex-start; flex-direction: column; }
+}

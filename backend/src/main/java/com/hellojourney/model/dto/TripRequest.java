@@ -52,6 +52,16 @@ public class TripRequest {
     private String accommodation;
 
     @Builder.Default
+    @Min(1) @Max(20)
+    @Schema(description = "出行人数", example = "2", defaultValue = "1")
+    private int travelers = 1;
+
+    @Min(0)
+    @JsonProperty("budget_limit")
+    @Schema(description = "整趟行程预算上限（人民币）", example = "8000")
+    private Integer budgetLimit;
+
+    @Builder.Default
     @Schema(description = "旅行偏好列表", example = "[\"历史文化\", \"美食\"]")
     private List<String> preferences = new ArrayList<>();
 

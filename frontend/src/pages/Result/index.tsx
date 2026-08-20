@@ -12,6 +12,7 @@ import {
   ArrowLeftOutlined,
 } from '@ant-design/icons'
 import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
+import TripExportActions from '../../features/export/ui/TripExportActions'
 import BudgetPanel from '../../components/BudgetPanel'
 import OverviewAttractionCard, { type OverviewAttractionItem } from '../../components/OverviewAttractionCard'
 import { getPoiPhoto } from '../../services/poiApi'
@@ -347,14 +348,17 @@ function Result() {
       <div className="lower-shade" />
 
       <main className="result-main">
-        <Button
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/')}
-          style={{ marginBottom: 16, color: '#ecf3fa' }}
-        >
-          返回首页
-        </Button>
+        <div className="result-actions">
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/')}
+            style={{ color: '#ecf3fa' }}
+          >
+            返回首页
+          </Button>
+          <TripExportActions plan={tripPlan} planId={planId} />
+        </div>
 
         <div className="content-wrapper">
           {/* Top Nav */}

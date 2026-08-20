@@ -12,9 +12,9 @@ import {
   RobotOutlined,
   UndoOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Card, Col, Empty, Form, Input, InputNumber, List, message, Modal, Popconfirm, Row, Select, Space, Tooltip, Typography } from 'antd'
+import { Alert, Button, Card, Col, Empty, Form, Input, InputNumber, message, Modal, Popconfirm, Row, Select, Space, Tooltip, Typography } from 'antd'
 import VerificationBadge from '@/components/VerificationBadge'
-import type { Attraction, TripPlan } from '@/types/api'
+import type { Attraction, Hotel, TripPlan } from '@/types/api'
 import { proposePartialReplan } from '@/services/tripApi'
 import { useTripWorkspace } from '../model/useTripWorkspace'
 import './editableTripDays.css'
@@ -31,6 +31,7 @@ interface EditTarget {
 }
 
 type AttractionFields = Pick<Attraction, 'name' | 'address' | 'start_time' | 'end_time' | 'visit_duration' | 'description'>
+type HotelFields = Pick<Hotel, 'name' | 'address' | 'price_range' | 'rating' | 'distance' | 'type' | 'estimated_cost'>
 
 const emptyAttraction = (): Attraction => ({
   name: '新景点',
@@ -45,12 +46,14 @@ const emptyAttraction = (): Attraction => ({
 export default function EditableTripDays({ initialPlan, planId, onPlanChange }: Props) {
   const { state, dispatch, canUndo, canRedo } = useTripWorkspace(initialPlan, planId)
   const [editTarget, setEditTarget] = useState<EditTarget>()
+  const [hotelDayIndex, setHotelDayIndex] = useState<number>()
   const [replanOpen, setReplanOpen] = useState(false)
   const [replanSubmitting, setReplanSubmitting] = useState(false)
   const [replanInstruction, setReplanInstruction] = useState('')
   const [replanScope, setReplanScope] = useState<'day' | 'all'>('day')
   const [replanDayIndex, setReplanDayIndex] = useState(0)
   const [form] = Form.useForm<AttractionFields>()
+  const [hotelForm] = Form.useForm<HotelFields>()
 
   useEffect(() => onPlanChange(state.present), [onPlanChange, state.present])
 
@@ -65,6 +68,20 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
     const values = await form.validateFields()
     dispatch({ type: 'attraction.update', ...editTarget, patch: values })
     setEditTarget(undefined)
+  }
+
+  const openHotelEditor = (dayIndex: number) => {
+    const hotel = state.present.days[dayIndex].hotel
+    if (!hotel) return
+    hotelForm.setFieldsValue(hotel)
+    setHotelDayIndex(dayIndex)
+  }
+
+  const saveHotelEditor = async () => {
+    if (hotelDayIndex === undefined) return
+    const values = await hotelForm.validateFields()
+    dispatch({ type: 'hotel.update', dayIndex: hotelDayIndex, patch: values })
+    setHotelDayIndex(undefined)
   }
 
   const requestReplan = async () => {
@@ -100,6 +117,33 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
     }
     const day = 'dayIndex' in operation ? operation.dayIndex : 'fromDayIndex' in operation ? operation.fromDayIndex : undefined
     return `${labels[operation.type] ?? operation.type}${typeof day === 'number' ? ` · 第 ${day + 1} 天` : ''}`
+  }
+
+  const attractionSummary = (item?: Attraction) => item
+    ? `${item.name} · ${item.start_time || '--:--'} · ${item.visit_duration} 分钟`
+    : '无'
+
+  const operationDiff = (operation: NonNullable<typeof state.pendingChangeSet>['operations'][number]) => {
+    if (operation.type === 'attraction.add') {
+      return { before: '无', after: attractionSummary(operation.attraction) }
+    }
+    if (operation.type === 'attraction.remove') {
+      return { before: attractionSummary(state.present.days[operation.dayIndex]?.attractions[operation.attractionIndex]), after: '已删除' }
+    }
+    if (operation.type === 'attraction.update') {
+      const current = state.present.days[operation.dayIndex]?.attractions[operation.attractionIndex]
+      return { before: attractionSummary(current), after: attractionSummary(current ? { ...current, ...operation.patch } : undefined) }
+    }
+    if (operation.type === 'attraction.move') {
+      const item = state.present.days[operation.fromDayIndex]?.attractions[operation.attractionIndex]
+      return { before: `${attractionSummary(item)} · 第 ${operation.fromDayIndex + 1} 天`, after: `${attractionSummary(item)} · 第 ${operation.toDayIndex + 1} 天` }
+    }
+    if (operation.type === 'hotel.update') {
+      const hotel = state.present.days[operation.dayIndex]?.hotel
+      return { before: hotel ? `${hotel.name} · ${hotel.address}` : '无', after: hotel ? `${operation.patch.name ?? hotel.name} · ${operation.patch.address ?? hotel.address}` : '无' }
+    }
+    const day = state.present.days[operation.dayIndex]
+    return { before: day?.description || '无', after: operation.patch.description ?? day?.description ?? '无' }
   }
 
   return (
@@ -143,7 +187,10 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
             {day.hotel && (
               <div className="workspace-hotel">
                 <div><strong>住宿：</strong>{day.hotel.name} · {day.hotel.address}</div>
-                <VerificationBadge metadata={day.hotel} />
+                <Space wrap>
+                  <VerificationBadge metadata={day.hotel} />
+                  <Button size="small" icon={<EditOutlined />} onClick={() => openHotelEditor(dayIndex)}>编辑酒店</Button>
+                </Space>
               </div>
             )}
 
@@ -198,6 +245,22 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
         </Form>
       </Modal>
 
+      <Modal title="编辑酒店" open={hotelDayIndex !== undefined} onCancel={() => setHotelDayIndex(undefined)} onOk={() => void saveHotelEditor()} okText="保存" cancelText="取消" destroyOnHidden>
+        <Form form={hotelForm} layout="vertical">
+          <Form.Item name="name" label="酒店名称" rules={[{ required: true, message: '请输入酒店名称' }]}><Input /></Form.Item>
+          <Form.Item name="address" label="地址" rules={[{ required: true, message: '请输入地址' }]}><Input /></Form.Item>
+          <Row gutter={12}>
+            <Col span={12}><Form.Item name="type" label="类型"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="price_range" label="价格区间"><Input /></Form.Item></Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={8}><Form.Item name="rating" label="评分"><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item name="distance" label="距离"><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item name="estimated_cost" label="预计费用"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+          </Row>
+        </Form>
+      </Modal>
+
       <Modal title="让 AI 提出调整方案" open={replanOpen} confirmLoading={replanSubmitting} onCancel={() => setReplanOpen(false)} onOk={() => void requestReplan()} okText="生成变更预览" cancelText="取消">
         <Alert type="info" showIcon title="AI 不会直接改写你的行程" description="系统会先返回一组通过白名单校验的变更，你可以逐项预览后接受或拒绝。" />
         <Form layout="vertical" style={{ marginTop: 18 }}>
@@ -225,7 +288,17 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
         ]}
       >
         <Alert type="warning" showIcon title="请确认后再应用" description={state.pendingChangeSet?.summary} />
-        <List style={{ marginTop: 12 }} bordered dataSource={state.pendingChangeSet?.operations ?? []} renderItem={(operation, index) => <List.Item><Typography.Text strong>{index + 1}. {operationText(operation)}</Typography.Text></List.Item>} />
+        <ol className="changeset-list">
+          {(state.pendingChangeSet?.operations ?? []).map((operation, index) => (
+            <li key={`${operation.type}-${index}`}>
+              <Typography.Text strong>{index + 1}. {operationText(operation)}</Typography.Text>
+              <div className="change-diff">
+                <div><small>Before</small><span>{operationDiff(operation).before}</span></div>
+                <div><small>After</small><span>{operationDiff(operation).after}</span></div>
+              </div>
+            </li>
+          ))}
+        </ol>
       </Modal>
     </section>
   )
