@@ -2,6 +2,7 @@ package com.hellojourney.model.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hellojourney.model.entity.TripPlan;
+import com.hellojourney.model.vo.review.TripReviewResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,4 +28,6 @@ public class TripPlanResponse {
     @JsonProperty("graph_data")
     @Schema(description = "知识图谱数据")
     private KnowledgeGraphData graphData;
+    @Schema(description = "Review Agent 结构化校验结果")
+    private TripReviewResult review;
 }

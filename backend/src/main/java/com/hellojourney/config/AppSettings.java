@@ -106,6 +106,7 @@ public class AppSettings {
         private int toolTimeoutSeconds = 15;
         private int toolMaxRetries = 1;
         private int maxToolResultChars = 20_000;
+        private int structuredRepairAttempts = 2;
     }
 
     public List<String> getCorsOriginsList() {

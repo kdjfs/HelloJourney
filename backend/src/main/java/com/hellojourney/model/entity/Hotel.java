@@ -37,4 +37,16 @@ public class Hotel {
     @JsonProperty("estimated_cost")
     @Schema(description = "预估每晚费用(元)")
     private int estimatedCost = 0;
+    @Builder.Default
+    @JsonProperty("poi_id")
+    private String poiId = "";
+    @Builder.Default
+    private String source = "ai";
+    @Builder.Default
+    private String provider = "deepseek";
+    @JsonProperty("verified_at")
+    private String verifiedAt;
+    @Builder.Default
+    @JsonProperty("verification_status")
+    private String verificationStatus = "ai_suggested";
 }

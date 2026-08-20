@@ -1,6 +1,7 @@
 package com.hellojourney.model.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -42,6 +43,15 @@ public class WeatherInfo {
     @JsonProperty("wind_power")
     @Schema(description = "风力等级")
     private String windPower = "";
+    @Builder.Default
+    private String source = "ai";
+    @Builder.Default
+    private String provider = "deepseek";
+    @JsonProperty("verified_at")
+    private String verifiedAt;
+    @Builder.Default
+    @JsonProperty("verification_status")
+    private String verificationStatus = "ai_suggested";
 
     public int parseTemperature(Object temp) {
         if (temp == null) {
@@ -62,10 +72,12 @@ public class WeatherInfo {
         }
     }
 
+    @JsonIgnore
     public int getDayTempAsInt() {
         return parseTemperature(dayTemp);
     }
 
+    @JsonIgnore
     public int getNightTempAsInt() {
         return parseTemperature(nightTemp);
     }

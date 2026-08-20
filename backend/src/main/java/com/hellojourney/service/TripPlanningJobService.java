@@ -1,6 +1,7 @@
 package com.hellojourney.service;
 
 import com.hellojourney.agent.TripPlannerAgent;
+import com.hellojourney.agent.planning.StructuredTripPlanResult;
 import com.hellojourney.model.dto.TripRequest;
 import com.hellojourney.model.entity.TripPlan;
 import com.hellojourney.model.vo.KnowledgeGraphData;
@@ -28,10 +29,11 @@ public class TripPlanningJobService {
             BooleanSupplier cancellationRequested) throws Exception {
         ensureActive(taskId, cancellationRequested);
 
-        TripPlan tripPlan = tripPlannerAgent.planTrip(request, (message, progress) -> {
+        StructuredTripPlanResult generated = tripPlannerAgent.planTripWithReview(request, (message, progress) -> {
             ensureActive(taskId, cancellationRequested);
             progressCallback.accept(message, progress);
         }, cancellationRequested);
+        TripPlan tripPlan = generated.plan();
 
         ensureActive(taskId, cancellationRequested);
         progressCallback.accept("正在构建知识图谱", 95);
@@ -45,6 +47,7 @@ public class TripPlanningJobService {
                 .planId(taskId)
                 .data(tripPlan)
                 .graphData(graphData)
+                .review(generated.review())
                 .build());
     }
 

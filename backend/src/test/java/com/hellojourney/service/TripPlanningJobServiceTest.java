@@ -1,10 +1,13 @@
 package com.hellojourney.service;
 
 import com.hellojourney.agent.TripPlannerAgent;
+import com.hellojourney.agent.planning.StructuredTripPlanResult;
+import com.hellojourney.model.vo.review.TripReviewResult;
 import com.hellojourney.model.dto.TripRequest;
 import com.hellojourney.model.entity.TripPlan;
 import com.hellojourney.model.vo.KnowledgeGraphData;
 import com.hellojourney.model.vo.TripPlanResponse;
+import com.hellojourney.model.llm.LlmUsage;
 import com.hellojourney.util.TestDataFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,10 +39,12 @@ class TripPlanningJobServiceTest {
         KnowledgeGraphData graph = KnowledgeGraphData.builder().build();
         List<String> progress = new ArrayList<>();
 
-        when(tripPlannerAgent.planTrip(eq(request), any(), any(BooleanSupplier.class))).thenAnswer(invocation -> {
+        when(tripPlannerAgent.planTripWithReview(eq(request), any(), any(BooleanSupplier.class))).thenAnswer(invocation -> {
             java.util.function.BiConsumer<String, Integer> callback = invocation.getArgument(1);
             callback.accept("正在搜索景点", 35);
-            return plan;
+            return new StructuredTripPlanResult(plan,
+                    new TripReviewResult(true, List.of(), List.of(), List.of()),
+                    "deepseek-v4-pro", "response-1", new LlmUsage(), 0);
         });
         when(knowledgeGraphService.buildKnowledgeGraph(plan, "zh")).thenReturn(graph);
 
@@ -54,6 +59,7 @@ class TripPlanningJobServiceTest {
         assertThat(result.getPlanId()).isEqualTo("task-1");
         assertThat(result.getData()).isSameAs(plan);
         assertThat(result.getGraphData()).isSameAs(graph);
+        assertThat(result.getReview().pass()).isTrue();
         assertThat(progress).containsExactly("正在搜索景点:35", "正在构建知识图谱:95");
     }
 
