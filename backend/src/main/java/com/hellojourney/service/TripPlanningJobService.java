@@ -31,7 +31,7 @@ public class TripPlanningJobService {
         TripPlan tripPlan = tripPlannerAgent.planTrip(request, (message, progress) -> {
             ensureActive(taskId, cancellationRequested);
             progressCallback.accept(message, progress);
-        });
+        }, cancellationRequested);
 
         ensureActive(taskId, cancellationRequested);
         progressCallback.accept("正在构建知识图谱", 95);

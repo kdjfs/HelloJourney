@@ -1,6 +1,8 @@
 package com.hellojourney.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hellojourney.agent.tool.AgentLoop;
+import com.hellojourney.agent.tool.AgentRunResult;
 import com.hellojourney.config.AppSettings;
 import com.hellojourney.model.dto.CityStay;
 import com.hellojourney.model.dto.TripRequest;
@@ -13,7 +15,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,6 +29,7 @@ public class TripPlannerAgent {
     private final XhsService xhsService;
     private final MapDispatcher mapDispatcher;
     private final ObjectMapper objectMapper;
+    private final AgentLoop agentLoop;
 
     private static final String PLANNER_AGENT_PROMPT = "你是行程规划专家。你的任务是根据景点信息和天气信息,生成详细的旅行计划。支持单城市和多城市行程。\n\n"
             + "请严格按照以下JSON格式返回旅行计划:\n"
@@ -53,12 +58,13 @@ public class TripPlannerAgent {
     private static final Pattern JSON_ARRAY_PATTERN = Pattern.compile("\\[[\\s\\S]*\\]");
 
     public TripPlannerAgent(LlmService llmService, AppSettings appSettings, XhsService xhsService,
-                            MapDispatcher mapDispatcher, ObjectMapper objectMapper) {
+                            MapDispatcher mapDispatcher, ObjectMapper objectMapper, AgentLoop agentLoop) {
         this.llmService = llmService;
         this.appSettings = appSettings;
         this.xhsService = xhsService;
         this.mapDispatcher = mapDispatcher;
         this.objectMapper = objectMapper;
+        this.agentLoop = agentLoop;
         log.info("多智能体旅行规划系统初始化成功 (供应商={})", mapDispatcher.getMapProvider());
     }
 
@@ -66,6 +72,11 @@ public class TripPlannerAgent {
     }
 
     public TripPlan planTrip(TripRequest request, BiConsumer<String, Integer> progressCallback) throws Exception {
+        return planTrip(request, progressCallback, () -> false);
+    }
+
+    public TripPlan planTrip(TripRequest request, BiConsumer<String, Integer> progressCallback,
+                             BooleanSupplier cancellationRequested) throws Exception {
         List<CityStay> cities = request.getCities();
         int totalCities = cities.size();
         List<String> cityNames = cities.stream().map(CityStay::getCity).toList();
@@ -93,13 +104,11 @@ public class TripPlannerAgent {
             allAttractions.put(city, attractionResponse);
 
             emitProgress(progressCallback, "正在查询 " + city + " 的天气..." + cityLabel, progressBase + progressStep);
-            String weatherQuery = "请查询" + city + "的天气信息";
-            String weatherResponse = queryWeatherAgent(city, lang);
+            String weatherResponse = queryWeatherAgent(city, lang, cancellationRequested);
             allWeather.put(city, weatherResponse);
 
             emitProgress(progressCallback, "正在搜索 " + city + " 的酒店..." + cityLabel, progressBase + progressStep * 2);
-            String hotelQuery = "请搜索" + city + "的" + request.getAccommodation() + "酒店";
-            String hotelResponse = queryHotelAgent(city, request.getAccommodation(), lang);
+            String hotelResponse = queryHotelAgent(city, request.getAccommodation(), lang, cancellationRequested);
             allHotels.put(city, hotelResponse);
         }
 
@@ -130,58 +139,53 @@ public class TripPlannerAgent {
         }
     }
 
-    private String queryWeatherAgent(String city, String lang) {
+    private String queryWeatherAgent(String city, String lang, BooleanSupplier cancellationRequested) {
         try {
-            String weatherPrompt = buildWeatherPrompt(city);
-            List<Map<String, String>> messages = List.of(
-                    Map.of("role", "system", "content", weatherPrompt),
-                    Map.of("role", "user", "content", "请查询" + city + "的天气信息")
-            );
-            return llmService.chat(messages, 0.1, 1000);
+            AgentRunResult result = agentLoop.run(
+                    "你是旅行天气研究助手。必须调用 get_weather 获取事实，不得编造天气；最后简洁总结工具结果。",
+                    "查询 " + city + " 的旅行日期天气信息，输出语言为 " + lang + "。",
+                    Set.of("get_weather"), cancellationRequested, null);
+            return result.content();
         } catch (Exception e) {
-            log.error("天气查询失败: {}", e.getMessage());
+            propagateCancellation(cancellationRequested);
+            log.warn("weather_agent_failed city={} type={} fallback=map",
+                    city, e.getClass().getSimpleName());
             try {
                 List<WeatherInfo> weather = mapDispatcher.getWeatherUnified(city);
                 if (!weather.isEmpty()) {
                     return objectMapper.writeValueAsString(weather);
                 }
             } catch (Exception ignored) {}
-            return "天气查询失败: " + e.getMessage();
+            return "天气信息暂不可用，需稍后验证";
         }
     }
 
-    private String queryHotelAgent(String city, String accommodation, String lang) {
+    private String queryHotelAgent(String city, String accommodation, String lang,
+                                   BooleanSupplier cancellationRequested) {
         try {
-            String hotelPrompt = buildHotelPrompt(city);
-            List<Map<String, String>> messages = List.of(
-                    Map.of("role", "system", "content", hotelPrompt),
-                    Map.of("role", "user", "content", "请搜索" + city + "的" + accommodation + "酒店")
-            );
-            return llmService.chat(messages, 0.1, 1000);
+            AgentRunResult result = agentLoop.run(
+                    "你是住宿研究助手。必须调用 search_hotel 获取真实候选，不得编造酒店；最后简洁比较工具结果。",
+                    "搜索 " + city + " 的 " + accommodation + " 酒店，输出语言为 " + lang + "。",
+                    Set.of("search_hotel"), cancellationRequested, null);
+            return result.content();
         } catch (Exception e) {
-            log.error("酒店搜索失败: {}", e.getMessage());
-            return "酒店搜索失败: " + e.getMessage();
+            propagateCancellation(cancellationRequested);
+            log.warn("hotel_agent_failed city={} type={} fallback=map",
+                    city, e.getClass().getSimpleName());
+            try {
+                return objectMapper.writeValueAsString(
+                        mapDispatcher.searchPoiUnified("酒店 " + accommodation, city, true));
+            } catch (Exception ignored) {
+                return "酒店信息暂不可用，需稍后验证";
+            }
         }
     }
 
-    private String buildWeatherPrompt(String city) {
-        String toolPrefix = mapDispatcher.getMapProvider();
-        String toolName = toolPrefix + "_maps_weather";
-        return "你是天气查询专家。你的任务是查询指定城市的天气信息。\n\n"
-                + "**重要提示:**\n1. 你必须使用工具来查询天气!不要自己编造天气信息!\n"
-                + "2. 系统为你绑定的真实工具名称叫做 `" + toolName + "`，你只能而且必须原样输出这个名字。\n\n"
-                + "**工具调用格式:**\n`[TOOL_CALL:" + toolName + ":city=城市名]`\n\n"
-                + "**示例:**\n用户: \"查询北京天气\"\n你的回复: [TOOL_CALL:" + toolName + ":city=北京]";
-    }
-
-    private String buildHotelPrompt(String city) {
-        String toolPrefix = mapDispatcher.getMapProvider();
-        String toolName = toolPrefix + "_maps_text_search";
-        return "你是酒店推荐专家。你的任务是根据城市和景点位置推荐合适的酒店。\n\n"
-                + "**重要提示:**\n1. 你必须使用工具来搜索酒店!不要自己编造酒店信息!\n"
-                + "2. 系统为你绑定的真实工具名称叫做 `" + toolName + "`，你只能而且必须原样输出这个名字。\n\n"
-                + "**工具调用格式:**\n`[TOOL_CALL:" + toolName + ":keywords=酒店,city=城市名]`\n\n"
-                + "**示例:**\n用户: \"搜索北京的酒店\"\n你的回复: [TOOL_CALL:" + toolName + ":keywords=酒店,city=北京]";
+    private void propagateCancellation(BooleanSupplier cancellationRequested) {
+        if (Thread.currentThread().isInterrupted()
+                || (cancellationRequested != null && cancellationRequested.getAsBoolean())) {
+            throw new CancellationException("旅行规划任务已取消");
+        }
     }
 
     private String runPlannerWithRetry(TripRequest request, Map<String, String> attractions,

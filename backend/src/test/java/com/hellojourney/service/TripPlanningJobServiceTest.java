@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,7 +36,7 @@ class TripPlanningJobServiceTest {
         KnowledgeGraphData graph = KnowledgeGraphData.builder().build();
         List<String> progress = new ArrayList<>();
 
-        when(tripPlannerAgent.planTrip(eq(request), any())).thenAnswer(invocation -> {
+        when(tripPlannerAgent.planTrip(eq(request), any(), any(BooleanSupplier.class))).thenAnswer(invocation -> {
             java.util.function.BiConsumer<String, Integer> callback = invocation.getArgument(1);
             callback.accept("正在搜索景点", 35);
             return plan;

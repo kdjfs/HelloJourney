@@ -30,6 +30,12 @@ app:
     execution-timeout-seconds: ${TRIP_TASK_TIMEOUT:300}
     data-dir: ${TRIP_TASK_DATA_DIR:data/trip_tasks}
 
+  agent:
+    max-iterations: ${AGENT_MAX_ITERATIONS:8}
+    tool-timeout-seconds: ${AGENT_TOOL_TIMEOUT_SECONDS:15}
+    tool-max-retries: ${AGENT_TOOL_MAX_RETRIES:1}
+    max-tool-result-chars: ${AGENT_MAX_TOOL_RESULT_CHARS:20000}
+
   llm:
     active-provider: ${LLM_ACTIVE_PROVIDER:deepseek}
     timeout: ${LLM_TIMEOUT:120}

@@ -27,6 +27,7 @@ public class AppSettings {
     private LlmConfig llm = new LlmConfig();
     private SettingsSecurityConfig settings = new SettingsSecurityConfig();
     private TaskConfig tasks = new TaskConfig();
+    private AgentConfig agent = new AgentConfig();
 
     @Data
     public static class TencentMapsConfig {
@@ -97,6 +98,14 @@ public class AppSettings {
     public static class TaskConfig {
         private int executionTimeoutSeconds = 300;
         private String dataDir = "data/trip_tasks";
+    }
+
+    @Data
+    public static class AgentConfig {
+        private int maxIterations = 8;
+        private int toolTimeoutSeconds = 15;
+        private int toolMaxRetries = 1;
+        private int maxToolResultChars = 20_000;
     }
 
     public List<String> getCorsOriginsList() {

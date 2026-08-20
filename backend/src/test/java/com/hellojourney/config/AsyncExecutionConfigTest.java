@@ -25,6 +25,10 @@ class AsyncExecutionConfigTest {
     @Qualifier("webSocketExecutor")
     private TaskExecutor webSocketExecutor;
 
+    @Autowired
+    @Qualifier("agentToolExecutor")
+    private TaskExecutor agentToolExecutor;
+
     @Test
     void planningServiceIsSpringProxiedForRealAsyncExecution() {
         assertThat(AopUtils.isAopProxy(tripPlanningJobService)).isTrue();
@@ -34,10 +38,13 @@ class AsyncExecutionConfigTest {
     void executorsAreBoundedAndManagedBySpring() {
         assertThat(tripPlanningExecutor).isInstanceOf(ThreadPoolTaskExecutor.class);
         assertThat(webSocketExecutor).isInstanceOf(ThreadPoolTaskExecutor.class);
+        assertThat(agentToolExecutor).isInstanceOf(ThreadPoolTaskExecutor.class);
 
         ThreadPoolTaskExecutor planning = (ThreadPoolTaskExecutor) tripPlanningExecutor;
         ThreadPoolTaskExecutor events = (ThreadPoolTaskExecutor) webSocketExecutor;
+        ThreadPoolTaskExecutor tools = (ThreadPoolTaskExecutor) agentToolExecutor;
         assertThat(planning.getThreadPoolExecutor().getQueue().remainingCapacity()).isEqualTo(32);
         assertThat(events.getThreadPoolExecutor().getQueue().remainingCapacity()).isEqualTo(128);
+        assertThat(tools.getThreadPoolExecutor().getQueue().remainingCapacity()).isEqualTo(64);
     }
 }

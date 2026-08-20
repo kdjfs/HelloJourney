@@ -26,6 +26,10 @@ public class MapDispatcher {
         return "tencent";
     }
 
+    public String getEffectiveMapProvider() {
+        return "google".equals(getMapProvider()) && !googleFailed ? "google" : "tencent";
+    }
+
     public synchronized void reset() {
         googleFailed = false;
         tencentMapService.reset();
@@ -48,7 +52,8 @@ public class MapDispatcher {
         if (loc != null) {
             return Map.of("longitude", loc.getLongitude(), "latitude", loc.getLatitude());
         }
-        return Map.of("longitude", 116.397128, "latitude", 39.916527);
+        // An empty result is safer than presenting Beijing's coordinates as a verified location.
+        return Map.of();
     }
 
     public List<POIInfo> searchPoiUnified(String keywords, String city, boolean citylimit) {

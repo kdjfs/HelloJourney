@@ -2,9 +2,12 @@ package com.hellojourney.agent;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hellojourney.agent.tool.AgentLoop;
+import com.hellojourney.agent.tool.AgentRunResult;
 import com.hellojourney.config.AppSettings;
 import com.hellojourney.model.dto.TripRequest;
 import com.hellojourney.model.entity.TripPlan;
+import com.hellojourney.model.llm.LlmUsage;
 import com.hellojourney.service.LlmService;
 import com.hellojourney.service.MapDispatcher;
 import com.hellojourney.service.XhsService;
@@ -43,6 +46,9 @@ class TripPlannerAgentTest {
     @Mock
     private MapDispatcher mapDispatcher;
 
+    @Mock
+    private AgentLoop agentLoop;
+
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -52,9 +58,9 @@ class TripPlannerAgentTest {
 
     private void stubPlanTripSingleCity() throws Exception {
         when(xhsService.searchXhsAttractions(eq("北京"), anyString(), anyString())).thenReturn("故宫博物院等景点");
-        when(llmService.chat(anyList(), anyDouble(), anyInt())).thenReturn("天气结果", "酒店结果");
-        when(mapDispatcher.getMapProvider()).thenReturn("tencent");
-
+        when(agentLoop.run(anyString(), anyString(), anySet(), any(), isNull()))
+                .thenReturn(new AgentRunResult("trace-weather", "天气结果", 2, List.of(), new LlmUsage()))
+                .thenReturn(new AgentRunResult("trace-hotel", "酒店结果", 2, List.of(), new LlmUsage()));
         TripPlan expectedPlan = TestDataFactory.buildTripPlan();
         String planJson = objectMapper.writeValueAsString(expectedPlan);
         when(llmService.chatWithTimeout(anyList(), anyDouble(), anyInt(), anyInt())).thenReturn(planJson);
