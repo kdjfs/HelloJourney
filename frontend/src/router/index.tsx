@@ -1,14 +1,20 @@
+/* eslint-disable react-refresh/only-export-components -- route configuration is not a component module */
+import { lazy, Suspense, type ReactNode } from 'react'
 import type { RouteObject } from 'react-router-dom'
-import Landing from '../pages/Landing'
-import Result from '../pages/Result'
+import { PageLoading } from '@/components/AsyncState'
+
+const Landing = lazy(() => import('../pages/Landing'))
+const Result = lazy(() => import('../pages/Result'))
+
+const deferred = (page: ReactNode) => <Suspense fallback={<PageLoading />}>{page}</Suspense>
 
 export const routes: RouteObject[] = [
   {
     path: '/',
-    element: <Landing />,
+    element: deferred(<Landing />),
   },
   {
     path: '/result',
-    element: <Result />,
+    element: deferred(<Result />),
   },
 ]
