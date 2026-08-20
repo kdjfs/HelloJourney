@@ -107,7 +107,7 @@ function HotelCard({ hotel }: { hotel: Hotel }) {
     <Card
       size="small"
       title={<span className="hotel-title">{hotel.name}</span>}
-      style={{ marginBottom: 16, background: '#fafafa' }}
+      style={{ marginBottom: 16 }}
       type="inner"
     >
       <Row gutter={[8, 8]}>
@@ -187,7 +187,7 @@ function TripDayCard({ day, attractionImages }: TripDayCardProps) {
       }
       style={{ marginBottom: 20, borderRadius: 12 }}
     >
-      <Paragraph style={{ color: '#555' }}>{day.description}</Paragraph>
+      <Paragraph>{day.description}</Paragraph>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col>

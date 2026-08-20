@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Image } from 'antd'
 import './index.css'
 
 interface AttractionImageProps {
@@ -13,14 +14,26 @@ function AttractionImage({ attractionName, city, imageUrl, className = '' }: Att
 
   if (imageUrl && imageUrl !== failedUrl) {
     return (
-      <img
-        className={className}
+      <Image
+        className={`attraction-image-root ${className}`.trim()}
         src={imageUrl}
         alt={attractionName}
-        loading="lazy"
-        decoding="async"
         referrerPolicy="no-referrer"
         onError={() => setFailedUrl(imageUrl)}
+        preview={{
+          cover: (
+            <span className="attraction-image-mask">
+              <span className="attraction-image-mask-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                  <path d="M11 8v6M8 11h6" />
+                </svg>
+              </span>
+              点击预览
+            </span>
+          ),
+        }}
       />
     )
   }

@@ -1,3 +1,38 @@
+/* 图片根容器：填满父级，便于 antd Image 预览 */
+.attraction-image-root.ant-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.attraction-image-root .ant-image-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.attraction-image-root .ant-image-mask,
+.attraction-image-root .ant-image-cover {
+  background: rgba(4, 11, 18, 0.42);
+  border-radius: 0;
+}
+
+.attraction-image-mask {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.attraction-image-mask-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
 .attraction-image-placeholder {
   align-items: center;
   background: #17212b;

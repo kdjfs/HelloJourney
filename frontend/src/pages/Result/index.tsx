@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useRef } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Card,
@@ -7,6 +7,7 @@ import {
   Spin,
   FloatButton,
   Alert,
+  Image,
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -17,6 +18,7 @@ import BudgetPanel from '../../components/BudgetPanel'
 import OverviewAttractionCard, { type OverviewAttractionItem } from '../../components/OverviewAttractionCard'
 import { attractionImageCacheKey, resolveAttractionImage } from '../../services/poiApi'
 import { pollTaskStatus } from '../../services/tripApi'
+import { buildFallbackGraphData } from '../../utils/knowledgeGraph'
 import type { TripPlan, KnowledgeGraphData, WeatherInfo, TripReviewResult } from '../../types/api'
 import './index.css'
 
@@ -305,6 +307,13 @@ function Result() {
       )
     : []
 
+  /* 知识图谱：后端未返回时由行程数据兜底推导，保证页签始终可展示 */
+  const effectiveGraphData = useMemo<KnowledgeGraphData | null>(
+    () => graphData ?? (tripPlan ? buildFallbackGraphData(tripPlan) : null),
+    [graphData, tripPlan],
+  )
+  const graphDerived = graphData == null && effectiveGraphData != null
+
   const weatherList = tripPlan?.weather_info ?? []
   const selectedWeather: WeatherInfo | null =
     weatherList.length > 0
@@ -366,6 +375,8 @@ function Result() {
         </div>
 
         <div className="content-wrapper">
+          {/* 所有景点照片共享一个预览组：点击放大后可左右切换 */}
+          <Image.PreviewGroup>
           {/* Top Nav */}
           <div className="top-switch-nav">
             <div className="top-switch-menu-wrap">
@@ -528,9 +539,12 @@ function Result() {
           {/* Knowledge Graph */}
           {activeSection === 'knowledge-graph' && (
             <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
-              <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>正在加载知识图谱</span></div>}><KnowledgeGraph graphData={graphData} /></Suspense>
+              <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>正在加载知识图谱</span></div>}>
+                <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} />
+              </Suspense>
             </Card>
           )}
+          </Image.PreviewGroup>
         </div>
       </main>
 

@@ -1,18 +1,14 @@
 import { useState } from 'react'
-import { Typography, Empty } from 'antd'
-import ReactEChartsCore from 'echarts-for-react/lib/core'
-import * as echarts from 'echarts/core'
-import { GraphChart } from 'echarts/charts'
-import { TooltipComponent, TitleComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
+import { Typography, Empty, Alert } from 'antd'
+import ReactECharts from 'echarts-for-react'
 import type { KnowledgeGraphData, GraphCategory } from '../../types/api'
-
-echarts.use([GraphChart, TooltipComponent, TitleComponent, CanvasRenderer])
 
 const { Text } = Typography
 
 interface KnowledgeGraphProps {
   graphData: KnowledgeGraphData | null
+  /** 图谱是否由前端根据行程数据推导生成（后端未返回时） */
+  derived?: boolean
 }
 
 const categoryLabels: Record<string, string> = {
@@ -50,14 +46,14 @@ function getCategoryColor(name: string, index: number): string {
   return fallback[index % fallback.length]
 }
 
-function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
-  const [error, setError] = useState(false)
+function KnowledgeGraph({ graphData, derived = false }: KnowledgeGraphProps) {
+  const [renderError, setRenderError] = useState(false)
 
   const nodes = Array.isArray(graphData?.nodes) ? graphData.nodes : []
   const edges = Array.isArray(graphData?.edges) ? graphData.edges : []
   const categoriesRaw = Array.isArray(graphData?.categories) ? graphData.categories : []
 
-  if (!graphData) {
+  if (!graphData || nodes.length === 0) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
         <Empty description="暂无知识图谱数据" />
@@ -65,10 +61,15 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
     )
   }
 
-  if (nodes.length === 0) {
+  if (renderError) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Empty description="知识图谱节点为空" />
+        <Alert
+          type="error"
+          showIcon
+          message="图谱渲染失败"
+          description="可能是浏览器兼容问题，请尝试刷新页面或更换浏览器。"
+        />
       </div>
     )
   }
@@ -90,7 +91,8 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
           const catName = params.data.category !== undefined && categoriesRaw[params.data.category]
             ? categoriesRaw[params.data.category].name
             : ''
-          return `${params.data.name}<br/>类型：${catName}`
+          const detail = params.data.value ? `<br/>${params.data.value}` : ''
+          return `${params.data.name}<br/>类型：${catName}${detail}`
         }
         return ''
       },
@@ -136,26 +138,22 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
     ],
   }
 
-  if (error) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Text type="danger">图表加载失败</Text>
-      </div>
-    )
-  }
-
   return (
     <div>
-      <ReactEChartsCore
-        echarts={echarts}
+      <ReactECharts
         option={option}
         style={{ width: '100%', height: 600 }}
         notMerge
-        onError={() => setError(true)}
-        onChartReady={() => {
-          setError(false)
-        }}
+        opts={{ renderer: 'canvas' }}
+        onChartReady={() => setRenderError(false)}
       />
+      {derived && (
+        <div style={{ textAlign: 'center', marginTop: 8 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            · 本图谱由行程数据自动生成 ·
+          </Text>
+        </div>
+      )}
       <div className="kg-legend" style={{
         display: 'flex',
         flexWrap: 'wrap',
