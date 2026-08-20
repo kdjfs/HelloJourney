@@ -9,6 +9,10 @@ app:
   name: HelloAgents智能旅行助手
   version: 2.0.0
 
+  amap-maps:
+    key: ${AMAP_API_KEY:}
+    base-url: ${AMAP_API_BASE_URL:https://restapi.amap.com}
+
   tencent-maps:
     key: ${TENCENT_MAPS_KEY:}
 

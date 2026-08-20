@@ -21,6 +21,7 @@ public class AppSettings {
     private String host = "0.0.0.0";
     private int port = 8000;
 
+    private AmapMapsConfig amapMaps = new AmapMapsConfig();
     private TencentMapsConfig tencentMaps = new TencentMapsConfig();
     private GoogleMapsConfig googleMaps = new GoogleMapsConfig();
     private XhsConfig xhs = new XhsConfig();
@@ -28,6 +29,12 @@ public class AppSettings {
     private SettingsSecurityConfig settings = new SettingsSecurityConfig();
     private TaskConfig tasks = new TaskConfig();
     private AgentConfig agent = new AgentConfig();
+
+    @Data
+    public static class AmapMapsConfig {
+        private String key = "";
+        private String baseUrl = "https://restapi.amap.com";
+    }
 
     @Data
     public static class TencentMapsConfig {
@@ -116,6 +123,8 @@ public class AppSettings {
                 .toList();
     }
 
+    public String getAmapMapsKey() { return amapMaps.getKey(); }
+    public void setAmapMapsKey(String v) { amapMaps.setKey(v); }
     public String getTencentMapsKey() { return tencentMaps.getKey(); }
     public void setTencentMapsKey(String v) { tencentMaps.setKey(v); }
     public String getGoogleMapsApiKey() { return googleMaps.getApiKey(); }

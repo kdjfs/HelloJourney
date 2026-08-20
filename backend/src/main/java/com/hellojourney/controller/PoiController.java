@@ -1,7 +1,7 @@
 package com.hellojourney.controller;
 
 import com.hellojourney.service.MapDispatcher;
-import com.hellojourney.service.XhsService;
+import com.hellojourney.service.image.AttractionImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PoiController {
     private final MapDispatcher mapDispatcher;
-    private final XhsService xhsService;
+    private final AttractionImageService attractionImageService;
 
     @GetMapping("/detail/{poiId}")
     @Operation(summary = "获取POI详情", description = "根据POI ID获取详细信息")
@@ -57,27 +57,21 @@ public class PoiController {
     }
 
     @GetMapping("/photo")
-    @Operation(summary = "获取景点图片", description = "从小红书获取景点封面图片URL")
+    @Operation(summary = "获取景点图片", description = "按城市和景点POI身份解析已验证的真实景点图片")
     public ResponseEntity<Map<String, Object>> getAttractionPhoto(
             @Parameter(name = "name", description = "景点名称", required = true) @RequestParam String name,
-            @Parameter(name = "city", description = "城市名称") @RequestParam(required = false) String city) {
+            @Parameter(name = "city", description = "城市名称", required = true) @RequestParam String city,
+            @Parameter(name = "poiId", description = "已有POI ID") @RequestParam(required = false) String poiId) {
         try {
-            String queryKw = name + " 风景";
-            String photoUrl = xhsService.getPhotoFromXhs(queryKw);
-            if (photoUrl == null || photoUrl.isEmpty()) {
-                photoUrl = "";
-            }
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("name", name);
-            data.put("photo_url", photoUrl);
+            var data = attractionImageService.resolveImage(name, city, poiId);
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("success", true);
-            response.put("message", "获取图片成功");
+            response.put("message", data.isVerified() ? "获取图片成功" : "暂无已验证图片");
             response.put("data", data);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("获取景点图片失败: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "获取景点图片失败: " + e.getMessage());
+            log.error("获取景点图片失败 (type={})", e.getClass().getSimpleName());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "获取景点图片失败");
         }
     }
 }
