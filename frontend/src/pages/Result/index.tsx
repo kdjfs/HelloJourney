@@ -8,6 +8,8 @@ import {
   FloatButton,
   Alert,
   Image,
+  ConfigProvider,
+  theme,
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -521,11 +523,16 @@ function Result() {
             </Card>
           )}
 
-          {/* Daily Trips */}
+          {/* Daily Trips（浅色主题：白色卡片） */}
           {activeSection === 'days' && (
-            <div>
+            <ConfigProvider
+              theme={{
+                algorithm: theme.defaultAlgorithm,
+                token: { colorPrimary: '#176b87', borderRadius: 12 },
+              }}
+            >
               <EditableTripDays initialPlan={tripPlan} planId={planId} onPlanChange={setTripPlan} />
-            </div>
+            </ConfigProvider>
           )}
 
           {/* Knowledge Graph */}
