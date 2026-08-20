@@ -1039,3 +1039,9 @@
   0%, 45%, 55%, 100% { transform: scaleY(1); }
   50% { transform: scaleY(0.1); }
 }
+
+.review-summary {
+  margin-bottom: 18px;
+  border-radius: 12px;
+  text-align: left;
+}

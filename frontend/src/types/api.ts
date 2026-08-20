@@ -148,7 +148,7 @@ export interface TripPlanResponse {
 
 export interface CityStay {
   city: string
-  nights?: number
+  days: number
 }
 
 export interface TripFormData {

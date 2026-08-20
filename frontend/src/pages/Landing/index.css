@@ -778,3 +778,58 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.generation-alert {
+  margin-bottom: 22px;
+  text-align: left;
+}
+
+.city-route-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.agent-activity {
+  width: min(100%, 640px);
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.agent-activity li {
+  display: grid;
+  grid-template-columns: 48px 150px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(236, 243, 250, 0.08);
+  color: rgba(236, 243, 250, 0.78);
+}
+
+.agent-activity li span {
+  color: #f2a879;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-activity li small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cancel-generation {
+  margin-top: 18px;
+}
+
+@media (max-width: 640px) {
+  .agent-activity li {
+    grid-template-columns: 42px 1fr;
+  }
+
+  .agent-activity li small {
+    grid-column: 2;
+  }
+}

@@ -101,4 +101,18 @@ export const handlers = [
       },
     })
   }),
+
+  http.delete('*/api/trip/tasks/:taskId', ({ params }) => {
+    return HttpResponse.json({ task_id: params.taskId, status: 'cancelled', message: 'Mock 任务已取消' })
+  }),
+
+  http.post('*/api/trip/plans/:planId/replan', async () => {
+    await delay(500)
+    return HttpResponse.json({
+      id: 'change-mock-1',
+      title: '放慢下午节奏',
+      summary: '将第二个景点移到后一天，减少当天步行距离。',
+      operations: [{ type: 'attraction.move', fromDayIndex: 0, attractionIndex: 1, toDayIndex: 1, at: 0 }],
+    })
+  }),
 ]

@@ -1,11 +1,12 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Card,
   Button,
   Empty,
   Spin,
-  BackTop,
+  FloatButton,
+  Alert,
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -13,12 +14,13 @@ import {
 import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
 import BudgetPanel from '../../components/BudgetPanel'
 import OverviewAttractionCard, { type OverviewAttractionItem } from '../../components/OverviewAttractionCard'
-import KnowledgeGraph from '../../components/KnowledgeGraph'
-import AIChat from '../../components/AIChat'
 import { getPoiPhoto } from '../../services/poiApi'
 import { pollTaskStatus } from '../../services/tripApi'
-import type { TripPlan, KnowledgeGraphData, WeatherInfo } from '../../types/api'
+import type { TripPlan, KnowledgeGraphData, WeatherInfo, TripReviewResult } from '../../types/api'
 import './index.css'
+
+const KnowledgeGraph = lazy(() => import('../../components/KnowledgeGraph'))
+const AIChat = lazy(() => import('../../components/AIChat'))
 
 type WeatherIconKind = 'sunny' | 'sun-shower' | 'thunder-storm' | 'cloudy' | 'flurries' | 'rainy'
 
@@ -210,6 +212,12 @@ function Result() {
     try { return JSON.parse(raw) } catch { return null }
   })
 
+  const [tripReview, setTripReview] = useState<TripReviewResult | null>(() => {
+    const raw = sessionStorage.getItem('tripReview')
+    if (!raw) return null
+    try { return JSON.parse(raw) } catch { return null }
+  })
+
   const [planId] = useState(urlPlanId || sessionStorage.getItem('planId') || '')
   const [loading, setLoading] = useState(false)
   const [recoveryError, setRecoveryError] = useState('')
@@ -253,10 +261,13 @@ function Result() {
         if (status.status === 'completed' && status.result) {
           const data: TripPlan = status.result.data || status.result
           const gData: KnowledgeGraphData | null = status.result.graph_data || null
+          const review: TripReviewResult | null = status.result.review || null
           setTripPlan(data)
           setGraphData(gData)
+          setTripReview(review)
           sessionStorage.setItem('tripPlan', JSON.stringify(data))
           if (gData) sessionStorage.setItem('graphData', JSON.stringify(gData))
+          if (review) sessionStorage.setItem('tripReview', JSON.stringify(review))
           sessionStorage.setItem('planId', urlPlanId)
         } else if (status.status === 'failed') {
           setRecoveryError(status.error || '计划生成失败')
@@ -369,6 +380,18 @@ function Result() {
               </div>
             </div>
           </div>
+
+          {tripReview && (
+            <Alert
+              className="review-summary"
+              type={tripReview.pass ? (tripReview.warnings.length ? 'warning' : 'success') : 'error'}
+              showIcon
+              title={tripReview.pass ? '行程已通过可执行性校验' : '行程仍有阻断问题'}
+              description={tripReview.warnings.length
+                ? `${tripReview.warnings.length} 项提示：${tripReview.warnings.slice(0, 2).map((issue) => issue.message).join('；')}`
+                : '日期、时间、餐饮和预算结构均已通过 Review Agent 校验。'}
+            />
+          )}
 
           {/* Overview */}
           {activeSection === 'overview' && (
@@ -500,17 +523,15 @@ function Result() {
           {/* Knowledge Graph */}
           {activeSection === 'knowledge-graph' && (
             <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
-              <KnowledgeGraph graphData={graphData} />
+              <Suspense fallback={<Spin tip="正在加载知识图谱" />}><KnowledgeGraph graphData={graphData} /></Suspense>
             </Card>
           )}
         </div>
       </main>
 
-      <BackTop visibilityHeight={300}>
-        <div className="back-top-button">Top</div>
-      </BackTop>
+      <FloatButton.BackTop visibilityHeight={300} tooltip="回到顶部" />
 
-      <AIChat tripPlan={tripPlan} />
+      <Suspense fallback={null}><AIChat tripPlan={tripPlan} /></Suspense>
     </div>
   )
 }

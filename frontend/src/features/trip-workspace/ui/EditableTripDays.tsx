@@ -9,11 +9,13 @@ import {
   EnvironmentOutlined,
   PlusOutlined,
   RedoOutlined,
+  RobotOutlined,
   UndoOutlined,
 } from '@ant-design/icons'
-import { Button, Card, Col, Empty, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Tooltip, Typography } from 'antd'
+import { Alert, Button, Card, Col, Empty, Form, Input, InputNumber, List, message, Modal, Popconfirm, Row, Select, Space, Tooltip, Typography } from 'antd'
 import VerificationBadge from '@/components/VerificationBadge'
 import type { Attraction, TripPlan } from '@/types/api'
+import { proposePartialReplan } from '@/services/tripApi'
 import { useTripWorkspace } from '../model/useTripWorkspace'
 import './editableTripDays.css'
 
@@ -43,6 +45,11 @@ const emptyAttraction = (): Attraction => ({
 export default function EditableTripDays({ initialPlan, planId, onPlanChange }: Props) {
   const { state, dispatch, canUndo, canRedo } = useTripWorkspace(initialPlan, planId)
   const [editTarget, setEditTarget] = useState<EditTarget>()
+  const [replanOpen, setReplanOpen] = useState(false)
+  const [replanSubmitting, setReplanSubmitting] = useState(false)
+  const [replanInstruction, setReplanInstruction] = useState('')
+  const [replanScope, setReplanScope] = useState<'day' | 'all'>('day')
+  const [replanDayIndex, setReplanDayIndex] = useState(0)
   const [form] = Form.useForm<AttractionFields>()
 
   useEffect(() => onPlanChange(state.present), [onPlanChange, state.present])
@@ -58,6 +65,41 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
     const values = await form.validateFields()
     dispatch({ type: 'attraction.update', ...editTarget, patch: values })
     setEditTarget(undefined)
+  }
+
+  const requestReplan = async () => {
+    if (!replanInstruction.trim()) {
+      message.warning('请先描述你希望如何调整')
+      return
+    }
+    if (!planId) {
+      message.error('当前行程缺少 Plan ID，无法请求 AI 调整')
+      return
+    }
+    setReplanSubmitting(true)
+    try {
+      const changeSet = await proposePartialReplan(planId, {
+        instruction: replanInstruction.trim(),
+        scope: replanScope,
+        day_index: replanScope === 'day' ? replanDayIndex : undefined,
+        current_plan: state.present,
+      })
+      dispatch({ type: 'changeset.preview', changeSet })
+      setReplanOpen(false)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'AI 调整暂时不可用')
+    } finally {
+      setReplanSubmitting(false)
+    }
+  }
+
+  const operationText = (operation: NonNullable<typeof state.pendingChangeSet>['operations'][number]) => {
+    const labels: Record<string, string> = {
+      'attraction.add': '新增景点', 'attraction.remove': '删除景点', 'attraction.update': '更新景点',
+      'attraction.move': '移动景点', 'hotel.update': '更新酒店', 'day.update': '更新当天安排',
+    }
+    const day = 'dayIndex' in operation ? operation.dayIndex : 'fromDayIndex' in operation ? operation.fromDayIndex : undefined
+    return `${labels[operation.type] ?? operation.type}${typeof day === 'number' ? ` · 第 ${day + 1} 天` : ''}`
   }
 
   return (
@@ -76,6 +118,7 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
           <Tooltip title="重做已撤销的修改">
             <Button aria-label="重做" icon={<RedoOutlined />} disabled={!canRedo} onClick={() => dispatch({ type: 'redo' })} />
           </Tooltip>
+          <Button type="primary" icon={<RobotOutlined />} onClick={() => setReplanOpen(true)}>AI 局部调整</Button>
           <span className="draft-status" aria-live="polite">
             {state.lastSavedAt ? `草稿已保存 ${new Date(state.lastSavedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}` : '正在保存草稿'}
           </span>
@@ -153,6 +196,36 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
           </Row>
           <Form.Item name="description" label="备注"><Input.TextArea rows={3} /></Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title="让 AI 提出调整方案" open={replanOpen} confirmLoading={replanSubmitting} onCancel={() => setReplanOpen(false)} onOk={() => void requestReplan()} okText="生成变更预览" cancelText="取消">
+        <Alert type="info" showIcon title="AI 不会直接改写你的行程" description="系统会先返回一组通过白名单校验的变更，你可以逐项预览后接受或拒绝。" />
+        <Form layout="vertical" style={{ marginTop: 18 }}>
+          <Form.Item label="调整范围">
+            <Select value={replanScope} onChange={setReplanScope} options={[{ value: 'day', label: '指定某一天' }, { value: 'all', label: '整个行程' }]} />
+          </Form.Item>
+          {replanScope === 'day' && (
+            <Form.Item label="选择日期">
+              <Select value={replanDayIndex} onChange={setReplanDayIndex} options={state.present.days.map((day, index) => ({ value: index, label: `第 ${index + 1} 天 · ${day.date}${day.city ? ` · ${day.city}` : ''}` }))} />
+            </Form.Item>
+          )}
+          <Form.Item label="希望怎样调整">
+            <Input.TextArea value={replanInstruction} maxLength={1000} showCount rows={4} onChange={(event) => setReplanInstruction(event.target.value)} placeholder="例如：第二天下午减少步行，保留博物馆，并安排一间适合亲子的餐厅。" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={state.pendingChangeSet?.title ?? 'AI 变更预览'}
+        open={Boolean(state.pendingChangeSet)}
+        onCancel={() => dispatch({ type: 'changeset.reject' })}
+        footer={[
+          <Button key="reject" onClick={() => dispatch({ type: 'changeset.reject' })}>拒绝变更</Button>,
+          <Button key="apply" type="primary" onClick={() => { dispatch({ type: 'changeset.apply' }); message.success('变更已应用，可随时撤销') }}>接受并应用</Button>,
+        ]}
+      >
+        <Alert type="warning" showIcon title="请确认后再应用" description={state.pendingChangeSet?.summary} />
+        <List style={{ marginTop: 12 }} bordered dataSource={state.pendingChangeSet?.operations ?? []} renderItem={(operation, index) => <List.Item><Typography.Text strong>{index + 1}. {operationText(operation)}</Typography.Text></List.Item>} />
       </Modal>
     </section>
   )

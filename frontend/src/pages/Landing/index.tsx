@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Form, Input, Select, DatePicker, Button, message, Progress } from 'antd'
+import { Alert, Form, Input, Select, DatePicker, Button, message, Progress } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import { generateTripPlan, getTripHistory } from '../../services/tripApi'
 import { isMockEnabled } from '../../utils/env'
 import NavBar from '../../components/NavBar'
-import type { TripFormData, TripHistoryItem } from '../../types/api'
+import type { TripFormData, TripHistoryItem, TripTaskEvent } from '../../types/api'
+import heroImage from '../../assets/hero.png'
 import './index.css'
 
 /* 偏好选项 */
@@ -26,9 +27,11 @@ const stageLabels: Record<string, string> = {
   weather_search: '正在查询天气...',
   hotel_search: '正在推荐酒店...',
   planning: '正在生成行程计划...',
+  review: '正在校验行程可执行性...',
   graph_building: '正在构建知识图谱...',
   completed: '生成完成！',
   failed: '生成失败',
+  cancelled: '已取消',
 }
 
 function Landing() {
@@ -40,10 +43,14 @@ function Landing() {
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [loadingStatus, setLoadingStatus] = useState('')
   const [planCode, setPlanCode] = useState('')
+  const [generationError, setGenerationError] = useState('')
+  const [activityEvents, setActivityEvents] = useState<TripTaskEvent[]>([])
+  const generationController = useRef<AbortController | null>(null)
 
   /* 偏好选择（自定义 pill 按钮需要单独管理） */
   const [preferences, setPreferences] = useState<string[]>(['历史文化', '美食'])
   const [freeTextInput, setFreeTextInput] = useState('')
+  const [additionalCities, setAdditionalCities] = useState<string[]>([])
   const [travelDays, setTravelDays] = useState(3)
 
   /* 日期选择 */
@@ -148,6 +155,7 @@ function Landing() {
     if (!planId) return
     sessionStorage.removeItem('tripPlan')
     sessionStorage.removeItem('graphData')
+    sessionStorage.removeItem('tripReview')
     sessionStorage.setItem('planId', planId)
     navigate(`/result?plan_id=${planId}`)
   }
@@ -184,9 +192,25 @@ function Landing() {
     setLoadingProgress(5)
     setLoadingStatus('正在初始化...')
     setPlanCode('')
+    setGenerationError('')
+    setActivityEvents([])
+
+    const allCities = [city, ...additionalCities]
+      .map((item) => item.trim())
+      .filter((item, index, items) => item && items.indexOf(item) === index)
+    if (allCities.length > travelDays) {
+      message.error('旅行天数必须不少于城市数量')
+      setLoading(false)
+      return
+    }
+    const baseDays = Math.floor(travelDays / allCities.length)
+    const remainder = travelDays % allCities.length
+    const controller = new AbortController()
+    generationController.current = controller
 
     const requestData: TripFormData = {
       city,
+      cities: allCities.map((cityName, index) => ({ city: cityName, days: baseDays + (index < remainder ? 1 : 0) })),
       start_date: startDate.format('YYYY-MM-DD'),
       end_date: endDate.format('YYYY-MM-DD'),
       travel_days: travelDays,
@@ -210,8 +234,13 @@ function Landing() {
         ]
 
         for (const stage of mockStages) {
+          if (controller.signal.aborted) throw new DOMException('任务已取消', 'AbortError')
           setLoadingProgress(stage.progress)
           setLoadingStatus(stageLabels[stage.label])
+          setActivityEvents((events) => [...events, {
+            task_id: 'mock1234', plan_id: 'mock1234', status: 'processing',
+            stage: stage.label as TripTaskEvent['stage'], progress: stage.progress, message: stageLabels[stage.label],
+          }])
           await new Promise((resolve) => setTimeout(resolve, 800))
         }
       }
@@ -220,14 +249,24 @@ function Landing() {
         requestData,
         useMock
           ? undefined
-          : (event) => {
+            : (event) => {
               if (event.plan_id) setPlanCode(event.plan_id)
               if (typeof event.progress === 'number') {
                 setLoadingProgress(Math.max(0, Math.min(100, event.progress)))
               }
               setLoadingStatus(event.message || stageLabels[event.stage] || '处理中...')
+              setActivityEvents((events) => [...events.slice(-5), event])
             },
-        { mockByPolling: useMock },
+        {
+          mockByPolling: useMock,
+          signal: controller.signal,
+          onTaskSubmitted: (task) => {
+            setPlanCode(task.plan_id)
+            setActivityEvents((events) => [...events, {
+              task_id: task.task_id, plan_id: task.plan_id, status: 'processing', stage: 'submitted', progress: 5, message: task.message,
+            }])
+          },
+        },
       )
 
       setLoadingProgress(100)
@@ -239,6 +278,9 @@ function Landing() {
         if (response.graph_data) {
           sessionStorage.setItem('graphData', JSON.stringify(response.graph_data))
         }
+        if (response.review) {
+          sessionStorage.setItem('tripReview', JSON.stringify(response.review))
+        }
         sessionStorage.setItem('planId', planId)
         message.success('旅行计划生成成功！')
 
@@ -249,10 +291,13 @@ function Landing() {
         message.error(response.message || '生成失败，请重试')
       }
     } catch (error) {
-      console.error('生成失败：', error)
       const errorMessage = error instanceof Error ? error.message : '未知错误'
-      message.error(`生成失败：${errorMessage}`)
+      const cancelled = error instanceof DOMException && error.name === 'AbortError'
+      setGenerationError(cancelled ? '本次生成已取消，你可以修改需求后重新开始。' : errorMessage)
+      if (cancelled) message.info('已取消生成任务')
+      else message.error(`生成失败：${errorMessage}`)
     } finally {
+      generationController.current = null
       setTimeout(() => {
         setLoading(false)
         setLoadingProgress(0)
@@ -288,7 +333,7 @@ function Landing() {
         <div
           className="page-header section-dark landing-header"
           style={{
-            backgroundImage: "url('http://demos.creative-tim.com/paper-kit-2/assets/img/antoine-barres.jpg')",
+            backgroundImage: `url(${heroImage})`,
             backgroundPosition: `center ${Math.max(-scrollY * 0.08, -120)}px`,
             backgroundSize: 'cover',
             backgroundRepeat: 'no-repeat',
@@ -312,19 +357,6 @@ function Landing() {
             </div>
           </div>
 
-          {/* 移动云层效果 */}
-          <div
-            className="moving-clouds"
-            style={{
-              backgroundImage: "url('https://demos.creative-tim.com/paper-kit-2/assets/img/clouds.png')",
-            }}
-          />
-          <div className="fog-low">
-            <img src="https://demos.creative-tim.com/paper-kit-2/assets/img/clouds.png" alt="fog" />
-          </div>
-          <div className="fog-low right">
-            <img src="https://demos.creative-tim.com/paper-kit-2/assets/img/clouds.png" alt="fog" />
-          </div>
           <div className="hero-bottom-shade" />
         </div>
       </div>
@@ -347,6 +379,9 @@ function Landing() {
               transportation: '公共交通',
               accommodation: '经济型酒店',
             }}>
+              {generationError && (
+                <Alert className="generation-alert" type="error" showIcon title="上次生成未完成" description={generationError} closable onClose={() => setGenerationError('')} />
+              )}
               {/* Step 01: 目的地与日期 */}
               <div className="step">
                 <div className="step-head">
@@ -389,6 +424,21 @@ function Landing() {
                     <span className="days-number">{travelDays}</span>
                     <span className="days-unit">天</span>
                   </div>
+                </div>
+                <div className="city-route-field">
+                  <label className="field-label" htmlFor="additional-cities">途经城市（可选，输入后回车）</label>
+                  <Select
+                    id="additional-cities"
+                    mode="tags"
+                    value={additionalCities}
+                    onChange={setAdditionalCities}
+                    tokenSeparators={['、', ',', '，']}
+                    placeholder="例如：天津、济南"
+                    size="large"
+                    className="field-select"
+                    maxCount={8}
+                    aria-label="途经城市"
+                  />
                 </div>
               </div>
 
@@ -568,14 +618,31 @@ function Landing() {
                 )}
               </div>
 
+              {activityEvents.length > 0 && (
+                <ol className="agent-activity" aria-label="Agent 执行动态" aria-live="polite">
+                  {activityEvents.slice(-4).map((event, index) => (
+                    <li key={`${event.stage}-${event.progress}-${index}`}>
+                      <span>{event.progress}%</span>
+                      <strong>{stageLabels[event.stage] || event.stage}</strong>
+                      <small>{event.message}</small>
+                    </li>
+                  ))}
+                </ol>
+              )}
+
               <Progress
                 percent={loadingProgress}
                 status={loadingProgress >= 100 ? 'success' : 'active'}
                 showInfo={false}
                 strokeColor="#d76e42"
-                trailColor="rgba(236,243,250,0.08)"
+                railColor="rgba(236,243,250,0.08)"
                 style={{ marginTop: 24, maxWidth: 480, width: '100%' }}
               />
+              {loadingProgress < 100 && (
+                <Button danger ghost className="cancel-generation" onClick={() => generationController.current?.abort()}>
+                  取消生成
+                </Button>
+              )}
             </div>
           )}
         </div>
