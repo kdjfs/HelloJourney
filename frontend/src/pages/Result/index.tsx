@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Card,
-  Typography,
   Button,
   Empty,
   Spin,
@@ -11,7 +10,7 @@ import {
 import {
   ArrowLeftOutlined,
 } from '@ant-design/icons'
-import TripDayCard from '../../components/TripDayCard'
+import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
 import BudgetPanel from '../../components/BudgetPanel'
 import OverviewAttractionCard, { type OverviewAttractionItem } from '../../components/OverviewAttractionCard'
 import KnowledgeGraph from '../../components/KnowledgeGraph'
@@ -20,8 +19,6 @@ import { getPoiPhoto } from '../../services/poiApi'
 import { pollTaskStatus } from '../../services/tripApi'
 import type { TripPlan, KnowledgeGraphData, WeatherInfo } from '../../types/api'
 import './index.css'
-
-const { Title } = Typography
 
 type WeatherIconKind = 'sunny' | 'sun-shower' | 'thunder-storm' | 'cloudy' | 'flurries' | 'rainy'
 
@@ -496,18 +493,7 @@ function Result() {
           {/* Daily Trips */}
           {activeSection === 'days' && (
             <div>
-              <Title level={3} style={{ marginBottom: 16, color: '#ecf3fa' }}>
-                📋 每日行程
-              </Title>
-              {tripPlan.days.map((day, idx) => (
-                <div key={day.date} id={`day-${idx}`}>
-                  <TripDayCard
-                    day={day}
-                    attractionImages={attractionPhotos}
-                    onImageError={handleImageError}
-                  />
-                </div>
-              ))}
+              <EditableTripDays initialPlan={tripPlan} planId={planId} onPlanChange={setTripPlan} />
             </div>
           )}
 
