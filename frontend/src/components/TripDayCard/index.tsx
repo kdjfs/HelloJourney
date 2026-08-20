@@ -6,13 +6,13 @@ import {
   StarOutlined,
 } from '@ant-design/icons'
 import type { DayPlan, Attraction, Meal, Hotel } from '../../types/api'
+import AttractionImage from '../AttractionImage'
 
 const { Text, Paragraph } = Typography
 
 interface TripDayCardProps {
   day: DayPlan
   attractionImages?: Record<string, string>
-  onImageError?: () => void
 }
 
 const mealTypeMap: Record<string, { label: string; color: string }> = {
@@ -33,27 +33,24 @@ function formatMinutes(minutes: number) {
 function AttractionCard({
   item,
   index,
+  city,
   attractionImages,
-  onImageError,
 }: {
   item: Attraction
   index: number
+  city: string
   attractionImages?: Record<string, string>
-  onImageError?: () => void
 }) {
-  const imageSrc =
-    item.image_url ||
-    (attractionImages?.[item.name]) ||
-    `https://picsum.photos/seed/${encodeURIComponent(item.name)}/800/600`
+  const imageUrl = attractionImages?.[item.name]
 
   return (
     <Card size="small" className="attraction-card" styles={{ body: { padding: 0 } }}>
       <div className="attraction-image-wrapper">
-        <img
-          src={imageSrc}
-          alt={item.name}
+        <AttractionImage
+          attractionName={item.name}
+          city={city}
+          imageUrl={imageUrl}
           className="attraction-image"
-          onError={onImageError}
         />
         <div className="attraction-badge">
           <span className="badge-number">{index + 1}</span>
@@ -177,7 +174,7 @@ function MealCard({ meal }: { meal: Meal }) {
   )
 }
 
-function TripDayCard({ day, attractionImages, onImageError }: TripDayCardProps) {
+function TripDayCard({ day, attractionImages }: TripDayCardProps) {
   return (
     <Card
       title={
@@ -216,8 +213,8 @@ function TripDayCard({ day, attractionImages, onImageError }: TripDayCardProps) 
                 <AttractionCard
                   item={attraction}
                   index={idx}
+                  city={day.city || ''}
                   attractionImages={attractionImages}
-                  onImageError={onImageError}
                 />
               </Col>
             ))}

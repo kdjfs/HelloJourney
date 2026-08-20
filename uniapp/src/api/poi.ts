@@ -1,8 +1,12 @@
 import { get } from '@/utils/http'
 
 export interface PoiPhotoResult {
-  name: string
-  photo_url: string
+  imageUrl: string
+  provider: string
+  matchedName: string
+  matchedPoiId: string
+  confidence: number
+  verified: boolean
 }
 
 export interface PoiPhotoResponse {
@@ -11,8 +15,8 @@ export interface PoiPhotoResponse {
   data: PoiPhotoResult
 }
 
-export function getPoiPhoto(name: string, city?: string): Promise<PoiPhotoResult> {
-  const params: Record<string, string> = { name }
-  if (city) params.city = city
+export function getPoiPhoto(name: string, city: string, poiId?: string): Promise<PoiPhotoResult> {
+  const params: Record<string, string> = { name, city }
+  if (poiId) params.poiId = poiId
   return get<PoiPhotoResponse>('/api/poi/photo', params).then((res) => res.data)
 }

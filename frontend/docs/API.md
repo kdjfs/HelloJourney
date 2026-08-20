@@ -396,57 +396,45 @@ interface TripHealthResponse {
 
 ## 7. GET /api/poi/photo
 
-**用�?*：根据景点名称从小红书获取风景图。失败时返回空字符串，前端应使用默认占位图�?
-**后端源码**：`backend/app/api/routes/poi.py` `get_attraction_photo`
+**用途**：根据城市、景点名称和可选 POI ID，解析经过身份校验的真实景点图片。
 
 ### Query 参数
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| name | string | �?| 景点名称，如 "故宫" |
-| city | string | �?| 所在城市（后端暂未使用此参数做范围限定�?|
+| name | string | 是 | 景点名称，如“广州塔” |
+| city | string | 是 | 所在城市，如“广州” |
+| poiId | string | 否 | 行程中已有的 POI ID，用于同名候选排序 |
 
-### 响应�?
-**TypeScript Interface**�?
+### 响应
+
 ```ts
-interface PoiPhotoResponse {
-  success: boolean
-  message: string
-  data: {
-    name: string
-    photo_url: string // 空字符串表示未找�?  }
+interface AttractionImageResult {
+  imageUrl: string
+  provider: string
+  matchedName: string
+  matchedPoiId: string
+  confidence: number
+  verified: boolean
 }
 ```
 
-**JSON 响应示例**�?
 ```json
 {
   "success": true,
   "message": "获取图片成功",
   "data": {
-    "name": "故宫",
-    "photo_url": "https://example.com/gugong.jpg"
+    "imageUrl": "https://aos-cdn-image.amap.com/example.jpg",
+    "provider": "amap",
+    "matchedName": "广州塔",
+    "matchedPoiId": "B00140TY2A",
+    "confidence": 1.0,
+    "verified": true
   }
 }
 ```
 
-**未找到时**�?
-```json
-{
-  "success": true,
-  "message": "获取图片成功",
-  "data": {
-    "name": "故宫",
-    "photo_url": ""
-  }
-}
-```
-
-### 特殊说明
-
-- 后端内部会自动拼�?`"{name} 风景"` 作为搜索关键词，避免歌词、人名等干扰
-- `photo_url` 为空字符串时，前端应 fallback �?`https://picsum.photos/seed/{name}/800/600`
-- Mock 模式�?MSW 直接返回 picsum 链接
+未找到准确匹配时，接口返回 `verified=false` 和空 `imageUrl`。前端必须展示带景点名称和城市的确定性占位卡。Mock 模式同样不提供随机图片。
 
 ---
 

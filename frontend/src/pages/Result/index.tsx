@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useRef, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Card,
@@ -15,7 +15,7 @@ import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
 import TripExportActions from '../../features/export/ui/TripExportActions'
 import BudgetPanel from '../../components/BudgetPanel'
 import OverviewAttractionCard, { type OverviewAttractionItem } from '../../components/OverviewAttractionCard'
-import { getPoiPhoto } from '../../services/poiApi'
+import { attractionImageCacheKey, resolveAttractionImage } from '../../services/poiApi'
 import { pollTaskStatus } from '../../services/tripApi'
 import type { TripPlan, KnowledgeGraphData, WeatherInfo, TripReviewResult } from '../../types/api'
 import './index.css'
@@ -229,27 +229,32 @@ function Result() {
   const overviewRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!tripPlan) return
+    let cancelled = false
 
     const loadPhotos = async () => {
       const photos: Record<string, string> = {}
+      const resolvedKeys = new Set<string>()
       for (const day of tripPlan.days) {
+        const city = day.city || tripPlan.city
         for (const attr of day.attractions) {
-          if (attr.image_url) {
-            photos[attr.name] = attr.image_url
-            continue
-          }
+          const key = attractionImageCacheKey(city, attr.name)
+          if (resolvedKeys.has(key)) continue
+          resolvedKeys.add(key)
           try {
-            const url = await getPoiPhoto(attr.name, tripPlan.city)
-            if (url) photos[attr.name] = url
+            const result = await resolveAttractionImage(attr.name, city, attr.poi_id)
+            if (result.verified && result.imageUrl) photos[key] = result.imageUrl
           } catch {
-            // 图片加载失败，使用默认
+            // The card keeps a deterministic named placeholder when the provider is unavailable.
           }
         }
       }
-      setAttractionPhotos(photos)
+      if (!cancelled) setAttractionPhotos(photos)
     }
 
     void loadPhotos()
+    return () => {
+      cancelled = true
+    }
   }, [tripPlan])
 
   useEffect(() => {
@@ -289,6 +294,7 @@ function Result() {
     ? tripPlan.days.flatMap((day, dayIdx) =>
         day.attractions.map((attr) => ({
           name: attr.name,
+          city: day.city || tripPlan.city,
           address: attr.address,
           visit_duration: attr.visit_duration,
           description: attr.description,
@@ -318,10 +324,6 @@ function Result() {
       document.getElementById(`day-${dayIndex}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
   }
-
-  const handleImageError = useCallback(() => {
-    // 图片加载失败，保留占位
-  }, [])
 
   if (loading) {
     return (
@@ -407,14 +409,10 @@ function Result() {
                       <OverviewAttractionCard
                         key={`${item.dayArrayIndex}-${item.name}`}
                         item={item}
-                        imageSrc={
-                          attractionPhotos[item.name] ||
-                          `https://picsum.photos/seed/${encodeURIComponent(item.name)}/400/500`
-                        }
+                        imageUrl={attractionPhotos[attractionImageCacheKey(item.city, item.name)]}
                         active={activeOverviewCard === index}
                         onHover={() => setActiveOverviewCard(index)}
                         onSelectDay={goToDayFromOverview}
-                        onImageError={handleImageError}
                       />
                     ))}
                   </div>

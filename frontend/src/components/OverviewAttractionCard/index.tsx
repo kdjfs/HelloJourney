@@ -1,5 +1,8 @@
+import AttractionImage from '../AttractionImage'
+
 interface OverviewAttractionItem {
   name: string
+  city: string
   address: string
   visit_duration: number
   description: string
@@ -11,20 +14,18 @@ interface OverviewAttractionItem {
 
 interface OverviewAttractionCardProps {
   item: OverviewAttractionItem
-  imageSrc: string
+  imageUrl?: string
   active: boolean
   onHover?: () => void
   onSelectDay?: (dayArrayIndex: number) => void
-  onImageError?: () => void
 }
 
 function OverviewAttractionCard({
   item,
-  imageSrc,
+  imageUrl,
   active,
   onHover,
   onSelectDay,
-  onImageError,
 }: OverviewAttractionCardProps) {
   return (
     <div
@@ -32,11 +33,10 @@ function OverviewAttractionCard({
       onMouseEnter={onHover}
     >
       <div className="overview-slide-img">
-        <img
-          src={imageSrc || `https://picsum.photos/seed/${encodeURIComponent(item.name)}/400/500`}
-          alt={item.name}
-          loading="lazy"
-          onError={onImageError}
+        <AttractionImage
+          attractionName={item.name}
+          city={item.city}
+          imageUrl={imageUrl}
         />
         <svg
           data-name="Layer 1"

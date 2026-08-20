@@ -86,7 +86,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.8,
             ticket_price: 60,
-            image_url: 'https://picsum.photos/seed/gugong/800/600',
             reservation_required: true,
             reservation_tips: '必须提前1-7天在"故宫博物院"官方小程序预约，现场不售票。',
             start_time: '09:00', end_time: '12:00', poi_id: 'mock-gugong', source: 'map_api', provider: 'tencent', verified_at: '2026-05-31T08:00:00Z', verification_status: 'verified',
@@ -100,7 +99,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '城市公园',
             rating: 4.6,
             ticket_price: 10,
-            image_url: 'https://picsum.photos/seed/jingshan/800/600',
           },
           {
             name: '南锣鼓巷',
@@ -111,7 +109,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.4,
             ticket_price: 0,
-            image_url: 'https://picsum.photos/seed/nanluoguxiang/800/600',
           },
         ],
         meals: [
@@ -162,7 +159,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '自然风光',
             rating: 4.7,
             ticket_price: 30,
-            image_url: 'https://picsum.photos/seed/yiheyuan/800/600',
             reservation_required: false,
           },
           {
@@ -174,7 +170,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.5,
             ticket_price: 25,
-            image_url: 'https://picsum.photos/seed/yuanmingyuan/800/600',
           },
         ],
         meals: [
@@ -225,7 +220,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '艺术',
             rating: 4.5,
             ticket_price: 0,
-            image_url: 'https://picsum.photos/seed/798art/800/600',
           },
           {
             name: '天坛公园',
@@ -236,7 +230,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.7,
             ticket_price: 35,
-            image_url: 'https://picsum.photos/seed/tiantan/800/600',
           },
         ],
         meals: [

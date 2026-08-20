@@ -246,11 +246,17 @@ export interface POIInfo {
   tel?: string
 }
 
+export interface AttractionImageResult {
+  imageUrl: string
+  provider: string
+  matchedName: string
+  matchedPoiId: string
+  confidence: number
+  verified: boolean
+}
+
 export interface AttractionPhotoResponse {
   success: boolean
   message: string
-  data: {
-    name: string
-    photo_url: string
-  }
+  data: AttractionImageResult
 }

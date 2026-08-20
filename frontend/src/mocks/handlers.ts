@@ -59,16 +59,17 @@ export const handlers = [
     })
   }),
 
-  http.get('*/api/poi/photo', ({ request }) => {
-    const url = new URL(request.url)
-    const name = url.searchParams.get('name') || '景点'
-
+  http.get('*/api/poi/photo', () => {
     return HttpResponse.json({
       success: true,
-      message: '获取图片成功',
+      message: '暂无已验证图片',
       data: {
-        name,
-        photo_url: `https://picsum.photos/seed/${encodeURIComponent(name)}/800/600`,
+        imageUrl: '',
+        provider: 'none',
+        matchedName: '',
+        matchedPoiId: '',
+        confidence: 0,
+        verified: false,
       },
     })
   }),
