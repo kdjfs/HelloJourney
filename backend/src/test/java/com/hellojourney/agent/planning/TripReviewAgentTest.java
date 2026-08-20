@@ -42,4 +42,16 @@ class TripReviewAgentTest {
                 .contains("time_conflict", "budget_total_mismatch", "invalid_verified_claim");
         assertThat(review.suggestedFixes()).isNotEmpty();
     }
+
+    @Test
+    void review_blocksPlanThatExceedsRequestedBudget() {
+        var request = PlanningTestData.request();
+        request.setBudgetLimit(1000);
+
+        TripReviewResult review = reviewAgent.review(PlanningTestData.plan(), request);
+
+        assertThat(review.pass()).isFalse();
+        assertThat(review.errors()).extracting(ReviewIssue::code).contains("budget_limit_exceeded");
+        assertThat(review.suggestedFixes()).anyMatch(fix -> fix.contains("¥1000"));
+    }
 }

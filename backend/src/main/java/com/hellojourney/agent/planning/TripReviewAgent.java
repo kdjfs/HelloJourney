@@ -82,7 +82,7 @@ public class TripReviewAgent {
             }
         }
         reviewWeather(plan, days, warnings, errors);
-        reviewBudget(plan.getBudget(), errors, fixes);
+        reviewBudget(plan.getBudget(), request.getBudgetLimit(), errors, fixes);
 
         if (!errors.isEmpty() && fixes.isEmpty()) {
             fixes.add("根据 errors 中的路径修复数据后重新执行 Review Agent");
@@ -155,7 +155,7 @@ public class TripReviewAgent {
         }
     }
 
-    private void reviewBudget(Budget budget, List<ReviewIssue> errors, List<String> fixes) {
+    private void reviewBudget(Budget budget, Integer budgetLimit, List<ReviewIssue> errors, List<String> fixes) {
         if (budget == null) {
             error(errors, "$.budget", "missing_budget", "必须提供预算汇总");
             return;
@@ -165,6 +165,10 @@ public class TripReviewAgent {
         if (calculated != budget.getTotal()) {
             error(errors, "$.budget.total", "budget_total_mismatch", "预算总额必须等于各项费用之和");
             fixes.add("重新计算 budget.total");
+        }
+        if (budgetLimit != null && budget.getTotal() > budgetLimit) {
+            error(errors, "$.budget.total", "budget_limit_exceeded", "预算总额超过用户设置的上限");
+            fixes.add("减少住宿、餐饮或活动费用，使预算不超过 ¥" + budgetLimit);
         }
     }
 
