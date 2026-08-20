@@ -26,6 +26,7 @@ public class AppSettings {
     private XhsConfig xhs = new XhsConfig();
     private LlmConfig llm = new LlmConfig();
     private SettingsSecurityConfig settings = new SettingsSecurityConfig();
+    private TaskConfig tasks = new TaskConfig();
 
     @Data
     public static class TencentMapsConfig {
@@ -88,6 +89,12 @@ public class AppSettings {
         private boolean allowSecretUpdates = false;
         /** Separate administrator credential; never returned by an API. */
         private String adminToken = "";
+    }
+
+    @Data
+    public static class TaskConfig {
+        private int executionTimeoutSeconds = 300;
+        private String dataDir = "data/trip_tasks";
     }
 
     public List<String> getCorsOriginsList() {

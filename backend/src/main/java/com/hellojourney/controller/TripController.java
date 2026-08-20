@@ -1,14 +1,10 @@
 package com.hellojourney.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hellojourney.agent.TripPlannerAgent;
 import com.hellojourney.config.AppSettings;
 import com.hellojourney.model.dto.TripRequest;
-import com.hellojourney.model.entity.TripPlan;
-import com.hellojourney.model.vo.KnowledgeGraphData;
 import com.hellojourney.model.vo.TripPlanResponse;
-import com.hellojourney.service.KnowledgeGraphService;
-import com.hellojourney.service.XhsService;
+import com.hellojourney.service.TripPlanningJobService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,15 +15,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import jakarta.validation.Valid;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @RestController
@@ -35,35 +38,55 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Tag(name = "旅行规划", description = "旅行计划生成、状态查询、历史记录")
 public class TripController {
-    private final TripPlannerAgent tripPlannerAgent;
-    private final KnowledgeGraphService knowledgeGraphService;
+    private final TripPlanningJobService tripPlanningJobService;
     private final AppSettings appSettings;
     private final ObjectMapper objectMapper;
 
-    private static final Set<String> FINAL_TASK_STATUS = Set.of("completed", "failed");
+    private static final Set<String> FINAL_TASK_STATUS = Set.of("completed", "failed", "cancelled");
     public final Map<String, TaskState> tasks = new ConcurrentHashMap<>();
-    private static final String TASKS_DATA_DIR = "data/trip_tasks";
+    private final Map<String, CompletableFuture<TripPlanResponse>> taskFutures = new ConcurrentHashMap<>();
+    private final Map<String, String> idempotencyKeys = new ConcurrentHashMap<>();
 
     @Data
     public static class TaskState {
         private String taskId;
         private String planId;
-        private String status = "processing";
-        private String stage = "submitted";
-        private int progress = 0;
-        private String message = "任务已提交，等待执行...";
-        private Object result;
-        private String error;
+        private volatile String status = "processing";
+        private volatile String stage = "submitted";
+        private volatile int progress = 0;
+        private volatile String message = "任务已提交，等待执行...";
+        private volatile Object result;
+        private volatile String error;
         private Object requestPayload;
-        private final List<java.util.concurrent.BlockingQueue<Map<String, Object>>> subscribers = new java.util.ArrayList<>();
+        private volatile boolean cancellationRequested;
+        private final List<java.util.concurrent.BlockingQueue<Map<String, Object>>> subscribers = new java.util.concurrent.CopyOnWriteArrayList<>();
     }
 
     @PostMapping("/plan")
     @Operation(summary = "提交旅行规划任务", description = "异步生成旅行计划，返回任务ID，可通过WebSocket或轮询获取进度")
     @ApiResponses({@ApiResponse(responseCode = "200", description = "任务已提交"), @ApiResponse(responseCode = "400", description = "请求参数错误")})
-    public ResponseEntity<Map<String, Object>> planTrip(@RequestBody TripRequest request) {
+    public ResponseEntity<Map<String, Object>> planTrip(
+            @Valid @RequestBody TripRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         request.normalizeCities();
-        String taskId = UUID.randomUUID().toString().substring(0, 8);
+        String normalizedKey = idempotencyKey != null ? idempotencyKey.trim() : "";
+        if (normalizedKey.length() > 128) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Idempotency-Key 不能超过 128 个字符");
+        }
+        if (!normalizedKey.isEmpty()) {
+            String existingTaskId = idempotencyKeys.get(normalizedKey);
+            if (existingTaskId != null) {
+                return acceptedTask(existingTaskId, true);
+            }
+        }
+
+        String taskId = UUID.randomUUID().toString();
+        if (!normalizedKey.isEmpty()) {
+            String existingTaskId = idempotencyKeys.putIfAbsent(normalizedKey, taskId);
+            if (existingTaskId != null) {
+                return acceptedTask(existingTaskId, true);
+            }
+        }
         TaskState task = new TaskState();
         task.setTaskId(taskId);
         task.setPlanId(taskId);
@@ -80,56 +103,109 @@ public class TripController {
 
         updateTaskState(taskId, "processing", "submitted", 5, "任务已提交，正在初始化流程...", null, null);
 
-        runTripPlanningAsync(taskId, request);
+        CompletableFuture<TripPlanResponse> future;
+        try {
+            future = tripPlanningJobService.planAsync(
+                    taskId,
+                    request,
+                    (message, progress) -> handleProgress(taskId, message, progress),
+                    task::isCancellationRequested
+            );
+        } catch (Exception e) {
+            handleTaskCompletion(taskId, null, e);
+            return acceptedTask(taskId, false);
+        }
 
+        int timeoutSeconds = Math.max(1, appSettings.getTasks().getExecutionTimeoutSeconds());
+        future.orTimeout(timeoutSeconds, TimeUnit.SECONDS);
+        taskFutures.put(taskId, future);
+        future.whenComplete((result, error) -> handleTaskCompletion(taskId, result, error));
+        return acceptedTask(taskId, false);
+    }
+
+    private ResponseEntity<Map<String, Object>> acceptedTask(String taskId, boolean duplicate) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("task_id", taskId);
         response.put("plan_id", taskId);
-        response.put("status", "processing");
+        response.put("status", tasks.containsKey(taskId) ? tasks.get(taskId).getStatus() : "processing");
         response.put("ws_url", "/api/trip/ws/" + taskId);
-        response.put("message", "任务已提交，可通过 WebSocket /api/trip/ws/" + taskId + " 实时订阅状态");
-        return ResponseEntity.ok(response);
+        response.put("duplicate", duplicate);
+        response.put("message", duplicate ? "已返回相同请求的现有任务" : "任务已提交，可订阅实时状态");
+        return ResponseEntity.accepted().body(response);
     }
 
-    @Async
-    public void runTripPlanningAsync(String taskId, TripRequest request) {
-        try {
-            updateTaskState(taskId, "processing", "initializing", 10, "正在获取多智能体系统实例...", null, null);
-
-            TripPlan tripPlan = tripPlannerAgent.planTrip(request, (message, progress) -> {
-                String stage = "";
-                if (message.contains("景点")) stage = "attraction_search";
-                else if (message.contains("天气")) stage = "weather_search";
-                else if (message.contains("酒店")) stage = "hotel_search";
-                else if (message.contains("生成")) stage = "planning";
-                else stage = "processing";
-                updateTaskState(taskId, "processing", stage, progress, message, null, null);
-            });
-
-            updateTaskState(taskId, "processing", "graph_building", 95, "正在构建知识图谱...", null, null);
-
-            String language = request.getLanguage() != null ? request.getLanguage() : "zh";
-            KnowledgeGraphData graphData = knowledgeGraphService.buildKnowledgeGraph(tripPlan, language);
-
-            TripPlanResponse tripResult = TripPlanResponse.builder()
-                    .success(true)
-                    .message("旅行计划生成成功")
-                    .planId(taskId)
-                    .data(tripPlan)
-                    .graphData(graphData)
-                    .build();
-
-            log.info("任务 {} 完成", taskId);
-            updateTaskState(taskId, "completed", "completed", 100, "旅行计划生成成功", tripResult, null);
-
-        } catch (Exception e) {
-            log.error("任务 {} 失败: {}", taskId, e.getMessage());
-            String errorMsg = e.getMessage();
-            if (e instanceof XhsService.XhsCookieExpiredError) {
-                errorMsg = "【认证失败】" + errorMsg;
-            }
-            updateTaskState(taskId, "failed", "failed", 100, errorMsg, null, errorMsg);
+    private void handleProgress(String taskId, String message, int progress) {
+        TaskState task = tasks.get(taskId);
+        if (task == null || task.isCancellationRequested()) {
+            throw new CancellationException("旅行规划任务已取消: " + taskId);
         }
+        String stage;
+        if (message.contains("景点")) stage = "attraction_search";
+        else if (message.contains("天气")) stage = "weather_search";
+        else if (message.contains("酒店")) stage = "hotel_search";
+        else if (message.contains("知识图谱")) stage = "graph_building";
+        else if (message.contains("生成")) stage = "planning";
+        else stage = "processing";
+        updateTaskState(taskId, "processing", stage, progress, message, null, null);
+    }
+
+    private void handleTaskCompletion(String taskId, TripPlanResponse result, Throwable throwable) {
+        taskFutures.remove(taskId);
+        TaskState task = tasks.get(taskId);
+        if (task == null || task.isCancellationRequested() || "cancelled".equals(task.getStatus())) return;
+
+        if (throwable == null) {
+            log.info("任务 {} 完成", taskId);
+            updateTaskState(taskId, "completed", "completed", 100, "旅行计划生成成功", result, null);
+            return;
+        }
+
+        Throwable cause = unwrap(throwable);
+        if (cause instanceof CancellationException) {
+            updateTaskState(taskId, "cancelled", "cancelled", task.getProgress(), "旅行规划已取消", null, null);
+        } else if (cause instanceof TimeoutException) {
+            task.setCancellationRequested(true);
+            log.warn("任务 {} 超时", taskId);
+            updateTaskState(taskId, "failed", "failed", 100, "旅行规划超时，请重试", null, "旅行规划超时，请重试");
+        } else {
+            log.error("任务 {} 失败 (type={})", taskId, cause.getClass().getSimpleName());
+            updateTaskState(taskId, "failed", "failed", 100, "旅行规划失败，请稍后重试", null, "旅行规划失败，请稍后重试");
+        }
+    }
+
+    private Throwable unwrap(Throwable throwable) {
+        Throwable current = throwable;
+        while ((current instanceof CompletionException || current instanceof java.util.concurrent.ExecutionException)
+                && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    @DeleteMapping("/tasks/{taskId}")
+    @Operation(summary = "取消旅行规划任务")
+    public ResponseEntity<Map<String, Object>> cancelTrip(@PathVariable String taskId) {
+        TaskState task = tasks.get(taskId);
+        if (task == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在");
+        }
+        if (FINAL_TASK_STATUS.contains(task.getStatus())) {
+            return ResponseEntity.ok(Map.of(
+                    "task_id", taskId,
+                    "status", task.getStatus(),
+                    "message", "任务已经结束"
+            ));
+        }
+
+        task.setCancellationRequested(true);
+        CompletableFuture<TripPlanResponse> future = taskFutures.remove(taskId);
+        if (future != null) future.cancel(true);
+        updateTaskState(taskId, "cancelled", "cancelled", task.getProgress(), "旅行规划已取消", null, null);
+        return ResponseEntity.ok(Map.of(
+                "task_id", taskId,
+                "status", "cancelled",
+                "message", "旅行规划已取消"
+        ));
     }
 
     @GetMapping("/status/{taskId}")
@@ -150,10 +226,9 @@ public class TripController {
         if ("completed".equals(task.getStatus())) {
             response.put("status", "completed");
             response.put("result", task.getResult());
-        } else if ("failed".equals(task.getStatus())) {
-            response.put("status", "failed");
+        } else if ("failed".equals(task.getStatus()) || "cancelled".equals(task.getStatus())) {
+            response.put("status", task.getStatus());
             response.put("error", task.getError() != null ? task.getError() : "");
-            response.put("request_payload", task.getRequestPayload());
         } else {
             response.put("status", "processing");
             response.put("stage", task.getStage());
@@ -183,16 +258,18 @@ public class TripController {
         }
     }
 
-    synchronized void updateTaskState(String taskId, String status, String stage, int progress, String message, Object result, String error) {
+    void updateTaskState(String taskId, String status, String stage, int progress, String message, Object result, String error) {
         TaskState task = tasks.get(taskId);
         if (task == null) return;
-        task.setStatus(status);
-        task.setStage(stage);
-        task.setProgress(progress);
-        task.setMessage(message);
-        if (result != null) task.setResult(result);
-        if (error != null) task.setError(error);
-        persistTaskState(taskId, task);
+        synchronized (task) {
+            task.setStatus(status);
+            task.setStage(stage);
+            task.setProgress(progress);
+            task.setMessage(message);
+            if (result != null) task.setResult(result);
+            if (error != null) task.setError(error);
+            persistTaskState(taskId, task);
+        }
 
         Map<String, Object> event = buildTaskEvent(taskId, task, true);
         broadcastTaskEvent(taskId, event);
@@ -216,10 +293,11 @@ public class TripController {
         if (task == null) return;
         List<java.util.concurrent.BlockingQueue<Map<String, Object>>> deadQueues = new java.util.ArrayList<>();
         for (java.util.concurrent.BlockingQueue<Map<String, Object>> queue : task.getSubscribers()) {
-            try {
-                queue.offer(event);
-            } catch (Exception e) {
-                deadQueues.add(queue);
+            if (!queue.offer(event)) {
+                queue.poll();
+                if (!queue.offer(event)) {
+                    deadQueues.add(queue);
+                }
             }
         }
         if (!deadQueues.isEmpty()) {
@@ -228,8 +306,9 @@ public class TripController {
     }
 
     private void persistTaskState(String taskId, TaskState task) {
+        Path temporaryFile = null;
         try {
-            Path dir = Paths.get(TASKS_DATA_DIR);
+            Path dir = taskDataDirectory();
             Files.createDirectories(dir);
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("task_id", taskId);
@@ -241,14 +320,30 @@ public class TripController {
             payload.put("result", task.getResult());
             payload.put("error", task.getError());
             payload.put("request_payload", task.getRequestPayload());
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(dir.resolve(taskId + ".json").toFile(), payload);
+            temporaryFile = Files.createTempFile(dir, taskId + "-", ".tmp");
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(temporaryFile.toFile(), payload);
+            Path target = taskFile(taskId);
+            try {
+                Files.move(temporaryFile, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temporaryFile, target, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (Exception e) {
-            log.warn("持久化任务 {} 失败: {}", taskId, e.getMessage());
+            log.warn("持久化任务 {} 失败 (type={})", taskId, e.getClass().getSimpleName());
+        } finally {
+            if (temporaryFile != null) {
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (Exception ignored) {
+                    log.debug("临时任务文件清理失败 (task_id={})", taskId);
+                }
+            }
         }
     }
 
     public TaskState loadTaskFromDisk(String taskId) {
-        Path path = Paths.get(TASKS_DATA_DIR, taskId + ".json");
+        if (!isValidTaskId(taskId)) return null;
+        Path path = taskFile(taskId);
         if (!Files.exists(path)) return null;
         try {
             Map<String, Object> payload = objectMapper.readValue(path.toFile(), Map.class);
@@ -278,7 +373,7 @@ public class TripController {
     }
 
     private List<Map<String, Object>> loadHistoryItems(int limit) {
-        Path dir = Paths.get(TASKS_DATA_DIR);
+        Path dir = taskDataDirectory();
         if (!Files.exists(dir)) return Collections.emptyList();
 
         List<Map<String, Object>> items = new java.util.ArrayList<>();
@@ -302,6 +397,26 @@ public class TripController {
             }
         } catch (Exception ignored) {}
         return items;
+    }
+
+    private Path taskDataDirectory() {
+        return Paths.get(appSettings.getTasks().getDataDir()).toAbsolutePath().normalize();
+    }
+
+    private Path taskFile(String taskId) {
+        if (!isValidTaskId(taskId)) {
+            throw new IllegalArgumentException("无效的任务 ID");
+        }
+        Path directory = taskDataDirectory();
+        Path path = directory.resolve(taskId + ".json").normalize();
+        if (!path.getParent().equals(directory)) {
+            throw new IllegalArgumentException("无效的任务路径");
+        }
+        return path;
+    }
+
+    private boolean isValidTaskId(String taskId) {
+        return taskId != null && taskId.matches("[A-Za-z0-9-]{8,64}");
     }
 
     private Map<String, Object> buildHistoryItem(Map<String, Object> payload, Path path) {

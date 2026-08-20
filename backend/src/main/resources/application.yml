@@ -26,6 +26,10 @@ app:
     allow-secret-updates: ${SETTINGS_ALLOW_SECRET_UPDATES:false}
     admin-token: ${SETTINGS_ADMIN_TOKEN:}
 
+  tasks:
+    execution-timeout-seconds: ${TRIP_TASK_TIMEOUT:300}
+    data-dir: ${TRIP_TASK_DATA_DIR:data/trip_tasks}
+
   llm:
     active-provider: ${LLM_ACTIVE_PROVIDER:deepseek}
     timeout: ${LLM_TIMEOUT:60}

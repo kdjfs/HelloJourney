@@ -1,10 +1,9 @@
 package com.hellojourney.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hellojourney.agent.TripPlannerAgent;
 import com.hellojourney.config.AppSettings;
 import com.hellojourney.controller.TripController;
-import com.hellojourney.service.KnowledgeGraphService;
+import com.hellojourney.service.TripPlanningJobService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -20,7 +20,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -30,16 +30,16 @@ import static org.mockito.Mockito.*;
 class TripTaskWebSocketHandlerTest {
 
     @Mock
-    private TripPlannerAgent tripPlannerAgent;
-
-    @Mock
-    private KnowledgeGraphService knowledgeGraphService;
+    private TripPlanningJobService tripPlanningJobService;
 
     @Mock
     private AppSettings appSettings;
 
     @Mock
     private WebSocketSession session;
+
+    @Mock
+    private TaskExecutor webSocketExecutor;
 
     private ObjectMapper objectMapper;
 
@@ -50,14 +50,13 @@ class TripTaskWebSocketHandlerTest {
     @BeforeEach
     void setUp() {
         objectMapper = spy(new ObjectMapper());
-        tripController = spy(new TripController(tripPlannerAgent, knowledgeGraphService, appSettings, objectMapper));
+        tripController = spy(new TripController(tripPlanningJobService, appSettings, objectMapper));
         lenient().doReturn(null).when(tripController).loadTaskFromDisk(anyString());
-        handler = new TripTaskWebSocketHandler(tripController, objectMapper);
+        handler = new TripTaskWebSocketHandler(tripController, objectMapper, webSocketExecutor);
     }
 
-    private void setupSessionMock(String taskId) throws Exception {
+    private void setupSessionUri(String taskId) throws Exception {
         when(session.getUri()).thenReturn(new URI("/api/trip/ws/" + taskId));
-        when(session.getAttributes()).thenReturn(new ConcurrentHashMap<>());
     }
 
     private TripController.TaskState createTaskState(String taskId, String status) {
@@ -75,7 +74,7 @@ class TripTaskWebSocketHandlerTest {
     @DisplayName("afterConnectionEstablished - task not found - sends error and closes")
     void afterConnectionEstablished_taskNotFound_sendsErrorAndCloses() throws Exception {
         String taskId = "unknown-task-id";
-        setupSessionMock(taskId);
+        setupSessionUri(taskId);
 
         handler.afterConnectionEstablished(session);
 
@@ -95,8 +94,7 @@ class TripTaskWebSocketHandlerTest {
     @DisplayName("afterConnectionEstablished - completed task - sends snapshot and closes")
     void afterConnectionEstablished_completedTask_sendsSnapshotAndCloses() throws Exception {
         String taskId = "completed-task-id";
-        setupSessionMock(taskId);
-        when(session.isOpen()).thenReturn(false);
+        setupSessionUri(taskId);
 
         TripController.TaskState task = createTaskState(taskId, "completed");
         tripController.tasks.put(taskId, task);
@@ -119,8 +117,8 @@ class TripTaskWebSocketHandlerTest {
     @DisplayName("afterConnectionEstablished - processing task - adds subscriber")
     void afterConnectionEstablished_processingTask_addsSubscriber() throws Exception {
         String taskId = "processing-task-id";
-        setupSessionMock(taskId);
-        when(session.isOpen()).thenReturn(false);
+        setupSessionUri(taskId);
+        when(session.getAttributes()).thenReturn(new ConcurrentHashMap<>());
 
         TripController.TaskState task = createTaskState(taskId, "processing");
         tripController.tasks.put(taskId, task);
@@ -141,20 +139,19 @@ class TripTaskWebSocketHandlerTest {
         BlockingQueue<Map<String, Object>> queue =
                 (BlockingQueue<Map<String, Object>>) session.getAttributes().get("queue");
         assertThat(task.getSubscribers()).contains(queue);
-
-        Thread.sleep(200);
+        verify(webSocketExecutor).execute(any(Runnable.class));
     }
 
     @Test
     @DisplayName("afterConnectionClosed - removes subscriber")
     void afterConnectionClosed_removesSubscriber() throws Exception {
         String taskId = "test-task-id";
-        setupSessionMock(taskId);
+        when(session.getAttributes()).thenReturn(new ConcurrentHashMap<>());
 
         TripController.TaskState task = createTaskState(taskId, "processing");
         tripController.tasks.put(taskId, task);
 
-        BlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>();
+        BlockingQueue<Map<String, Object>> queue = new ArrayBlockingQueue<>(64);
         task.getSubscribers().add(queue);
 
         session.getAttributes().put("taskId", taskId);
