@@ -38,6 +38,157 @@
   font-size: 14px;
 }
 
+/* ---------- 知识图谱：节点详情 + AI 解读 ---------- */
+.kg-node-detail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(236, 243, 250, 0.05);
+  border: 1px solid rgba(236, 243, 250, 0.1);
+  min-height: 46px;
+}
+
+.kg-node-detail.has-selection {
+  background: rgba(215, 110, 66, 0.08);
+  border-color: rgba(215, 110, 66, 0.35);
+}
+
+.kg-node-detail-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.kg-node-detail strong {
+  color: #ecf3fa;
+  font-size: 14px;
+}
+
+.kg-node-detail p {
+  flex-basis: 100%;
+  margin: 0;
+  color: rgba(236, 243, 250, 0.62);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.kg-node-detail-hint {
+  color: rgba(236, 243, 250, 0.5);
+  font-size: 12.5px;
+}
+
+.kg-ai-box {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(236, 243, 250, 0.04);
+  border: 1px solid rgba(93, 124, 250, 0.35);
+}
+
+.kg-ai-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.kg-ai-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5b7cfa, #3d5af1);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kg-ai-head > span {
+  color: #ecf3fa;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.kg-ai-empty {
+  margin: 0;
+  color: rgba(236, 243, 250, 0.5);
+  font-size: 13px;
+}
+
+.kg-ai-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.kg-ai-preset {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(93, 124, 250, 0.45);
+  background: rgba(93, 124, 250, 0.12);
+  color: #b7c6ff;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.kg-ai-preset:hover:not(:disabled) {
+  background: rgba(93, 124, 250, 0.24);
+}
+
+.kg-ai-preset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kg-ai-input {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.kg-ai-input textarea {
+  flex: 1;
+  background: rgba(236, 243, 250, 0.07);
+  border: 1px solid rgba(236, 243, 250, 0.14);
+  color: #ecf3fa;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.kg-ai-input textarea:focus {
+  border-color: rgba(93, 124, 250, 0.7);
+}
+
+.kg-ai-input textarea::placeholder {
+  color: rgba(236, 243, 250, 0.35);
+}
+
+.kg-ai-input .ant-btn {
+  flex-shrink: 0;
+}
+
+.kg-ai-answer {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(93, 124, 250, 0.08);
+  border: 1px solid rgba(93, 124, 250, 0.25);
+  color: rgba(236, 243, 250, 0.88);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .result-empty {
   display: flex;
   justify-content: center;
@@ -251,34 +402,48 @@
   opacity: 1;
 }
 
-.show-more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(6px);
-  color: #fff;
-  margin-top: 10px;
-  transition: background 0.2s;
-}
-
-.show-more:hover {
-  background: rgba(255, 255, 255, 0.32);
-}
-
-.show-more svg {
-  width: 18px;
-  height: 18px;
-}
-
 /* ---------- Attraction Card (inside TripDayCard) ---------- */
 .attraction-card {
   border-radius: 12px;
   overflow: hidden;
   transition: box-shadow 0.2s;
+}
+
+/* ---------- 每日行程卡片质感 ---------- */
+.day-card.ant-card {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 30px rgba(2, 8, 14, 0.35);
+}
+
+.day-card.ant-card .ant-card-head {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.attraction-card.ant-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(2, 8, 14, 0.3);
+}
+
+.hotel-card.ant-card {
+  background: rgba(6, 16, 26, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hotel-card.ant-card .ant-card-head {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.hotel-title {
+  color: #ecf3fa;
+  font-weight: 600;
+}
+
+.meal-card.ant-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .attraction-card:hover {

@@ -17,7 +17,6 @@ interface OverviewAttractionCardProps {
   imageUrl?: string
   active: boolean
   onHover?: () => void
-  onSelectDay?: (dayArrayIndex: number) => void
 }
 
 function OverviewAttractionCard({
@@ -25,7 +24,6 @@ function OverviewAttractionCard({
   imageUrl,
   active,
   onHover,
-  onSelectDay,
 }: OverviewAttractionCardProps) {
   return (
     <div
@@ -65,18 +63,6 @@ function OverviewAttractionCard({
         <div>
           <h2>{item.name}</h2>
           <p>{item.description || item.address || '暂无描述'}</p>
-          <a
-            className="show-more"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault()
-              onSelectDay?.(item.dayArrayIndex)
-            }}
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
-            </svg>
-          </a>
         </div>
       </div>
     </div>

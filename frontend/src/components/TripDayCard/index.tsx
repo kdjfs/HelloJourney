@@ -107,8 +107,8 @@ function HotelCard({ hotel }: { hotel: Hotel }) {
     <Card
       size="small"
       title={<span className="hotel-title">{hotel.name}</span>}
+      className="hotel-card"
       style={{ marginBottom: 16 }}
-      type="inner"
     >
       <Row gutter={[8, 8]}>
         <Col xs={12}>
@@ -152,7 +152,7 @@ function MealCard({ meal }: { meal: Meal }) {
   const mealInfo = mealTypeMap[meal.type] || { label: meal.type, color: 'default' }
   return (
     <Col xs={24} sm={8} key={`${meal.type}-${meal.name}`}>
-      <Card size="small" style={{ height: '100%' }}>
+      <Card size="small" className="meal-card" style={{ height: '100%' }}>
         <Tag color={mealInfo.color} style={{ marginBottom: 8 }}>
           {mealInfo.label}
         </Tag>
@@ -177,6 +177,7 @@ function MealCard({ meal }: { meal: Meal }) {
 function TripDayCard({ day, attractionImages }: TripDayCardProps) {
   return (
     <Card
+      className="day-card"
       title={
         <div className="day-header">
           <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>
@@ -185,7 +186,7 @@ function TripDayCard({ day, attractionImages }: TripDayCardProps) {
           <Text strong style={{ fontSize: 15 }}>{day.date}</Text>
         </div>
       }
-      style={{ marginBottom: 20, borderRadius: 12 }}
+      style={{ marginBottom: 20, borderRadius: 14 }}
     >
       <Paragraph>{day.description}</Paragraph>
 

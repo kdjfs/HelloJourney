@@ -327,13 +327,6 @@ function Result() {
     setActiveSection(key)
   }
 
-  const goToDayFromOverview = (dayIndex: number) => {
-    setActiveSection('days')
-    setTimeout(() => {
-      document.getElementById(`day-${dayIndex}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 100)
-  }
-
   if (loading) {
     return (
       <div className="result-loading">
@@ -426,7 +419,6 @@ function Result() {
                         imageUrl={attractionPhotos[attractionImageCacheKey(item.city, item.name)]}
                         active={activeOverviewCard === index}
                         onHover={() => setActiveOverviewCard(index)}
-                        onSelectDay={goToDayFromOverview}
                       />
                     ))}
                   </div>
@@ -540,7 +532,7 @@ function Result() {
           {activeSection === 'knowledge-graph' && (
             <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
               <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>正在加载知识图谱</span></div>}>
-                <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} />
+                <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} tripPlan={tripPlan} />
               </Suspense>
             </Card>
           )}

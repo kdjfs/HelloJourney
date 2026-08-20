@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Typography, Empty, Alert } from 'antd'
+import { Typography, Empty, Alert, Tag, Input, Button } from 'antd'
 import ReactECharts from 'echarts-for-react'
-import type { KnowledgeGraphData, GraphCategory } from '../../types/api'
+import { apiClient } from '../../services/apiClient'
+import { DeepSeekLogo } from '../DeepSeekLogo'
+import type { KnowledgeGraphData, GraphCategory, TripPlan, TripChatResponse } from '../../types/api'
 
 const { Text } = Typography
 
@@ -9,6 +11,14 @@ interface KnowledgeGraphProps {
   graphData: KnowledgeGraphData | null
   /** 图谱是否由前端根据行程数据推导生成（后端未返回时） */
   derived?: boolean
+  /** 供 AI 解读使用的行程数据 */
+  tripPlan?: TripPlan | null
+}
+
+interface SelectedNode {
+  name: string
+  category: number
+  value?: string
 }
 
 const categoryLabels: Record<string, string> = {
@@ -46,8 +56,18 @@ function getCategoryColor(name: string, index: number): string {
   return fallback[index % fallback.length]
 }
 
-function KnowledgeGraph({ graphData, derived = false }: KnowledgeGraphProps) {
+const AI_PRESET_QUESTIONS = [
+  '请总结这份行程每天的亮点',
+  '这份行程的安排和动线合理吗？',
+  '结合预算给出省钱建议',
+]
+
+function KnowledgeGraph({ graphData, derived = false, tripPlan }: KnowledgeGraphProps) {
   const [renderError, setRenderError] = useState(false)
+  const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null)
+  const [aiQuestion, setAiQuestion] = useState('')
+  const [aiAnswer, setAiAnswer] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
 
   const nodes = Array.isArray(graphData?.nodes) ? graphData.nodes : []
   const edges = Array.isArray(graphData?.edges) ? graphData.edges : []
@@ -138,15 +158,69 @@ function KnowledgeGraph({ graphData, derived = false }: KnowledgeGraphProps) {
     ],
   }
 
+  const selectedCategoryName = selectedNode !== null && categoriesRaw[selectedNode.category]
+    ? categoriesRaw[selectedNode.category].name
+    : ''
+  const selectedColor = selectedNode !== null
+    ? getCategoryColor(selectedCategoryName, selectedNode.category)
+    : '#ccc'
+
+  const askAi = async (question: string) => {
+    const text = question.trim()
+    if (!text || aiLoading || !tripPlan) return
+    setAiLoading(true)
+    setAiAnswer('')
+    try {
+      const res = await apiClient.post<TripChatResponse>('/api/chat/ask', {
+        message: text,
+        trip_plan: tripPlan,
+        history: [],
+      })
+      setAiAnswer(res.data.success ? res.data.reply : '抱歉，AI 暂时无法回答，请稍后再试。')
+    } catch {
+      setAiAnswer('网络请求失败，请检查网络连接。')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   return (
     <div>
       <ReactECharts
         option={option}
-        style={{ width: '100%', height: 600 }}
+        style={{ width: '100%', height: 560 }}
         notMerge
         opts={{ renderer: 'canvas' }}
+        onEvents={{
+          click: (params: { dataType?: string; data?: { name?: string; category?: number; value?: string } }) => {
+            if (params.dataType === 'node' && params.data) {
+              setSelectedNode({
+                name: params.data.name ?? '',
+                category: params.data.category ?? 0,
+                value: params.data.value,
+              })
+            } else {
+              setSelectedNode(null)
+            }
+          },
+        }}
         onChartReady={() => setRenderError(false)}
       />
+
+      {/* 节点详情面板 */}
+      <div className={`kg-node-detail${selectedNode ? ' has-selection' : ''}`}>
+        {selectedNode ? (
+          <>
+            <span className="kg-node-detail-dot" style={{ background: selectedColor }} />
+            <strong>{selectedNode.name}</strong>
+            <Tag style={{ marginInlineStart: 4 }}>{getCategoryLabel(selectedCategoryName)}</Tag>
+            {selectedNode.value && <p>{selectedNode.value}</p>}
+          </>
+        ) : (
+          <span className="kg-node-detail-hint">💡 点击图中任意节点查看详情 · 拖拽移动 · 滚轮缩放</span>
+        )}
+      </div>
+
       {derived && (
         <div style={{ textAlign: 'center', marginTop: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -154,6 +228,7 @@ function KnowledgeGraph({ graphData, derived = false }: KnowledgeGraphProps) {
           </Text>
         </div>
       )}
+
       <div className="kg-legend" style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -175,6 +250,63 @@ function KnowledgeGraph({ graphData, derived = false }: KnowledgeGraphProps) {
             {getCategoryLabel(cat.name)}
           </span>
         ))}
+      </div>
+
+      {/* AI 图谱解读（DeepSeek，走后端接口） */}
+      <div className="kg-ai-box">
+        <div className="kg-ai-head">
+          <i className="kg-ai-logo"><DeepSeekLogo size={18} /></i>
+          <span>AI 图谱解读</span>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            由 DeepSeek 结合当前行程回答
+          </Text>
+        </div>
+
+        {!tripPlan ? (
+          <p className="kg-ai-empty">没有行程数据，暂时无法解读。</p>
+        ) : (
+          <>
+            <div className="kg-ai-presets">
+              {AI_PRESET_QUESTIONS.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  className="kg-ai-preset"
+                  disabled={aiLoading}
+                  onClick={() => void askAi(question)}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+
+            <div className="kg-ai-input">
+              <Input.TextArea
+                value={aiQuestion}
+                onChange={(e) => setAiQuestion(e.target.value)}
+                placeholder="或者输入你自己的问题，例如：第三天会不会太赶？"
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                disabled={aiLoading}
+                onPressEnter={(e) => {
+                  if (!e.shiftKey) {
+                    e.preventDefault()
+                    void askAi(aiQuestion)
+                  }
+                }}
+              />
+              <Button
+                type="primary"
+                loading={aiLoading}
+                disabled={!aiQuestion.trim()}
+                onClick={() => void askAi(aiQuestion)}
+              >
+                提问
+              </Button>
+            </div>
+
+            {aiAnswer && <div className="kg-ai-answer">{aiAnswer}</div>}
+          </>
+        )}
       </div>
     </div>
   )
