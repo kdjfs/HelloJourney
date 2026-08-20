@@ -190,6 +190,23 @@ curl http://localhost:8000/api/settings/llm-providers
 
 ---
 
+## 7.1 高德 Key（景点真实图片）
+
+景点图片走独立的可信链路：结果页按 `景点名 + 城市 + poiId` 调用 `GET /api/poi/photo`，后端用高德 POI 2.0 搜索验证"城市一致 + 官方名称/别名匹配"后才返回照片。
+
+在 `.env` 增加（Key 从 [高德开放平台](https://console.amap.com/) 申请，服务平台选 **「Web服务」**）：
+
+```bash
+AMAP_API_KEY=你的高德web服务key
+AMAP_API_BASE_URL=https://restapi.amap.com
+```
+
+- 不配置 Key 时，所有景点显示确定性的"景点名 + 城市 + 等待图片补充"占位卡，绝不显示随机图。
+- 配置后重启容器即可生效：`docker compose -f docker-compose.dev.yml up -d --build`。
+- 验证：`curl "http://localhost:5173/api/poi/photo?name=广州塔&city=广州"`，`data.verified` 应为 `true` 且 `imageUrl` 是 `https://store.is.autonavi.com/...` 或 `https://*.amap.com/...` 图片。
+
+---
+
 ## 8. 本地真实调用 DeepSeek 的步骤
 
 ### 前置
