@@ -1,9 +1,9 @@
 # HelloJourney V3 升级交付报告
 
-> 交付日期：2026-08-20（Asia/Shanghai）  
-> 目标读者：项目维护者、前后端开发者、面试或开源评审者  
-> 当前分支：`test/hello-journey-v3-upgrade`  
-> 评审基线：`a479cba80b981450e1c1fe89e292baca0ca31b5d`  
+> 交付日期：2026-08-20（Asia/Shanghai）
+> 目标读者：项目维护者、前后端开发者、面试或开源评审者
+> 当前分支：`test/hello-journey-v3-upgrade`
+> 评审基线：`a479cba80b981450e1c1fe89e292baca0ca31b5d`
 > 代码评审版本：`a75feecd1a8df97cec51f2c079d37f0ab3ef5f13`
 
 本文记录本轮已经实现并验证的 V3 能力，也明确列出需要凭证、基础设施或后续产品迭代才能完成的事项。本文不把 Mock、Stub 或未来设计描述为真实生产能力。
