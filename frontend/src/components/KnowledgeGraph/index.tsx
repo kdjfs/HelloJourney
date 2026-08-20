@@ -53,6 +53,10 @@ function getCategoryColor(name: string, index: number): string {
 function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
   const [error, setError] = useState(false)
 
+  const nodes = Array.isArray(graphData?.nodes) ? graphData.nodes : []
+  const edges = Array.isArray(graphData?.edges) ? graphData.edges : []
+  const categoriesRaw = Array.isArray(graphData?.categories) ? graphData.categories : []
+
   if (!graphData) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
@@ -61,7 +65,7 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
     )
   }
 
-  if (graphData.nodes.length === 0) {
+  if (nodes.length === 0) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
         <Empty description="知识图谱节点为空" />
@@ -69,7 +73,7 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
     )
   }
 
-  const categories: Array<{ name: string; itemStyle: { color: string } }> = graphData.categories.map(
+  const categories: Array<{ name: string; itemStyle: { color: string } }> = categoriesRaw.map(
     (cat: GraphCategory, idx: number) => ({
       name: cat.name,
       itemStyle: { color: getCategoryColor(cat.name, idx) },
@@ -78,10 +82,13 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
 
   const option = {
     tooltip: {
+      backgroundColor: 'rgba(10, 21, 32, 0.95)',
+      borderColor: 'rgba(236, 243, 250, 0.18)',
+      textStyle: { color: '#ecf3fa' },
       formatter: (params: { data?: { name?: string; category?: number; value?: string } }) => {
         if (params.data) {
-          const catName = params.data.category !== undefined && graphData.categories[params.data.category]
-            ? graphData.categories[params.data.category].name
+          const catName = params.data.category !== undefined && categoriesRaw[params.data.category]
+            ? categoriesRaw[params.data.category].name
             : ''
           return `${params.data.name}<br/>类型：${catName}`
         }
@@ -95,14 +102,14 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
         force: { repulsion: 300, edgeLength: [100, 280], gravity: 0.12 },
         roam: true,
         draggable: true,
-        data: graphData.nodes.map((node) => ({
+        data: nodes.map((node) => ({
           name: node.name,
           category: node.category,
           symbolSize: node.symbolSize || 30,
           itemStyle: node.itemStyle,
           value: node.value,
         })),
-        links: graphData.edges.map((edge) => ({
+        links: edges.map((edge) => ({
           source: edge.source,
           target: edge.target,
           label: edge.label ? { show: true, formatter: edge.label } : undefined,
@@ -111,10 +118,14 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
         label: {
           show: true,
           fontSize: 12,
-          color: '#333',
+          color: '#e8f0f8',
+        },
+        edgeLabel: {
+          color: 'rgba(236, 243, 250, 0.55)',
+          fontSize: 10,
         },
         lineStyle: {
-          color: 'source',
+          color: 'rgba(236, 243, 250, 0.25)',
           curveness: 0.15,
         },
         emphasis: {
@@ -152,8 +163,9 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
         justifyContent: 'center',
         marginTop: 16,
         padding: '0 16px',
+        color: 'rgba(236, 243, 250, 0.8)',
       }}>
-        {graphData.categories.map((cat: GraphCategory, idx: number) => (
+        {categoriesRaw.map((cat: GraphCategory, idx: number) => (
           <span key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
             <span style={{
               width: 10,

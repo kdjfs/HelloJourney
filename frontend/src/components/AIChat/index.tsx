@@ -1,10 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
-import { Button } from 'antd'
 import { apiClient } from '../../services/apiClient'
 import type { TripPlan, ChatMessage, TripChatRequest, TripChatResponse } from '../../types/api'
 
 interface AIChatProps {
   tripPlan: TripPlan | null
+}
+
+/* DeepSeek 官方 Logo（simple-icons，CC0） */
+export function DeepSeekLogo({ size = 30 }: { size?: number }) {
+  return (
+    <svg role="img" width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="DeepSeek">
+      <path fill="currentColor" d="M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45" />
+    </svg>
+  )
 }
 
 const quickQuestions = [
@@ -40,14 +48,6 @@ function AIChat({ tripPlan }: AIChatProps) {
   useEffect(() => {
     if (chatOpen) scrollToBottom()
   }, [chatOpen, chatHistory, chatLoading])
-
-  const openChatPanel = () => {
-    if (!chatOpen) setChatOpen(true)
-  }
-
-  const closeChatPanel = () => {
-    setChatOpen(false)
-  }
 
   const sendQuickQuestion = (q: string) => {
     setChatInput(q)
@@ -88,144 +88,91 @@ function AIChat({ tripPlan }: AIChatProps) {
 
   return (
     <div className="ai-chat-floating">
-      <div className="container-wrap" style={chatOpen ? { padding: 0 } : undefined}>
-        <div className="card">
-          {/* 装饰球 */}
-          <div className="background-blur-balls" style={chatOpen ? { borderRadius: 24 } : undefined}>
-            <div className="balls">
-              <span className="ball rosa" />
-              <span className="ball violet" />
-              <span className="ball green" />
-              <span className="ball cyan" />
-            </div>
+      {chatOpen && (
+        <div className="chat-panel" role="dialog" aria-label="AI 旅行助手">
+          <div className="chat-panel-header">
+            <span className="chat-panel-brand">
+              <i className="chat-panel-logo"><DeepSeekLogo size={22} /></i>
+              AI 旅行助手
+            </span>
+            <button type="button" className="chat-panel-close" onClick={() => setChatOpen(false)} aria-label="关闭聊天">
+              ✕
+            </button>
           </div>
 
-          {/* 未打开状态：猫头鹰脸 */}
-          <div className="content-card" style={{ cursor: chatOpen ? 'default' : 'pointer' }} onClick={openChatPanel}>
-            <div className="background-blur-card">
-              <div className="eyes" style={chatOpen ? { opacity: 0 } : undefined}>
-                <span className="eye" />
-                <span className="eye" />
-              </div>
-              <div className="eyes happy" style={chatOpen ? { opacity: 0 } : undefined}>
-                <svg fill="none" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M8.28386 16.2843C8.9917 15.7665 9.8765 14.731 12 14.731C14.1235 14.731 15.0083 15.7665 15.7161 16.2843C17.8397 17.8376 18.7542 16.4845 18.9014 15.7665C19.4323 13.1777 17.6627 11.1066 17.3088 10.5888C16.3844 9.23666 14.1235 8 12 8C9.87648 8 7.61556 9.23666 6.69122 10.5888C6.33728 11.1066 4.56771 13.1777 5.09858 15.7665C5.24582 16.4845 6.16034 17.8376 8.28386 16.2843Z" />
-                </svg>
-                <svg fill="none" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M8.28386 16.2843C8.9917 15.7665 9.8765 14.731 12 14.731C14.1235 14.731 15.0083 15.7665 15.7161 16.2843C17.8397 17.8376 18.7542 16.4845 18.9014 15.7665C19.4323 13.1777 17.6627 11.1066 17.3088 10.5888C16.3844 9.23666 14.1235 8 12 8C9.87648 8 7.61556 9.23666 6.69122 10.5888C6.33728 11.1066 4.56771 13.1777 5.09858 15.7665C5.24582 16.4845 6.16034 17.8376 8.28386 16.2843Z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* 聊天面板 */}
-          {chatOpen && (
-            <div className="container-ai-chat" onClick={(e) => e.stopPropagation()}>
-              <Button
-                type="text"
-                className="chat-close-btn"
-                onClick={closeChatPanel}
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 12,
-                  zIndex: 10,
-                  fontSize: 20,
-                  color: '#f5593d',
-                }}
-              >
-                ✕
-              </Button>
-
-              <div className="chat">
-                <div className="chat-bot">
-                  <div className="chat-history" ref={chatMessagesRef}>
-                    {chatHistory.length === 0 && (
-                      <div className="chat-empty">
-                        <p>你好！我是你的 AI 旅行助手，有什么问题随时问我~</p>
-                        <div className="chat-suggestions">
-                          {quickQuestions.map((q) => (
-                            <button
-                              key={q.label}
-                              type="button"
-                              className="chat-suggestion"
-                              disabled={chatLoading || !tripPlan}
-                              onClick={() => sendQuickQuestion(q.question)}
-                            >
-                              {q.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {chatHistory.map((msg, idx) => (
-                      <div key={`chat-${idx}`} className={`chat-msg ${msg.role}`}>
-                        {msg.content}
-                      </div>
-                    ))}
-
-                    {chatLoading && (
-                      <div className="chat-msg assistant typing">
-                        <span className="dot" />
-                        <span className="dot" />
-                        <span className="dot" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="options">
-                    <textarea
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder={!tripPlan ? '没有旅行计划数据' : '输入你的问题...'}
-                      disabled={chatLoading || !tripPlan}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          void sendChatMessage()
-                        }
-                      }}
-                    />
-
-                    <div className="btns-add">
-                      <button type="button" disabled>
-                        <svg viewBox="0 0 24 24" height="20" width="20" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M7 8v8a5 5 0 1 0 10 0V6.5a3.5 3.5 0 1 0-7 0V15a2 2 0 0 0 4 0V8" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" stroke="currentColor" fill="none" />
-                        </svg>
-                      </button>
-                      <button type="button" disabled>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
-                          <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zm0 10a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zm0-8h6m-3-3v6" />
-                        </svg>
-                      </button>
-                      <button type="button" disabled>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
-                          <path fill="currentColor" d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10s-4.477 10-10 10m-2.29-2.333A17.9 17.9 0 0 1 8.027 13H4.062a8.01 8.01 0 0 0 5.648 6.667M10.03 13c.151 2.439.848 4.73 1.97 6.752A15.9 15.9 0 0 0 13.97 13zm9.908 0h-3.965a17.9 17.9 0 0 1-1.683 6.667A8.01 8.01 0 0 0 19.938 13M4.062 11h3.965A17.9 17.9 0 0 1 9.71 4.333A8.01 8.01 0 0 0 4.062 11m5.969 0h3.938A15.9 15.9 0 0 0 12 4.248A15.9 15.9 0 0 0 10.03 11m4.259-6.667A17.9 17.9 0 0 1 15.973 11h3.965a8.01 8.01 0 0 0-5.648-6.667" />
-                        </svg>
-                      </button>
-                    </div>
+          <div className="chat-panel-history" ref={chatMessagesRef}>
+            {chatHistory.length === 0 && (
+              <div className="chat-empty">
+                <p>你好！我是你的 AI 旅行助手，有什么问题随时问我~</p>
+                <div className="chat-suggestions">
+                  {quickQuestions.map((q) => (
                     <button
+                      key={q.label}
                       type="button"
-                      className="btn-submit"
-                      disabled={chatLoading || !chatInput.trim() || !tripPlan}
-                      onClick={() => {
-                        void sendChatMessage()
-                      }}
+                      className="chat-suggestion"
+                      disabled={chatLoading || !tripPlan}
+                      onClick={() => sendQuickQuestion(q.question)}
                     >
-                      <i>
-                        <svg viewBox="0 0 512 512">
-                          <path d="M473 39.05a24 24 0 0 0-25.5-5.46L47.47 185h-.08a24 24 0 0 0 1 45.16l.41.13l137.3 58.63a16 16 0 0 0 15.54-3.59L422 80a7.07 7.07 0 0 1 10 10L226.66 310.26a16 16 0 0 0-3.59 15.54l58.65 137.38c.06.2.12.38.19.57c3.2 9.27 11.3 15.81 21.09 16.25h1a24.63 24.63 0 0 0 23-15.46L478.39 64.62A24 24 0 0 0 473 39.05" fill="currentColor" />
-                        </svg>
-                      </i>
+                      {q.label}
                     </button>
-                  </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {chatHistory.map((msg, idx) => (
+              <div key={`chat-${idx}`} className={`chat-msg ${msg.role}`}>
+                {msg.content}
+              </div>
+            ))}
+
+            {chatLoading && (
+              <div className="chat-msg assistant typing">
+                <span className="dot" />
+                <span className="dot" />
+                <span className="dot" />
+              </div>
+            )}
+          </div>
+
+          <div className="chat-panel-input">
+            <textarea
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder={!tripPlan ? '没有旅行计划数据' : '输入你的问题...'}
+              disabled={chatLoading || !tripPlan}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void sendChatMessage()
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="chat-send-btn"
+              disabled={chatLoading || !chatInput.trim() || !tripPlan}
+              onClick={() => {
+                void sendChatMessage()
+              }}
+              aria-label="发送"
+            >
+              <svg viewBox="0 0 512 512" width="16" height="16">
+                <path d="M473 39.05a24 24 0 0 0-25.5-5.46L47.47 185h-.08a24 24 0 0 0 1 45.16l.41.13l137.3 58.63a16 16 0 0 0 15.54-3.59L422 80a7.07 7.07 0 0 1 10 10L226.66 310.26a16 16 0 0 0-3.59 15.54l58.65 137.38c.06.2.12.38.19.57c3.2 9.27 11.3 15.81 21.09 16.25h1a24.63 24.63 0 0 0 23-15.46L478.39 64.62A24 24 0 0 0 473 39.05" fill="currentColor" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      <button
+        type="button"
+        className="chat-fab"
+        onClick={() => setChatOpen((open) => !open)}
+        aria-label={chatOpen ? '关闭 AI 旅行助手' : '打开 AI 旅行助手'}
+      >
+        <DeepSeekLogo size={30} />
+      </button>
     </div>
   )
 }

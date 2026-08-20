@@ -335,27 +335,27 @@
 .days-chip {
   min-height: 40px;
   border-radius: 12px;
-  border: 1.2px solid rgba(215, 110, 66, 0.42);
+  border: 1.2px solid rgba(81, 203, 206, 0.42);
   background: rgba(19, 34, 46, 0.8);
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
+  padding: 0 8px;
 }
 
 .days-number {
-  color: rgba(236, 243, 250, 0.72);
-  font-size: 18px;
+  color: #9fe6e8;
+  font-size: 20px;
   line-height: 1;
   font-weight: 700;
 }
 
 .days-unit {
-  font-size: 16px;
-  text-transform: uppercase;
+  font-size: 13px;
   letter-spacing: 0.06em;
-  color: rgba(224, 233, 242, 0.74);
-  font-weight: 700;
+  color: rgba(224, 233, 242, 0.8);
+  font-weight: 600;
 }
 
 /* ===== Interest Pills ===== */
@@ -789,6 +789,71 @@
   gap: 8px;
   margin-top: 14px;
   text-align: left;
+}
+
+.city-route-field .field-label {
+  color: rgba(228, 236, 245, 0.72);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* 途经城市已选标签（深色芯片） */
+.field-select.ant-select .ant-select-selection-item {
+  background: rgba(215, 110, 66, 0.22) !important;
+  border: 1px solid rgba(215, 110, 66, 0.5);
+  border-radius: 8px;
+  color: #ffd9c6 !important;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.field-select.ant-select .ant-select-selection-item .ant-select-selection-item-remove {
+  color: rgba(255, 217, 198, 0.8) !important;
+}
+
+/* 路线回显 */
+.route-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.route-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(236, 243, 250, 0.22);
+  background: rgba(236, 243, 250, 0.08);
+  color: rgba(236, 243, 250, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.route-chip-main {
+  border-color: rgba(215, 110, 66, 0.7);
+  background: rgba(215, 110, 66, 0.24);
+  color: #ffd9c6;
+}
+
+.route-arrow {
+  color: rgba(215, 110, 66, 0.9);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.route-total {
+  margin-left: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(81, 203, 206, 0.14);
+  border: 1px solid rgba(81, 203, 206, 0.4);
+  color: #9fe6e8;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .field-number {

@@ -328,7 +328,10 @@ function Result() {
   if (loading) {
     return (
       <div className="result-loading">
-        <Spin size="large" tip="正在加载旅行计划..." />
+        <div className="result-loading-box">
+          <Spin size="large" />
+          <p>正在加载旅行计划...</p>
+        </div>
       </div>
     )
   }
@@ -525,7 +528,7 @@ function Result() {
           {/* Knowledge Graph */}
           {activeSection === 'knowledge-graph' && (
             <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
-              <Suspense fallback={<Spin tip="正在加载知识图谱" />}><KnowledgeGraph graphData={graphData} /></Suspense>
+              <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>正在加载知识图谱</span></div>}><KnowledgeGraph graphData={graphData} /></Suspense>
             </Card>
           )}
         </div>

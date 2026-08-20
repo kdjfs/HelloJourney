@@ -1,11 +1,17 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { ConfigProvider, theme } from 'antd'
+import zhCN from 'antd/locale/zh_CN'
+import dayjs from 'dayjs'
+import 'dayjs/locale/zh-cn'
 import { isMockEnabled } from './utils/env'
 import './index.css'
 import './styles/global.css'
 import App from './App'
 import AppErrorBoundary from './components/AppErrorBoundary'
+
+dayjs.locale('zh-cn')
 
 async function enableMocking() {
   if (isMockEnabled()) {
@@ -26,11 +32,29 @@ async function enableMocking() {
 function renderApp() {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <BrowserRouter>
-        <AppErrorBoundary>
-          <App />
-        </AppErrorBoundary>
-      </BrowserRouter>
+      <ConfigProvider
+        locale={zhCN}
+        theme={{
+          algorithm: theme.darkAlgorithm,
+          token: {
+            colorPrimary: '#d76e42',
+            colorInfo: '#d76e42',
+            colorBgBase: '#0a1520',
+            colorTextBase: '#ecf3fa',
+            colorBorder: 'rgba(236, 243, 250, 0.18)',
+            colorBorderSecondary: 'rgba(236, 243, 250, 0.12)',
+            borderRadius: 10,
+            fontFamily:
+              "Inter, 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
+          },
+        }}
+      >
+        <BrowserRouter>
+          <AppErrorBoundary>
+            <App />
+          </AppErrorBoundary>
+        </BrowserRouter>
+      </ConfigProvider>
     </React.StrictMode>,
   )
 }

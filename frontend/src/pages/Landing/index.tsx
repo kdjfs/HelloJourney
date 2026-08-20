@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Form, Input, InputNumber, Select, DatePicker, Button, message, Progress } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -18,6 +18,14 @@ const INTEREST_OPTIONS = [
   { value: '艺术', label: '艺术' },
   { value: '休闲', label: '休闲' },
 ]
+
+/* 常用城市（点击或输入回车添加） */
+const CITY_OPTIONS = [
+  '北京', '上海', '广州', '深圳', '杭州', '成都', '重庆', '西安', '南京', '苏州',
+  '天津', '武汉', '长沙', '厦门', '青岛', '三亚', '昆明', '大理', '桂林', '哈尔滨',
+].map((city) => ({ value: city, label: city }))
+
+const MAX_TRIP_DAYS = 30
 
 /* 加载阶段对应的中文文本 */
 const stageLabels: Record<string, string> = {
@@ -53,9 +61,9 @@ function Landing() {
   const [additionalCities, setAdditionalCities] = useState<string[]>([])
   const [travelDays, setTravelDays] = useState(3)
 
-  /* 日期选择 */
-  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs('2026-06-01'))
-  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs('2026-06-03'))
+  /* 日期选择：默认从明天开始、共 3 天 */
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().add(1, 'day').startOf('day'))
+  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs().add(3, 'day').startOf('day'))
 
   /* 滚动 */
   const [scrollY, setScrollY] = useState(window.scrollY || 0)
@@ -73,38 +81,45 @@ function Landing() {
   const heroContentTranslate = -heroProgress * 46
   const lowerShadeOpacity = Math.min(Math.max((scrollY - 20) / 360, 0), 1) * 0.7
 
-  /* 日期变化自动计算天数 */
+  /* 日期变化自动计算天数，并自动修正非法区间 */
   const handleStartDateChange = useCallback((date: Dayjs | null) => {
     setStartDate(date)
-    if (date && endDate) {
-      const days = endDate.diff(date, 'day') + 1
-      if (days > 0 && days <= 30) {
-        setTravelDays(days)
-      } else if (days > 30) {
-        message.warning('出行天数不能超过30天')
-        setEndDate(null)
-      } else {
-        message.warning('结束日期不能早于开始日期')
-        setEndDate(null)
-      }
+    if (!date) return
+    const days = endDate ? endDate.diff(date, 'day') + 1 : travelDays
+    if (days > MAX_TRIP_DAYS) {
+      setEndDate(date.add(MAX_TRIP_DAYS - 1, 'day'))
+      setTravelDays(MAX_TRIP_DAYS)
+      message.warning('单次出行最多 30 天，已自动调整结束日期')
+    } else if (days < 1) {
+      setEndDate(date.add(travelDays - 1, 'day'))
+      setTravelDays(travelDays)
+      message.info('结束日期已自动调整到开始日期之后')
+    } else {
+      setTravelDays(days)
     }
-  }, [endDate])
+  }, [endDate, travelDays])
 
   const handleEndDateChange = useCallback((date: Dayjs | null) => {
     setEndDate(date)
-    if (startDate && date) {
-      const days = date.diff(startDate, 'day') + 1
-      if (days > 0 && days <= 30) {
-        setTravelDays(days)
-      } else if (days > 30) {
-        message.warning('出行天数不能超过30天')
-        setEndDate(null)
-      } else {
-        message.warning('结束日期不能早于开始日期')
-        setEndDate(null)
-      }
+    if (!date || !startDate) return
+    const days = date.diff(startDate, 'day') + 1
+    if (days > MAX_TRIP_DAYS) {
+      setEndDate(startDate.add(MAX_TRIP_DAYS - 1, 'day'))
+      setTravelDays(MAX_TRIP_DAYS)
+      message.warning('单次出行最多 30 天，已自动调整结束日期')
+    } else if (days < 1) {
+      setEndDate(null)
+      message.warning('结束日期不能早于开始日期')
+    } else {
+      setTravelDays(days)
     }
   }, [startDate])
+
+  /* 途经城市：实时路线回显 */
+  const watchedCity = Form.useWatch('city', form)
+  const routePreview = [watchedCity, ...additionalCities]
+    .map((item) => (item || '').trim())
+    .filter(Boolean)
 
   /* 滚动监听 - 使用内联 handler，避免 setState-in-effect */
 
@@ -371,8 +386,6 @@ function Landing() {
           ref={panelRef}
           className="form-panel"
           style={{
-            opacity: 0.2 + Math.min(Math.max((scrollY - 80) / 340, 0), 1) * 0.8,
-            transform: `translate3d(0, ${(1 - Math.min(Math.max((scrollY - 80) / 340, 0), 1)) * 56}px, 0)`,
             minHeight: panelHeight === 'auto' ? 'auto' : `${panelHeight}px`,
           }}
         >
@@ -410,6 +423,7 @@ function Landing() {
                     onChange={handleStartDateChange}
                     placeholder="开始日期"
                     size="large"
+                    allowClear={false}
                     className="field-input"
                     style={{ width: '100%' }}
                     disabledDate={(current) => current && current < dayjs().startOf('day')}
@@ -420,9 +434,10 @@ function Landing() {
                     onChange={handleEndDateChange}
                     placeholder="结束日期"
                     size="large"
+                    allowClear={false}
                     className="field-input"
                     style={{ width: '100%' }}
-                    disabledDate={(current) => current && current < dayjs().startOf('day')}
+                    disabledDate={(current) => current && (current < dayjs().startOf('day') || (startDate !== null && current < startDate.startOf('day')))}
                   />
 
                   <div className="days-chip">
@@ -431,7 +446,7 @@ function Landing() {
                   </div>
                 </div>
                 <div className="city-route-field">
-                  <label className="field-label" htmlFor="additional-cities">途经城市（可选，输入后回车）</label>
+                  <label className="field-label" htmlFor="additional-cities">途经城市（可选，点击常用城市或输入后回车）</label>
                   <Select
                     id="additional-cities"
                     mode="tags"
@@ -442,8 +457,20 @@ function Landing() {
                     size="large"
                     className="field-select"
                     maxCount={8}
+                    options={CITY_OPTIONS}
                     aria-label="途经城市"
                   />
+                  {routePreview.length > 0 && (
+                    <div className="route-preview" aria-label="旅行路线预览">
+                      {routePreview.map((cityName, index) => (
+                        <Fragment key={`${cityName}-${index}`}>
+                          {index > 0 && <span className="route-arrow">→</span>}
+                          <span className={`route-chip${index === 0 ? ' route-chip-main' : ''}`}>{cityName}</span>
+                        </Fragment>
+                      ))}
+                      <span className="route-total">共 {travelDays} 天</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
