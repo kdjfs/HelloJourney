@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+runtime_settings.json
+**/runtime_settings.json
 
 # Editor directories and files
 .vscode/*

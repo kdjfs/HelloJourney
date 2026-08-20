@@ -85,25 +85,20 @@ export const handlers = [
       success: true,
       message: 'ok',
       data: {
-        vite_amap_web_key: '',
-        vite_amap_web_js_key: '',
-        google_maps_api_key: '',
-        google_maps_proxy: '',
-        xhs_cookie: '',
-        openai_api_key: '',
-        openai_base_url: '',
-        openai_model: '',
+        tencent_maps_configured: true,
+        google_maps_configured: false,
+        xhs_configured: false,
+        llm_active_provider: 'deepseek',
+        llm_providers: [
+          {
+            key: 'deepseek',
+            name: 'DeepSeek',
+            model: 'deepseek-chat',
+            configured: true,
+            active: true,
+          },
+        ],
       },
-    })
-  }),
-
-  http.put('*/api/settings', async ({ request }) => {
-    const body = await request.json()
-
-    return HttpResponse.json({
-      success: true,
-      message: '配置已保存并立即生效',
-      data: body,
     })
   }),
 ]

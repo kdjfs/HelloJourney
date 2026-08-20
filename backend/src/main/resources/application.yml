@@ -3,67 +3,75 @@ spring:
     active: @spring.profiles.active@
 
 server:
-  port: 8000
+  port: ${PORT:8000}
 
 app:
   name: HelloAgents智能旅行助手
   version: 2.0.0
 
   tencent-maps:
-    key: "DCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    key: ${TENCENT_MAPS_KEY:}
 
   google-maps:
-    api-key: ""
-    proxy: ""
+    api-key: ${GOOGLE_MAPS_API_KEY:}
+    proxy: ${GOOGLE_MAPS_PROXY:}
 
   xhs:
-    cookie: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    cookie: ${XHS_COOKIE:}
+    xs: ${XHS_XS:}
+    xs-common: ${XHS_XS_COMMON:}
+    xt: ${XHS_XT:}
+
+  settings:
+    allow-secret-updates: ${SETTINGS_ALLOW_SECRET_UPDATES:false}
+    admin-token: ${SETTINGS_ADMIN_TOKEN:}
+
   llm:
-    active-provider: deepseek
-    timeout: 60
+    active-provider: ${LLM_ACTIVE_PROVIDER:deepseek}
+    timeout: ${LLM_TIMEOUT:60}
     providers:
       deepseek:
         name: DeepSeek
-        api-key: "xxxxxxxxxxxxxxxxxxx46c9"
-        base-url: https://api.deepseek.com/v1
-        model: deepseek-chat
+        api-key: ${LLM_DEEPSEEK_API_KEY:}
+        base-url: ${LLM_DEEPSEEK_BASE_URL:https://api.deepseek.com/v1}
+        model: ${LLM_DEEPSEEK_MODEL:deepseek-chat}
       glm:
         name: GLM (智谱)
-        api-key: ""
-        base-url: https://open.bigmodel.cn/api/paas/v4
-        model: glm-4
+        api-key: ${LLM_GLM_API_KEY:}
+        base-url: ${LLM_GLM_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+        model: ${LLM_GLM_MODEL:glm-4}
       minimax:
         name: MiniMax
-        api-key: ""
-        base-url: https://api.minimax.chat/v1
-        model: MiniMax-Text-01
+        api-key: ${LLM_MINIMAX_API_KEY:}
+        base-url: ${LLM_MINIMAX_BASE_URL:https://api.minimax.chat/v1}
+        model: ${LLM_MINIMAX_MODEL:MiniMax-Text-01}
       doubao:
         name: 豆包 (字节跳动)
-        api-key: ""
-        base-url: https://ark.cn-beijing.volces.com/api/v3
-        model: doubao-pro-4k
+        api-key: ${LLM_DOUBAO_API_KEY:}
+        base-url: ${LLM_DOUBAO_BASE_URL:https://ark.cn-beijing.volces.com/api/v3}
+        model: ${LLM_DOUBAO_MODEL:doubao-pro-4k}
       openai:
         name: GPT (OpenAI)
-        api-key: ""
-        base-url: https://api.openai.com/v1
-        model: gpt-4
+        api-key: ${LLM_OPENAI_API_KEY:}
+        base-url: ${LLM_OPENAI_BASE_URL:https://api.openai.com/v1}
+        model: ${LLM_OPENAI_MODEL:gpt-4}
       grok:
         name: Grok (xAI)
-        api-key: ""
-        base-url: https://api.x.ai/v1
-        model: grok-2
+        api-key: ${LLM_GROK_API_KEY:}
+        base-url: ${LLM_GROK_BASE_URL:https://api.x.ai/v1}
+        model: ${LLM_GROK_MODEL:grok-2}
       kimi:
         name: Kimi (Moonshot)
-        api-key: ""
-        base-url: https://api.moonshot.cn/v1
-        model: moonshot-v1-8k
+        api-key: ${LLM_KIMI_API_KEY:}
+        base-url: ${LLM_KIMI_BASE_URL:https://api.moonshot.cn/v1}
+        model: ${LLM_KIMI_MODEL:moonshot-v1-8k}
       dashscope:
         name: 阿里百炼
-        api-key: ""
-        base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-        model: qwen-turbo
+        api-key: ${LLM_DASHSCOPE_API_KEY:}
+        base-url: ${LLM_DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+        model: ${LLM_DASHSCOPE_MODEL:qwen-turbo}
       siliconflow:
         name: 硅基流动
-        api-key: ""
-        base-url: https://api.siliconflow.cn/v1
-        model: Qwen/Qwen2.5-7B-Instruct
+        api-key: ${LLM_SILICONFLOW_API_KEY:}
+        base-url: ${LLM_SILICONFLOW_BASE_URL:https://api.siliconflow.cn/v1}
+        model: ${LLM_SILICONFLOW_MODEL:Qwen/Qwen2.5-7B-Instruct}

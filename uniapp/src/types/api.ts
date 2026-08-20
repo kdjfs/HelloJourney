@@ -175,26 +175,17 @@ export interface TripHistoryItem {
 }
 
 export interface RuntimeSettings {
-  tencent_maps_key: string
-  google_maps_api_key: string
-  xhs_cookie: string
+  tencent_maps_configured: boolean
+  google_maps_configured: boolean
+  xhs_configured: boolean
   llm_active_provider: string
-  llm_providers: Record<string, any>[]
-}
-
-export interface RuntimeSettingsPayload {
-  tencent_maps_key?: string
-  google_maps_api_key?: string
-  xhs_cookie?: string
-  llm_active_provider?: string
-  llm_providers?: Record<string, any>[]
+  llm_providers: LlmProviderInfo[]
 }
 
 export interface LlmProviderInfo {
   key: string
   name: string
-  api_key: string
-  base_url: string
   model: string
-  available: boolean
+  configured: boolean
+  active: boolean
 }

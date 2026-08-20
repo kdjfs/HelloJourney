@@ -101,12 +101,9 @@ public class RuntimeSettingsManager {
 
     public Map<String, Object> getRuntimeSettings() {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("tencent_maps_key", safeGet(appSettings.getTencentMapsKey()));
-        result.put("google_maps_api_key", safeGet(appSettings.getGoogleMapsApiKey()));
-        result.put("xhs_cookie", safeGet(appSettings.getXhsCookie()));
-        result.put("xhs_xs", safeGet(appSettings.getXhsXs()));
-        result.put("xhs_xs_common", safeGet(appSettings.getXhsXsCommon()));
-        result.put("xhs_xt", safeGet(appSettings.getXhsXt()));
+        result.put("tencent_maps_configured", isConfigured(appSettings.getTencentMapsKey()));
+        result.put("google_maps_configured", isConfigured(appSettings.getGoogleMapsApiKey()));
+        result.put("xhs_configured", isConfigured(appSettings.getXhsCookie()));
         result.put("llm_active_provider", safeGet(appSettings.getLlmActiveProvider()));
 
         List<Map<String, Object>> providersList = new ArrayList<>();
@@ -115,10 +112,9 @@ public class RuntimeSettingsManager {
             Map<String, Object> p = new LinkedHashMap<>();
             p.put("key", entry.getKey());
             p.put("name", props.getName());
-            p.put("api_key", safeGet(props.getApiKey()));
-            p.put("base_url", safeGet(props.getBaseUrl()));
             p.put("model", safeGet(props.getModel()));
-            p.put("available", props.getApiKey() != null && !props.getApiKey().trim().isEmpty());
+            p.put("configured", isConfigured(props.getApiKey()));
+            p.put("active", Objects.equals(entry.getKey(), appSettings.getLlmActiveProvider()));
             providersList.add(p);
         }
         result.put("llm_providers", providersList);
@@ -160,5 +156,9 @@ public class RuntimeSettingsManager {
 
     private String safeGet(String v) {
         return v != null ? v : "";
+    }
+
+    private boolean isConfigured(String value) {
+        return value != null && !value.isBlank();
     }
 }

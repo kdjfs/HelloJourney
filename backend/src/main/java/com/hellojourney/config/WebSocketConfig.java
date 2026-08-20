@@ -12,10 +12,11 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
     private final TripTaskWebSocketHandler tripTaskWebSocketHandler;
+    private final AppSettings appSettings;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(tripTaskWebSocketHandler, "/api/trip/ws/{taskId}")
-                .setAllowedOrigins("*");
+                .setAllowedOrigins(appSettings.getCorsOriginsList().toArray(new String[0]));
     }
 }

@@ -25,6 +25,7 @@ public class AppSettings {
     private GoogleMapsConfig googleMaps = new GoogleMapsConfig();
     private XhsConfig xhs = new XhsConfig();
     private LlmConfig llm = new LlmConfig();
+    private SettingsSecurityConfig settings = new SettingsSecurityConfig();
 
     @Data
     public static class TencentMapsConfig {
@@ -79,6 +80,14 @@ public class AppSettings {
         private String apiKey = "";
         private String baseUrl = "";
         private String model = "";
+    }
+
+    @Data
+    public static class SettingsSecurityConfig {
+        /** Sensitive runtime writes are opt-in even outside production. */
+        private boolean allowSecretUpdates = false;
+        /** Separate administrator credential; never returned by an API. */
+        private String adminToken = "";
     }
 
     public List<String> getCorsOriginsList() {

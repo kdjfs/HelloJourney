@@ -159,14 +159,17 @@ export interface TripHistoryItem {
 }
 
 export interface BackendRuntimeSettings {
-  vite_amap_web_key: string
-  vite_amap_web_js_key: string
-  google_maps_api_key: string
-  google_maps_proxy?: string
-  xhs_cookie: string
-  openai_api_key: string
-  openai_base_url: string
-  openai_model: string
+  tencent_maps_configured: boolean
+  google_maps_configured: boolean
+  xhs_configured: boolean
+  llm_active_provider: string
+  llm_providers: Array<{
+    key: string
+    name: string
+    model: string
+    configured: boolean
+    active: boolean
+  }>
 }
 
 export interface RuntimeSettings extends BackendRuntimeSettings {
