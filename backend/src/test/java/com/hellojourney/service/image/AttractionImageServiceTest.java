@@ -38,6 +38,7 @@ class AttractionImageServiceTest {
 
     @Test
     void resolveImage_noProviderMatch_returnsDeterministicEmptyResult() {
+        AtomicInteger calls = new AtomicInteger();
         AttractionImageProvider provider = new AttractionImageProvider() {
             @Override
             public String providerId() {
@@ -46,16 +47,20 @@ class AttractionImageServiceTest {
 
             @Override
             public AttractionImageResult resolveImage(String attractionName, String city, String poiId) {
+                calls.incrementAndGet();
                 return AttractionImageResult.notFound();
             }
         };
         AttractionImageService service = new AttractionImageService(List.of(provider));
 
         AttractionImageResult result = service.resolveImage("陈家祠", "广州", null);
+        AttractionImageResult cachedResult = service.resolveImage("陈家祠", "广州", null);
 
         assertThat(result.isVerified()).isFalse();
         assertThat(result.getImageUrl()).isEmpty();
         assertThat(result.getConfidence()).isZero();
         assertThat(result.getProvider()).isEqualTo("none");
+        assertThat(cachedResult).isEqualTo(result);
+        assertThat(calls).hasValue(1);
     }
 }

@@ -35,7 +35,7 @@ class AmapAttractionImageProviderTest {
     }
 
     @Test
-    void resolveImage_exactNameAndCity_returnsVerifiedPhoto() {
+    void resolveImage_exactNameAndCity_returnsVerifiedPhoto() throws InterruptedException {
         enqueuePoi("广州塔", "广州市", "B00140TY2A", "", "https://aos-cdn-image.amap.com/guangzhou-tower.jpg");
 
         assertThat(settings.getAmapMapsKey()).isEqualTo("amap-test-key");
@@ -50,6 +50,14 @@ class AmapAttractionImageProviderTest {
         assertThat(result.getMatchedPoiId()).isEqualTo("B00140TY2A");
         assertThat(result.getImageUrl()).isEqualTo("https://aos-cdn-image.amap.com/guangzhou-tower.jpg");
         assertThat(result.getConfidence()).isEqualTo(1.0);
+
+        var requestUrl = server.takeRequest().getRequestUrl();
+        assertThat(requestUrl).isNotNull();
+        assertThat(requestUrl.encodedPath()).isEqualTo("/v5/place/text");
+        assertThat(requestUrl.queryParameter("keywords")).isEqualTo("广州塔");
+        assertThat(requestUrl.queryParameter("region")).isEqualTo("广州");
+        assertThat(requestUrl.queryParameter("city_limit")).isEqualTo("true");
+        assertThat(requestUrl.queryParameter("show_fields")).isEqualTo("photos,business");
     }
 
     @Test
