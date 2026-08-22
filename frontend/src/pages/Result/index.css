@@ -288,6 +288,19 @@
   border-radius: 18px 18px 0 0;
 }
 
+.trip-map-lazy {
+  min-height: 340px;
+  margin-bottom: 24px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  border: 1px solid rgba(236, 243, 250, 0.14);
+  border-radius: 16px;
+  color: rgba(236, 243, 250, 0.78);
+  background: #10202b;
+}
+
 .overview-swiper-track {
   display: flex;
   height: 100%;
@@ -316,6 +329,15 @@
   display: flex;
   align-items: flex-end;
   transition: width 0.35s ease, filter 0.3s ease, opacity 0.3s ease;
+}
+
+.overview-slide[role='button'] {
+  cursor: pointer;
+}
+
+.overview-slide[role='button']:focus-visible {
+  outline: 3px solid rgba(125, 211, 252, 0.9);
+  outline-offset: 4px;
 }
 
 .overview-slide img {

@@ -7,6 +7,7 @@ interface OverviewAttractionItem {
   visit_duration: number
   description: string
   dayArrayIndex: number
+  attractionArrayIndex: number
   rating?: number
   ticket_price?: number
   category?: string
@@ -17,6 +18,7 @@ interface OverviewAttractionCardProps {
   imageUrl?: string
   active: boolean
   onHover?: () => void
+  onSelect?: () => void
 }
 
 function OverviewAttractionCard({
@@ -24,11 +26,23 @@ function OverviewAttractionCard({
   imageUrl,
   active,
   onHover,
+  onSelect,
 }: OverviewAttractionCardProps) {
   return (
     <div
       className={`overview-slide${active ? ' overview-slide-active' : ''}`}
       onMouseEnter={onHover}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && onSelect) {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`在地图中定位${item.name}`}
+      aria-pressed={active}
     >
       <div className="overview-slide-img">
         <AttractionImage

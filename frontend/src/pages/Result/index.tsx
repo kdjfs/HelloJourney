@@ -26,6 +26,7 @@ import './index.css'
 
 const KnowledgeGraph = lazy(() => import('../../components/KnowledgeGraph'))
 const AIChat = lazy(() => import('../../components/AIChat'))
+const TripMap = lazy(() => import('../../components/TripMap'))
 
 type WeatherIconKind = 'sunny' | 'sun-shower' | 'thunder-storm' | 'cloudy' | 'flurries' | 'rainy'
 
@@ -228,7 +229,11 @@ function Result() {
   const [recoveryError, setRecoveryError] = useState('')
   const [activeSection, setActiveSection] = useState('overview')
   const [activeWeatherIndex, setActiveWeatherIndex] = useState(0)
-  const [activeOverviewCard, setActiveOverviewCard] = useState(1)
+  const [activeOverviewCard, setActiveOverviewCard] = useState(0)
+  const [selectedMapAttraction, setSelectedMapAttraction] = useState<{
+    dayIndex: number
+    attractionIndex: number
+  } | null>(null)
   const [attractionPhotos, setAttractionPhotos] = useState<Record<string, string>>({})
   const overviewRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -296,13 +301,14 @@ function Result() {
 
   const overviewAttractions: OverviewAttractionItem[] = tripPlan
     ? tripPlan.days.flatMap((day, dayIdx) =>
-        day.attractions.map((attr) => ({
+        day.attractions.map((attr, attractionIdx) => ({
           name: attr.name,
           city: day.city || tripPlan.city,
           address: attr.address,
           visit_duration: attr.visit_duration,
           description: attr.description,
           dayArrayIndex: dayIdx,
+          attractionArrayIndex: attractionIdx,
           rating: attr.rating,
           ticket_price: attr.ticket_price,
         })),
@@ -411,6 +417,16 @@ function Result() {
           {/* Overview */}
           {activeSection === 'overview' && (
             <Card id="overview" className="section-shellless overview-card" styles={{ body: { padding: 0 } }}>
+              <Suspense
+                fallback={(
+                  <div className="trip-map-lazy" role="status">
+                    <Spin />
+                    <span>正在加载地图组件…</span>
+                  </div>
+                )}
+              >
+                <TripMap plan={tripPlan} selectedAttraction={selectedMapAttraction} />
+              </Suspense>
               {overviewAttractions.length > 0 ? (
                 <div ref={overviewRef} className="overview-swiper">
                   <div className="overview-swiper-track">
@@ -421,6 +437,13 @@ function Result() {
                         imageUrl={attractionPhotos[attractionImageCacheKey(item.city, item.name)]}
                         active={activeOverviewCard === index}
                         onHover={() => setActiveOverviewCard(index)}
+                        onSelect={() => {
+                          setActiveOverviewCard(index)
+                          setSelectedMapAttraction({
+                            dayIndex: item.dayArrayIndex,
+                            attractionIndex: item.attractionArrayIndex,
+                          })
+                        }}
                       />
                     ))}
                   </div>

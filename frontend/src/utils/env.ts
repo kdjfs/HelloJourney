@@ -11,3 +11,9 @@ export function isMockEnabled(): boolean {
 export function getAppMode(): 'mock' | 'backend' {
   return isMockEnabled() ? 'mock' : 'backend'
 }
+
+export function getAmapWebJsKey(): string {
+  return typeof import.meta.env.VITE_AMAP_WEB_JS_KEY === 'string'
+    ? import.meta.env.VITE_AMAP_WEB_JS_KEY.trim()
+    : ''
+}
