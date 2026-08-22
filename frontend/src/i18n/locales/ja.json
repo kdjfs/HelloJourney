@@ -228,7 +228,9 @@
   },
   "overviewCard": {
     "locate": "地図で {{name}} を表示",
-    "noDescription": "説明がありません"
+    "noDescription": "説明がありません",
+    "reservation": "要予約",
+    "reservationFallback": "事前予約が必要です。出発前に公式予約方法と営業時間をご確認ください。"
   },
   "attractionImage": {
     "preview": "画像をプレビュー",

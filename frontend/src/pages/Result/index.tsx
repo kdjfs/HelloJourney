@@ -318,6 +318,8 @@ function Result() {
           attractionArrayIndex: attractionIdx,
           rating: attr.rating,
           ticket_price: attr.ticket_price,
+          reservation_required: attr.reservation_required,
+          reservation_tips: attr.reservation_tips,
         })),
       )
     : []

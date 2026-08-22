@@ -228,7 +228,9 @@
   },
   "overviewCard": {
     "locate": "在地图中定位{{name}}",
-    "noDescription": "暂无描述"
+    "noDescription": "暂无描述",
+    "reservation": "需预约",
+    "reservationFallback": "该景点需要提前预约，请在出发前确认官方预约渠道与开放时间。"
   },
   "attractionImage": {
     "preview": "点击预览",

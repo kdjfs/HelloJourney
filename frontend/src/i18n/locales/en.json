@@ -228,7 +228,9 @@
   },
   "overviewCard": {
     "locate": "Locate {{name}} on the map",
-    "noDescription": "No description"
+    "noDescription": "No description",
+    "reservation": "Reservation required",
+    "reservationFallback": "Advance reservation is required. Confirm the official booking channel and opening hours before departure."
   },
   "attractionImage": {
     "preview": "Preview image",

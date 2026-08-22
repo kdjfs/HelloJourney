@@ -1,5 +1,7 @@
 import AttractionImage from '../AttractionImage'
 import { useTranslation } from 'react-i18next'
+import { Tooltip } from 'antd'
+import './index.css'
 
 interface OverviewAttractionItem {
   name: string
@@ -12,6 +14,8 @@ interface OverviewAttractionItem {
   rating?: number
   ticket_price?: number
   category?: string
+  reservation_required?: boolean
+  reservation_tips?: string
 }
 
 interface OverviewAttractionCardProps {
@@ -52,6 +56,22 @@ function OverviewAttractionCard({
           city={item.city}
           imageUrl={imageUrl}
         />
+        {item.reservation_required && (
+          <Tooltip
+            title={item.reservation_tips || t('overviewCard.reservationFallback')}
+            trigger={['hover', 'focus']}
+            mouseEnterDelay={0}
+          >
+            <span
+              className="overview-reservation-badge"
+              role="note"
+              tabIndex={0}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              🔔 {t('overviewCard.reservation')}
+            </span>
+          </Tooltip>
+        )}
         <svg
           data-name="Layer 1"
           xmlns="http://www.w3.org/2000/svg"
