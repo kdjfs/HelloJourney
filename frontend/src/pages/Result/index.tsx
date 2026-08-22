@@ -16,6 +16,7 @@ import {
   ArrowLeftOutlined,
 } from '@ant-design/icons'
 import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
+import { deriveWorkspaceBudget, workspacePlanSignature } from '../../features/trip-workspace/model/derivedPlan'
 import TripExportActions from '../../features/export/ui/TripExportActions'
 import BudgetPanel from '../../components/BudgetPanel'
 import OverviewAttractionCard, { type OverviewAttractionItem } from '../../components/OverviewAttractionCard'
@@ -200,6 +201,12 @@ function getWind(weather: WeatherInfo, fallback: string): string {
   return fallback
 }
 
+function readStoredTripPlan(): TripPlan | null {
+  const raw = sessionStorage.getItem('tripPlan')
+  if (!raw) return null
+  try { return JSON.parse(raw) as TripPlan } catch { return null }
+}
+
 function Result() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
@@ -208,11 +215,8 @@ function Result() {
   const currentLocale = normalizeAppLocale(i18n.resolvedLanguage)
   const generatedPlanLocale = sessionStorage.getItem('tripPlanLocale')
 
-  const [tripPlan, setTripPlan] = useState<TripPlan | null>(() => {
-    const raw = sessionStorage.getItem('tripPlan')
-    if (!raw) return null
-    try { return JSON.parse(raw) } catch { return null }
-  })
+  const [tripPlan, setTripPlan] = useState<TripPlan | null>(readStoredTripPlan)
+  const [sourcePlan, setSourcePlan] = useState<TripPlan | null>(readStoredTripPlan)
 
   const [graphData, setGraphData] = useState<KnowledgeGraphData | null>(() => {
     const raw = sessionStorage.getItem('graphData')
@@ -279,6 +283,7 @@ function Result() {
           const data: TripPlan = status.result.data || status.result
           const gData: KnowledgeGraphData | null = status.result.graph_data || null
           const review: TripReviewResult | null = status.result.review || null
+          setSourcePlan(structuredClone(data))
           setTripPlan(data)
           setGraphData(gData)
           setTripReview(review)
@@ -317,12 +322,26 @@ function Result() {
       )
     : []
 
-  /* 知识图谱：后端未返回时由行程数据兜底推导，保证页签始终可展示 */
-  const effectiveGraphData = useMemo<KnowledgeGraphData | null>(
-    () => graphData ?? (tripPlan ? buildFallbackGraphData(tripPlan) : null),
-    [graphData, tripPlan],
+  const workspaceEdited = Boolean(
+    tripPlan
+    && sourcePlan
+    && workspacePlanSignature(tripPlan) !== workspacePlanSignature(sourcePlan),
   )
-  const graphDerived = graphData == null && effectiveGraphData != null
+  const effectiveBudget = useMemo(
+    () => tripPlan && sourcePlan ? deriveWorkspaceBudget(tripPlan, sourcePlan) : tripPlan?.budget,
+    [sourcePlan, tripPlan],
+  )
+  const effectiveTripPlan = useMemo<TripPlan | null>(
+    () => tripPlan ? { ...tripPlan, budget: effectiveBudget } : null,
+    [effectiveBudget, tripPlan],
+  )
+
+  /* 编辑后后端图谱已失效，切换为基于最新工作区数据生成的图谱。撤销到原始版本时自动恢复后端图谱。 */
+  const effectiveGraphData = useMemo<KnowledgeGraphData | null>(
+    () => (!workspaceEdited ? graphData : null) ?? (effectiveTripPlan ? buildFallbackGraphData(effectiveTripPlan) : null),
+    [effectiveTripPlan, graphData, workspaceEdited],
+  )
+  const graphDerived = (workspaceEdited || graphData == null) && effectiveGraphData != null
 
   const weatherList = tripPlan?.weather_info ?? []
   const selectedWeather: WeatherInfo | null =
@@ -374,7 +393,7 @@ function Result() {
           >
             {t('result.backHome')}
           </Button>
-          <TripExportActions plan={tripPlan} planId={planId} />
+          <TripExportActions plan={effectiveTripPlan ?? tripPlan} planId={planId} />
         </div>
 
         <div className="content-wrapper">
@@ -386,7 +405,7 @@ function Result() {
               <div className="top-switch-menu" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {[
                   { key: 'overview', label: t('result.tabOverview') },
-                  ...(tripPlan.budget ? [{ key: 'budget', label: t('result.tabBudget') }] : []),
+                  ...(effectiveBudget ? [{ key: 'budget', label: t('result.tabBudget') }] : []),
                   { key: 'weather', label: t('result.tabWeather') },
                   { key: 'days', label: t('result.tabDays') },
                   { key: 'knowledge-graph', label: t('result.tabGraph') },
@@ -434,7 +453,7 @@ function Result() {
                   </div>
                 )}
               >
-                <TripMap plan={tripPlan} selectedAttraction={selectedMapAttraction} />
+                <TripMap plan={effectiveTripPlan ?? tripPlan} selectedAttraction={selectedMapAttraction} />
               </Suspense>
               {overviewAttractions.length > 0 ? (
                 <div ref={overviewRef} className="overview-swiper">
@@ -476,8 +495,8 @@ function Result() {
           </div>
 
           {/* Budget */}
-          {activeSection === 'budget' && tripPlan.budget && (
-            <BudgetPanel budget={tripPlan.budget} />
+          {activeSection === 'budget' && effectiveBudget && (
+            <BudgetPanel budget={effectiveBudget} />
           )}
 
           {/* Weather */}
@@ -571,7 +590,7 @@ function Result() {
           {activeSection === 'knowledge-graph' && (
             <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
               <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>{t('result.graphLoading')}</span></div>}>
-                <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} tripPlan={tripPlan} />
+                <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} tripPlan={effectiveTripPlan} />
               </Suspense>
             </Card>
           )}
@@ -581,7 +600,7 @@ function Result() {
 
       <FloatButton.BackTop visibilityHeight={300} tooltip={t('result.backTop')} />
 
-      <Suspense fallback={null}><AIChat tripPlan={tripPlan} /></Suspense>
+      <Suspense fallback={null}><AIChat tripPlan={effectiveTripPlan} /></Suspense>
     </div>
   )
 }

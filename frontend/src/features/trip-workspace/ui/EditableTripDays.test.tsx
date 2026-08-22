@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { vi } from 'vitest'
 import type { TripPlan } from '@/types/api'
 import EditableTripDays from './EditableTripDays'
@@ -19,7 +19,15 @@ describe('EditableTripDays', () => {
     expect(screen.getByText('故宫')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '添加景点' }))
     expect(screen.getByText('新景点')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(onPlanChange.mock.calls.some(([nextPlan]) => nextPlan.days[0].attractions.length === 2)).toBe(true)
+    })
     fireEvent.click(screen.getByRole('button', { name: '撤销' }))
     expect(screen.queryByText('新景点')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(onPlanChange).toHaveBeenLastCalledWith(expect.objectContaining({
+        days: [expect.objectContaining({ attractions: [expect.objectContaining({ name: '故宫' })] })],
+      }))
+    })
   })
 })
