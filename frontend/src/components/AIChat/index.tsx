@@ -6,15 +6,18 @@ import type { TripPlan, ChatMessage, TripChatRequest, TripChatResponse } from '.
 
 interface AIChatProps {
   tripPlan: TripPlan | null
+  mode?: 'floating' | 'embedded'
 }
 
-function AIChat({ tripPlan }: AIChatProps) {
+function AIChat({ tripPlan, mode = 'floating' }: AIChatProps) {
   const { t } = useTranslation()
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [chatLoading, setChatLoading] = useState(false)
   const chatMessagesRef = useRef<HTMLDivElement>(null)
+  const embedded = mode === 'embedded'
+  const panelVisible = embedded || chatOpen
   const quickQuestions = [
     { label: t('aiChat.budgetLabel'), question: t('aiChat.budgetQuestion') },
     { label: t('aiChat.audienceLabel'), question: t('aiChat.audienceQuestion') },
@@ -30,8 +33,8 @@ function AIChat({ tripPlan }: AIChatProps) {
   }
 
   useEffect(() => {
-    if (chatOpen) scrollToBottom()
-  }, [chatOpen, chatHistory, chatLoading])
+    if (panelVisible) scrollToBottom()
+  }, [chatHistory, chatLoading, panelVisible])
 
   const sendQuickQuestion = (q: string) => {
     setChatInput(q)
@@ -71,17 +74,19 @@ function AIChat({ tripPlan }: AIChatProps) {
   }
 
   return (
-    <div className="ai-chat-floating">
-      {chatOpen && (
-        <div className="chat-panel" role="dialog" aria-label={t('aiChat.title')}>
+    <div className={embedded ? 'ai-chat-embedded' : 'ai-chat-floating'}>
+      {panelVisible && (
+        <div className={`chat-panel${embedded ? ' chat-panel--embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-label={t('aiChat.title')}>
           <div className="chat-panel-header">
             <span className="chat-panel-brand">
               <i className="chat-panel-logo"><DeepSeekLogo size={22} /></i>
               {t('aiChat.title')}
             </span>
-            <button type="button" className="chat-panel-close" onClick={() => setChatOpen(false)} aria-label={t('aiChat.close')}>
-              ✕
-            </button>
+            {!embedded && (
+              <button type="button" className="chat-panel-close" onClick={() => setChatOpen(false)} aria-label={t('aiChat.close')}>
+                ✕
+              </button>
+            )}
           </div>
 
           <div className="chat-panel-history" ref={chatMessagesRef}>
@@ -149,14 +154,16 @@ function AIChat({ tripPlan }: AIChatProps) {
         </div>
       )}
 
-      <button
-        type="button"
-        className="chat-fab"
-        onClick={() => setChatOpen((open) => !open)}
-        aria-label={chatOpen ? t('aiChat.closeAssistant') : t('aiChat.open')}
-      >
-        <DeepSeekLogo size={30} />
-      </button>
+      {!embedded && (
+        <button
+          type="button"
+          className="chat-fab"
+          onClick={() => setChatOpen((open) => !open)}
+          aria-label={chatOpen ? t('aiChat.closeAssistant') : t('aiChat.open')}
+        >
+          <DeepSeekLogo size={30} />
+        </button>
+      )}
     </div>
   )
 }

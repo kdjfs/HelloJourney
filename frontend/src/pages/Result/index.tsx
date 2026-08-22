@@ -411,6 +411,7 @@ function Result() {
                   { key: 'weather', label: t('result.tabWeather') },
                   { key: 'days', label: t('result.tabDays') },
                   { key: 'knowledge-graph', label: t('result.tabGraph') },
+                  { key: 'assistant', label: t('result.tabAssistant') },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -597,12 +598,14 @@ function Result() {
             </Card>
           )}
           </Image.PreviewGroup>
+          <Suspense fallback={activeSection === 'assistant' ? <div className="kg-loading-fallback"><Spin /></div> : null}>
+            <AIChat mode={activeSection === 'assistant' ? 'embedded' : 'floating'} tripPlan={effectiveTripPlan} />
+          </Suspense>
         </div>
       </main>
 
       <FloatButton.BackTop visibilityHeight={300} tooltip={t('result.backTop')} />
 
-      <Suspense fallback={null}><AIChat tripPlan={effectiveTripPlan} /></Suspense>
     </div>
   )
 }

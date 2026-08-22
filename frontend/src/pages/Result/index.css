@@ -1340,3 +1340,23 @@
   width: min(1180px, calc(100vw - 32px));
   pointer-events: none;
 }
+
+.ai-chat-embedded {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(236, 243, 250, 0.13);
+  border-radius: 18px;
+  background: #0e1c29;
+  font-family: inherit;
+}
+
+.chat-panel.chat-panel--embedded {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: min(640px, calc(100dvh - 190px));
+  min-height: 480px;
+  border: 0;
+  border-radius: 18px;
+  box-shadow: none;
+}
