@@ -1333,3 +1333,10 @@
 @media (max-width: 600px) {
   .result-actions { align-items: flex-start; flex-direction: column; }
 }
+.overview-export-host.is-background {
+  position: fixed;
+  top: 0;
+  left: -12000px;
+  width: min(1180px, calc(100vw - 32px));
+  pointer-events: none;
+}

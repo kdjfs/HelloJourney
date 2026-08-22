@@ -20,6 +20,7 @@
     "dayjs": "^1.11.20",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",
+    "html2canvas": "1.4.1",
     "i18next": "26.4.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

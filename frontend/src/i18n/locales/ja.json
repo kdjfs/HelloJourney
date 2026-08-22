@@ -247,7 +247,25 @@
   "export": {
     "jsonSuccess": "旅程 JSON を書き出しました",
     "json": "JSON を書き出す",
-    "print": "印刷 / PDF"
+    "print": "印刷 / PDF",
+    "image": "画像を書き出す",
+    "imagePreparing": "旅程のロング画像を作成しています…",
+    "imageSuccess": "地図付きの旅程画像を書き出しました",
+    "imageSuccessWithoutMap": "旅程画像を書き出しました。地図を取得できなかったため、地図なし版を作成しました。",
+    "imageFailed": "画像の書き出しに失敗しました：{{error}}",
+    "title": "{{city}}旅行ガイド",
+    "subtitle": "{{start}}〜{{end}}・{{count}}日間",
+    "summary": "旅程概要",
+    "budgetTitle": "予算概要",
+    "total": "合計",
+    "mapTitle": "旅程マップ",
+    "dailyTitle": "日別旅程",
+    "dayTitle": "{{day}}日目・{{date}}",
+    "duration": "滞在 {{count}} 分",
+    "hotel": "宿泊：{{name}}・{{address}}",
+    "meals": "食事：{{items}}",
+    "noAttractions": "この日の観光予定はありません",
+    "generatedBy": "HelloJourney で生成"
   },
   "workspace": {
     "newAttraction": "新しい観光地",

@@ -247,7 +247,25 @@
   "export": {
     "jsonSuccess": "行程 JSON 已导出",
     "json": "导出 JSON",
-    "print": "打印 / PDF"
+    "print": "打印 / PDF",
+    "image": "导出图片",
+    "imagePreparing": "正在生成攻略长图…",
+    "imageSuccess": "攻略长图已导出（含地图）",
+    "imageSuccessWithoutMap": "攻略长图已导出；地图截图不可用，已自动生成不含地图的版本。",
+    "imageFailed": "图片导出失败：{{error}}",
+    "title": "{{city}}旅行攻略",
+    "subtitle": "{{start}} 至 {{end}} · 共 {{count}} 天",
+    "summary": "行程摘要",
+    "budgetTitle": "预算总览",
+    "total": "合计",
+    "mapTitle": "行程地图",
+    "dailyTitle": "逐日行程",
+    "dayTitle": "第 {{day}} 天 · {{date}}",
+    "duration": "游览 {{count}} 分钟",
+    "hotel": "住宿：{{name}} · {{address}}",
+    "meals": "餐饮：{{items}}",
+    "noAttractions": "当天暂无景点安排",
+    "generatedBy": "由 HelloJourney 生成"
   },
   "workspace": {
     "newAttraction": "新景点",

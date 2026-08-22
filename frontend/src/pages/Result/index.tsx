@@ -421,7 +421,10 @@ function Result() {
           )}
 
           {/* Overview */}
-          {activeSection === 'overview' && (
+          <div
+            className={`overview-export-host${activeSection === 'overview' ? '' : ' is-background'}`}
+            aria-hidden={activeSection === 'overview' ? undefined : true}
+          >
             <Card id="overview" className="section-shellless overview-card" styles={{ body: { padding: 0 } }}>
               <Suspense
                 fallback={(
@@ -470,7 +473,7 @@ function Result() {
                 )}
               </div>
             </Card>
-          )}
+          </div>
 
           {/* Budget */}
           {activeSection === 'budget' && tripPlan.budget && (
