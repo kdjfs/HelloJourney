@@ -134,49 +134,6 @@
   opacity: 1;
 }
 
-/* ===== Navbar Override ===== */
-.landing-navbar {
-  z-index: 1030;
-}
-
-.landing-navbar .navbar-brand {
-  color: #fff !important;
-  font-size: 22px;
-  font-weight: 600;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.landing-navbar .landing-cta {
-  border-radius: 30px;
-  padding: 8px 24px;
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.landing-navbar .nav-link {
-  color: rgba(255, 255, 255, 0.72) !important;
-  padding: 8px 14px;
-}
-
-.landing-locale-item {
-  display: flex;
-  align-items: center;
-  padding-inline: 8px;
-}
-
-.landing-locale-select {
-  min-width: 104px;
-}
-
-.landing-locale-select .ant-select-selector {
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  color: #fff !important;
-  background: rgba(10, 21, 32, 0.42) !important;
-}
-
 /* ===== Form Section ===== */
 .form-section {
   margin-top: -112px;

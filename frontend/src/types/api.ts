@@ -203,18 +203,20 @@ export interface TripHistoryItem {
   overall_suggestions?: string
 }
 
+export interface LlmProviderStatus {
+  key: string
+  name: string
+  model: string
+  configured: boolean
+  active: boolean
+}
+
 export interface BackendRuntimeSettings {
   tencent_maps_configured: boolean
   google_maps_configured: boolean
   xhs_configured: boolean
   llm_active_provider: string
-  llm_providers: Array<{
-    key: string
-    name: string
-    model: string
-    configured: boolean
-    active: boolean
-  }>
+  llm_providers: LlmProviderStatus[]
 }
 
 export interface RuntimeSettings extends BackendRuntimeSettings {

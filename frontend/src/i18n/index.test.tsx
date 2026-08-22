@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import NavBar from '@/components/NavBar'
 import i18n, { LOCALE_STORAGE_KEY } from './index'
 
@@ -15,7 +16,7 @@ afterEach(async () => {
 
 describe('application locale', () => {
   it('switches translated UI immediately and persists the locale', async () => {
-    render(<NavBar />)
+    render(<MemoryRouter><NavBar /></MemoryRouter>)
 
     expect(screen.getByRole('button', { name: '生成计划' })).toBeInTheDocument()
     fireEvent.mouseDown(screen.getByRole('combobox', { name: '界面语言' }))

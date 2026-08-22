@@ -1,20 +1,6 @@
 import { apiClient } from './apiClient'
-
-export interface BackendRuntimeSettings {
-  tencent_maps_configured: boolean
-  google_maps_configured: boolean
-  xhs_configured: boolean
-  llm_active_provider: string
-  llm_providers: LlmProviderStatus[]
-}
-
-export interface LlmProviderStatus {
-  key: string
-  name: string
-  model: string
-  configured: boolean
-  active: boolean
-}
+import type { BackendRuntimeSettings } from '../types/api'
+export type { BackendRuntimeSettings, LlmProviderStatus } from '../types/api'
 
 export interface SettingsApiResponse {
   success: boolean
