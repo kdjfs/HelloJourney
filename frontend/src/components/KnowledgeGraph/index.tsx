@@ -2,12 +2,18 @@ import { useState } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { Typography, Empty, Alert, Tag, Input, Button } from 'antd'
-import ReactECharts from 'echarts-for-react'
+import ReactEChartsCore from 'echarts-for-react/lib/core'
+import * as echarts from 'echarts/core'
+import { GraphChart } from 'echarts/charts'
+import { TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { apiClient } from '../../services/apiClient'
 import { DeepSeekLogo } from '../DeepSeekLogo'
 import type { KnowledgeGraphData, GraphCategory, TripPlan, TripChatResponse } from '../../types/api'
 
 const { Text } = Typography
+
+echarts.use([GraphChart, TooltipComponent, CanvasRenderer])
 
 interface KnowledgeGraphProps {
   graphData: KnowledgeGraphData | null
@@ -197,7 +203,8 @@ function KnowledgeGraph({ graphData, derived = false, tripPlan }: KnowledgeGraph
 
   return (
     <div>
-      <ReactECharts
+      <ReactEChartsCore
+        echarts={echarts}
         option={option}
         style={{ width: '100%', height: 560 }}
         notMerge
