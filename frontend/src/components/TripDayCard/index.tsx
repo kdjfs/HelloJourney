@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons'
 import type { DayPlan, Attraction, Meal, Hotel } from '../../types/api'
 import AttractionImage from '../AttractionImage'
+import { useTranslation } from 'react-i18next'
 
 const { Text, Paragraph } = Typography
 
@@ -15,19 +16,11 @@ interface TripDayCardProps {
   attractionImages?: Record<string, string>
 }
 
-const mealTypeMap: Record<string, { label: string; color: string }> = {
-  breakfast: { label: '早餐', color: 'orange' },
-  lunch: { label: '午餐', color: 'green' },
-  dinner: { label: '晚餐', color: 'purple' },
-  snack: { label: '小吃', color: 'gold' },
-}
-
-function formatMinutes(minutes: number) {
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  if (hours === 0) return `${mins}分钟`
-  if (mins === 0) return `${hours}小时`
-  return `${hours}小时${mins}分钟`
+const mealTypeMap: Record<string, { labelKey: string; color: string }> = {
+  breakfast: { labelKey: 'tripDay.breakfast', color: 'orange' },
+  lunch: { labelKey: 'tripDay.lunch', color: 'green' },
+  dinner: { labelKey: 'tripDay.dinner', color: 'purple' },
+  snack: { labelKey: 'tripDay.snack', color: 'gold' },
 }
 
 function AttractionCard({
@@ -41,7 +34,15 @@ function AttractionCard({
   city: string
   attractionImages?: Record<string, string>
 }) {
+  const { t } = useTranslation()
   const imageUrl = attractionImages?.[item.name]
+  const hours = Math.floor(item.visit_duration / 60)
+  const minutes = item.visit_duration % 60
+  const duration = hours === 0
+    ? t('common.minutes', { count: minutes })
+    : minutes === 0
+      ? t('common.hours', { count: hours })
+      : t('common.hoursMinutes', { hours, minutes })
 
   return (
     <Card size="small" className="attraction-card" styles={{ body: { padding: 0 } }}>
@@ -67,18 +68,18 @@ function AttractionCard({
           {item.rating && (
             <Tag color="gold"><StarOutlined /> {item.rating}</Tag>
           )}
-          {item.reservation_required && <Tag color="red">需预约</Tag>}
+          {item.reservation_required && <Tag color="red">{t('tripDay.reservation')}</Tag>}
         </div>
 
         <Row gutter={[8, 8]}>
           <Col xs={24} sm={8}>
             <Text type="secondary">
-              <ClockCircleOutlined /> {formatMinutes(item.visit_duration)}
+              <ClockCircleOutlined /> {duration}
             </Text>
           </Col>
           <Col xs={24} sm={8}>
             <Text type="secondary">
-              <DollarOutlined /> 门票：¥{item.ticket_price ?? 0}
+              <DollarOutlined /> {t('tripDay.ticket', { amount: item.ticket_price ?? 0 })}
             </Text>
           </Col>
           <Col xs={24} sm={8}>
@@ -103,6 +104,7 @@ function AttractionCard({
 }
 
 function HotelCard({ hotel }: { hotel: Hotel }) {
+  const { t } = useTranslation()
   return (
     <Card
       size="small"
@@ -112,35 +114,35 @@ function HotelCard({ hotel }: { hotel: Hotel }) {
     >
       <Row gutter={[8, 8]}>
         <Col xs={12}>
-          <Text type="secondary">地址</Text>
+          <Text type="secondary">{t('tripDay.address')}</Text>
           <br />
           <Text>{hotel.address}</Text>
         </Col>
         <Col xs={12}>
-          <Text type="secondary">类型</Text>
+          <Text type="secondary">{t('tripDay.type')}</Text>
           <br />
           <Text>{hotel.type}</Text>
         </Col>
         <Col xs={12}>
-          <Text type="secondary">价格区间</Text>
+          <Text type="secondary">{t('tripDay.priceRange')}</Text>
           <br />
           <Text>{hotel.price_range}</Text>
         </Col>
         <Col xs={12}>
-          <Text type="secondary">评分</Text>
+          <Text type="secondary">{t('tripDay.rating')}</Text>
           <br />
           <Text><StarOutlined style={{ color: '#faad14' }} /> {hotel.rating}</Text>
         </Col>
         <Col xs={24}>
-          <Text type="secondary">距离</Text>
+          <Text type="secondary">{t('tripDay.distance')}</Text>
           <br />
           <Text>{hotel.distance}</Text>
         </Col>
         {hotel.estimated_cost !== undefined && hotel.estimated_cost > 0 && (
           <Col xs={12}>
-            <Text type="secondary">预估费用</Text>
+            <Text type="secondary">{t('tripDay.estimatedCost')}</Text>
             <br />
-            <Text><DollarOutlined /> ¥{hotel.estimated_cost}/晚</Text>
+            <Text><DollarOutlined /> {t('tripDay.perNight', { amount: hotel.estimated_cost })}</Text>
           </Col>
         )}
       </Row>
@@ -149,12 +151,14 @@ function HotelCard({ hotel }: { hotel: Hotel }) {
 }
 
 function MealCard({ meal }: { meal: Meal }) {
-  const mealInfo = mealTypeMap[meal.type] || { label: meal.type, color: 'default' }
+  const { t } = useTranslation()
+  const mealInfo = mealTypeMap[meal.type]
+  const mealColor = mealInfo?.color ?? 'default'
   return (
     <Col xs={24} sm={8} key={`${meal.type}-${meal.name}`}>
       <Card size="small" className="meal-card" style={{ height: '100%' }}>
-        <Tag color={mealInfo.color} style={{ marginBottom: 8 }}>
-          {mealInfo.label}
+        <Tag color={mealColor} style={{ marginBottom: 8 }}>
+          {mealInfo ? t(mealInfo.labelKey) : meal.type}
         </Tag>
         <Text strong style={{ display: 'block' }}>{meal.name}</Text>
         {meal.description && (
@@ -165,7 +169,7 @@ function MealCard({ meal }: { meal: Meal }) {
         {meal.estimated_cost !== undefined && meal.estimated_cost > 0 && (
           <div style={{ marginTop: 4 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              <DollarOutlined /> 约¥{meal.estimated_cost}
+              <DollarOutlined /> {t('tripDay.aboutCost', { amount: meal.estimated_cost })}
             </Text>
           </div>
         )}
@@ -175,13 +179,14 @@ function MealCard({ meal }: { meal: Meal }) {
 }
 
 function TripDayCard({ day, attractionImages }: TripDayCardProps) {
+  const { t } = useTranslation()
   return (
     <Card
       className="day-card"
       title={
         <div className="day-header">
           <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>
-            第 {day.day_index + 1} 天
+            {t('common.dayIndex', { day: day.day_index + 1 })}
           </Tag>
           <Text strong style={{ fontSize: 15 }}>{day.date}</Text>
         </div>
@@ -192,11 +197,11 @@ function TripDayCard({ day, attractionImages }: TripDayCardProps) {
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col>
-          <Text type="secondary">交通：</Text>
+          <Text type="secondary">{t('tripDay.transport')}</Text>
           <Tag>{day.transportation}</Tag>
         </Col>
         <Col>
-          <Text type="secondary">住宿类型：</Text>
+          <Text type="secondary">{t('tripDay.accommodation')}</Text>
           <Tag>{day.accommodation}</Tag>
         </Col>
       </Row>
@@ -206,7 +211,7 @@ function TripDayCard({ day, attractionImages }: TripDayCardProps) {
       {day.attractions.length > 0 && (
         <>
           <Divider style={{ fontSize: 14, fontWeight: 600 }} orientationMargin={0}>
-            🏛️ 景点安排
+            {t('tripDay.attractions')}
           </Divider>
           <Row gutter={[12, 12]}>
             {day.attractions.map((attraction, idx) => (
@@ -226,7 +231,7 @@ function TripDayCard({ day, attractionImages }: TripDayCardProps) {
       {day.meals.length > 0 && (
         <>
           <Divider style={{ fontSize: 14, fontWeight: 600 }} orientationMargin={0}>
-            🍽️ 餐饮推荐
+            {t('tripDay.meals')}
           </Divider>
           <Row gutter={[12, 12]}>
             {day.meals.map((meal) => (

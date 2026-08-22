@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Image } from 'antd'
+import { useTranslation } from 'react-i18next'
 import './index.css'
 
 interface AttractionImageProps {
@@ -10,6 +11,7 @@ interface AttractionImageProps {
 }
 
 function AttractionImage({ attractionName, city, imageUrl, className = '' }: AttractionImageProps) {
+  const { t } = useTranslation()
   const [failedUrl, setFailedUrl] = useState('')
 
   if (imageUrl && imageUrl !== failedUrl) {
@@ -30,7 +32,7 @@ function AttractionImage({ attractionName, city, imageUrl, className = '' }: Att
                   <path d="M11 8v6M8 11h6" />
                 </svg>
               </span>
-              点击预览
+              {t('attractionImage.preview')}
             </span>
           ),
         }}
@@ -42,7 +44,7 @@ function AttractionImage({ attractionName, city, imageUrl, className = '' }: Att
     <div
       className={`attraction-image-placeholder ${className}`.trim()}
       role="img"
-      aria-label={`${attractionName}暂无已验证景点图片`}
+      aria-label={t('attractionImage.unverifiedAria', { name: attractionName })}
     >
       <span className="attraction-image-placeholder__mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" focusable="false">
@@ -51,7 +53,7 @@ function AttractionImage({ attractionName, city, imageUrl, className = '' }: Att
         </svg>
       </span>
       <strong>{attractionName}</strong>
-      <span>{city} · 等待图片补充</span>
+      <span>{t('attractionImage.pending', { city })}</span>
     </div>
   )
 }

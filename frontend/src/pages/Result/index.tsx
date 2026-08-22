@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   Card,
   Button,
@@ -22,6 +23,7 @@ import { attractionImageCacheKey, resolveAttractionImage } from '../../services/
 import { pollTaskStatus } from '../../services/tripApi'
 import { buildFallbackGraphData } from '../../utils/knowledgeGraph'
 import type { TripPlan, KnowledgeGraphData, WeatherInfo, TripReviewResult } from '../../types/api'
+import { normalizeAppLocale } from '../../i18n'
 import './index.css'
 
 const KnowledgeGraph = lazy(() => import('../../components/KnowledgeGraph'))
@@ -64,19 +66,16 @@ function parseWeatherDate(rawDate: string): Date | null {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
 }
 
-function formatWeatherDate(rawDate: string): string {
+function formatWeatherDate(rawDate: string, locale: string): string {
   const d = parseWeatherDate(rawDate)
   if (!d) return rawDate || '--'
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+  return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long', day: 'numeric' }).format(d)
 }
 
-function formatWeatherWeekday(rawDate: string, short = false): string {
+function formatWeatherWeekday(rawDate: string, locale: string, short = false): string {
   const d = parseWeatherDate(rawDate)
   if (!d) return rawDate || '--'
-  const days = short
-    ? ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-    : ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
-  return days[d.getDay()]
+  return new Intl.DateTimeFormat(locale, { weekday: short ? 'short' : 'long' }).format(d)
 }
 
 function formatWeatherTemp(temp: number | string | null | undefined): string {
@@ -194,17 +193,20 @@ function getHumidity(text: string): string {
   return '45%'
 }
 
-function getWind(weather: WeatherInfo): string {
+function getWind(weather: WeatherInfo, fallback: string): string {
   const dir = weather.wind_direction || ''
   const power = weather.wind_power || ''
   if (dir || power) return `${dir} ${power}`.trim()
-  return '微风'
+  return fallback
 }
 
 function Result() {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const urlPlanId = searchParams.get('plan_id')
+  const currentLocale = normalizeAppLocale(i18n.resolvedLanguage)
+  const generatedPlanLocale = sessionStorage.getItem('tripPlanLocale')
 
   const [tripPlan, setTripPlan] = useState<TripPlan | null>(() => {
     const raw = sessionStorage.getItem('tripPlan')
@@ -285,19 +287,19 @@ function Result() {
           if (review) sessionStorage.setItem('tripReview', JSON.stringify(review))
           sessionStorage.setItem('planId', urlPlanId)
         } else if (status.status === 'failed') {
-          setRecoveryError(status.error || '计划生成失败')
+          setRecoveryError(status.error || t('result.planFailed'))
         } else {
-          setRecoveryError('历史计划详情不可恢复，请重新生成')
+          setRecoveryError(t('result.historyUnavailable'))
         }
       } catch {
-        setRecoveryError('历史计划详情不可恢复，请重新生成')
+        setRecoveryError(t('result.historyUnavailable'))
       } finally {
         setLoading(false)
       }
     }
 
     void recoverPlan()
-  }, [tripPlan, urlPlanId, loading])
+  }, [loading, t, tripPlan, urlPlanId])
 
   const overviewAttractions: OverviewAttractionItem[] = tripPlan
     ? tripPlan.days.flatMap((day, dayIdx) =>
@@ -340,7 +342,7 @@ function Result() {
       <div className="result-loading">
         <div className="result-loading-box">
           <Spin size="large" />
-          <p>正在加载旅行计划...</p>
+          <p>{t('result.loadingPlan')}</p>
         </div>
       </div>
     )
@@ -349,9 +351,9 @@ function Result() {
   if (!tripPlan) {
     return (
       <div className="result-empty">
-        <Empty description={recoveryError || '没有找到旅行计划数据'}>
+        <Empty description={recoveryError || t('result.noPlan')}>
           <Button type="primary" onClick={() => navigate('/')} icon={<ArrowLeftOutlined />}>
-            返回首页生成计划
+            {t('result.backGenerate')}
           </Button>
         </Empty>
       </div>
@@ -370,7 +372,7 @@ function Result() {
             onClick={() => navigate('/')}
             style={{ color: '#ecf3fa' }}
           >
-            返回首页
+            {t('result.backHome')}
           </Button>
           <TripExportActions plan={tripPlan} planId={planId} />
         </div>
@@ -383,11 +385,11 @@ function Result() {
             <div className="top-switch-menu-wrap">
               <div className="top-switch-menu" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {[
-                  { key: 'overview', label: '概览' },
-                  ...(tripPlan.budget ? [{ key: 'budget', label: '预算' }] : []),
-                  { key: 'weather', label: '天气' },
-                  { key: 'days', label: '每日行程' },
-                  { key: 'knowledge-graph', label: '知识图谱' },
+                  { key: 'overview', label: t('result.tabOverview') },
+                  ...(tripPlan.budget ? [{ key: 'budget', label: t('result.tabBudget') }] : []),
+                  { key: 'weather', label: t('result.tabWeather') },
+                  { key: 'days', label: t('result.tabDays') },
+                  { key: 'knowledge-graph', label: t('result.tabGraph') },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -402,15 +404,19 @@ function Result() {
             </div>
           </div>
 
+          {generatedPlanLocale && normalizeAppLocale(generatedPlanLocale) !== currentLocale && (
+            <Alert className="review-summary" type="info" showIcon title={t('result.regenerateHint')} />
+          )}
+
           {tripReview && (
             <Alert
               className="review-summary"
               type={tripReview.pass ? (tripReview.warnings.length ? 'warning' : 'success') : 'error'}
               showIcon
-              title={tripReview.pass ? '行程已通过可执行性校验' : '行程仍有阻断问题'}
+              title={tripReview.pass ? t('result.reviewPass') : t('result.reviewBlocked')}
               description={tripReview.warnings.length
-                ? `${tripReview.warnings.length} 项提示：${tripReview.warnings.slice(0, 2).map((issue) => issue.message).join('；')}`
-                : '日期、时间、餐饮和预算结构均已通过 Review Agent 校验。'}
+                ? t('result.reviewWarnings', { count: tripReview.warnings.length, messages: tripReview.warnings.slice(0, 2).map((issue) => issue.message).join('；') })
+                : t('result.reviewSuccess')}
             />
           )}
 
@@ -421,7 +427,7 @@ function Result() {
                 fallback={(
                   <div className="trip-map-lazy" role="status">
                     <Spin />
-                    <span>正在加载地图组件…</span>
+                    <span>{t('result.mapLoading')}</span>
                   </div>
                 )}
               >
@@ -450,7 +456,7 @@ function Result() {
                 </div>
               ) : (
                 <div style={{ padding: 40, textAlign: 'center' }}>
-                  <Empty description="暂无景点数据" />
+                  <Empty description={t('result.noAttractions')} />
                 </div>
               )}
 
@@ -478,8 +484,8 @@ function Result() {
                 <section className="weather-side" style={{ background: getWeatherGradient(selectedWeather.day_weather) }}>
                   <div className="weather-gradient" />
                   <div className="date-container">
-                    <h2 className="date-dayname">{formatWeatherWeekday(selectedWeather.date)}</h2>
-                    <span className="date-day">{formatWeatherDate(selectedWeather.date)}</span>
+                    <h2 className="date-dayname">{formatWeatherWeekday(selectedWeather.date, currentLocale)}</h2>
+                    <span className="date-day">{formatWeatherDate(selectedWeather.date, currentLocale)}</span>
                     <span className="location">
                       <span className="location-icon">
                         <svg width="16" height="16" viewBox="-3 0 20 20" fill="currentColor">
@@ -509,7 +515,7 @@ function Result() {
                             onClick={() => setActiveWeatherIndex(idx)}
                           >
                             <SmallWeatherIcon kind={kind} />
-                            <span className="day-name">{formatWeatherWeekday(item.date, true)}</span>
+                            <span className="day-name">{formatWeatherWeekday(item.date, currentLocale, true)}</span>
                             <span className="day-temp">{formatWeatherTemp(item.day_temp)}</span>
                           </li>
                         )
@@ -520,24 +526,24 @@ function Result() {
                   <div className="today-info-container">
                     <div className="today-info">
                       <div className="today-info-item">
-                        <span className="wea-title">白天</span>
+                        <span className="wea-title">{t('result.daytime')}</span>
                         <span className="value">{selectedWeather.day_weather} · {formatWeatherTemp(selectedWeather.day_temp)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">夜间</span>
+                        <span className="wea-title">{t('result.nighttime')}</span>
                         <span className="value">{selectedWeather.night_weather} · {formatWeatherTemp(selectedWeather.night_temp)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">降水量</span>
+                        <span className="wea-title">{t('result.precipitation')}</span>
                         <span className="value">{getPrecipitation(selectedWeather.day_weather)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">湿度</span>
+                        <span className="wea-title">{t('result.humidity')}</span>
                         <span className="value">{getHumidity(selectedWeather.day_weather)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">风力</span>
-                        <span className="value">{getWind(selectedWeather)}</span>
+                        <span className="wea-title">{t('result.wind')}</span>
+                        <span className="value">{getWind(selectedWeather, t('result.breeze'))}</span>
                       </div>
                     </div>
                   </div>
@@ -561,7 +567,7 @@ function Result() {
           {/* Knowledge Graph */}
           {activeSection === 'knowledge-graph' && (
             <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
-              <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>正在加载知识图谱</span></div>}>
+              <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>{t('result.graphLoading')}</span></div>}>
                 <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} tripPlan={tripPlan} />
               </Suspense>
             </Card>
@@ -570,7 +576,7 @@ function Result() {
         </div>
       </main>
 
-      <FloatButton.BackTop visibilityHeight={300} tooltip="回到顶部" />
+      <FloatButton.BackTop visibilityHeight={300} tooltip={t('result.backTop')} />
 
       <Suspense fallback={null}><AIChat tripPlan={tripPlan} /></Suspense>
     </div>

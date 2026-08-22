@@ -161,6 +161,22 @@
   padding: 8px 14px;
 }
 
+.landing-locale-item {
+  display: flex;
+  align-items: center;
+  padding-inline: 8px;
+}
+
+.landing-locale-select {
+  min-width: 104px;
+}
+
+.landing-locale-select .ant-select-selector {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  background: rgba(10, 21, 32, 0.42) !important;
+}
+
 /* ===== Form Section ===== */
 .form-section {
   margin-top: -112px;

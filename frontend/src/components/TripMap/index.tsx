@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { load as loadAMap } from '@amap/amap-jsapi-loader'
+import { useTranslation } from 'react-i18next'
 import type { TripPlan } from '@/types/api'
 import { getAmapWebJsKey } from '@/utils/env'
 import {
@@ -47,6 +48,7 @@ const AMAP_PLUGINS = [
 ]
 
 export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
+  const { t, i18n } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<AMapMap | null>(null)
   const markerBindingsRef = useRef(new Map<string, MarkerBinding>())
@@ -77,7 +79,7 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
 
         stops.forEach((stop, index) => {
           const label = `${stop.dayIndex + 1}-${stop.attractionIndex + 1}`
-          const element = buildMarkerElement(label, stop.attraction.name)
+          const element = buildMarkerElement(label, t('tripMap.markerAria', { label, name: stop.attraction.name }))
           const marker = new AMap.Marker({
             position: stop.point,
             content: element,
@@ -87,11 +89,12 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
           const infoWindow = new AMap.InfoWindow({
             isCustom: true,
             content: buildInfoWindowElement(
-              stop.dayIndex + 1,
-              stop.attractionIndex + 1,
               stop.attraction.name,
-              stop.attraction.address,
-              stop.attraction.visit_duration,
+              t('tripMap.sequence', { day: stop.dayIndex + 1, index: stop.attractionIndex + 1 }),
+              stop.attraction.address || t('common.addressPending'),
+              t('tripMap.duration', {
+                duration: Number.isFinite(stop.attraction.visit_duration) ? stop.attraction.visit_duration : '—',
+              }),
             ),
             offset: new AMap.Pixel(0, -44),
             closeWhenClickMap: true,
@@ -143,7 +146,7 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
       mapRef.current?.destroy()
       mapRef.current = null
     }
-  }, [plan, stops, webKey])
+  }, [i18n.resolvedLanguage, plan, stops, t, webKey])
 
   useEffect(() => {
     markerBindingsRef.current.forEach(({ element }) => element.classList.remove('is-active'))
@@ -160,23 +163,23 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
   if (phase === 'load-error') return <TripMapFallback kind="load-error" />
 
   return (
-    <section className="trip-map-shell" aria-label="行程地图总览">
+    <section className="trip-map-shell" aria-label={t('tripMap.overview')}>
       <div className="trip-map-heading">
         <div>
-          <span className="trip-map-eyebrow">ROUTE OVERVIEW</span>
-          <h2>行程地图</h2>
+          <span className="trip-map-eyebrow">{t('tripMap.overview')}</span>
+          <h2>{t('tripMap.title')}</h2>
         </div>
-        <div className="trip-map-legend" aria-label="路线图例">
-          <span><i className="is-driving" />驾车</span>
-          <span><i className="is-walking" />步行</span>
-          <span><i className="is-fallback" />直线兜底</span>
+        <div className="trip-map-legend" aria-label={t('tripMap.legend')}>
+          <span><i className="is-driving" />{t('tripMap.driving')}</span>
+          <span><i className="is-walking" />{t('tripMap.walking')}</span>
+          <span><i className="is-fallback" />{t('tripMap.straight')}</span>
         </div>
       </div>
       <div ref={containerRef} id="trip-map-canvas" className="trip-map-canvas" data-trip-map-capture="true" />
       {phase === 'loading' && (
         <div className="trip-map-loading" role="status">
           <LoadingOutlined spin />
-          <span>正在加载地图与道路路线…</span>
+          <span>{t('tripMap.loading')}</span>
         </div>
       )}
     </section>

@@ -1,34 +1,36 @@
 import { EnvironmentOutlined, WarningOutlined } from '@ant-design/icons'
+import { useTranslation } from 'react-i18next'
 
 export type TripMapFallbackKind = 'missing-key' | 'missing-coordinate' | 'load-error'
 
-const FALLBACK_CONTENT: Record<TripMapFallbackKind, { label: string; title: string; detail: string }> = {
+const FALLBACK_CONTENT: Record<TripMapFallbackKind, { labelKey: string; titleKey: string; detailKey: string }> = {
   'missing-key': {
-    label: '地图暂不可用',
-    title: '尚未配置高德地图 Web JS Key',
-    detail: '请在本地 .env 中配置 VITE_AMAP_WEB_JS_KEY，行程其余内容仍可正常使用。',
+    labelKey: 'tripMap.unavailable',
+    titleKey: 'tripMap.missingKeyTitle',
+    detailKey: 'tripMap.missingKeyDetail',
   },
   'missing-coordinate': {
-    label: '地图暂无坐标',
-    title: '行程中还没有可用的景点坐标',
-    detail: '补充景点经纬度后，地图会自动生成标记与路线。',
+    labelKey: 'tripMap.noCoordinates',
+    titleKey: 'tripMap.noCoordinatesTitle',
+    detailKey: 'tripMap.noCoordinatesDetail',
   },
   'load-error': {
-    label: '地图加载失败',
-    title: '地图服务暂时无法加载',
-    detail: '请检查网络、Key 的域名白名单与安全密钥配置，稍后刷新重试。',
+    labelKey: 'tripMap.loadError',
+    titleKey: 'tripMap.loadErrorTitle',
+    detailKey: 'tripMap.loadErrorDetail',
   },
 }
 
 export default function TripMapFallback({ kind }: { kind: TripMapFallbackKind }) {
+  const { t } = useTranslation()
   const content = FALLBACK_CONTENT[kind]
   return (
-    <div className="trip-map-fallback" role="status" aria-label={content.label}>
+    <div className="trip-map-fallback" role="status" aria-label={t(content.labelKey)}>
       <span className="trip-map-fallback__icon" aria-hidden="true">
         {kind === 'missing-coordinate' ? <EnvironmentOutlined /> : <WarningOutlined />}
       </span>
-      <strong>{content.title}</strong>
-      <span>{content.detail}</span>
+      <strong>{t(content.titleKey)}</strong>
+      <span>{t(content.detailKey)}</span>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import AttractionImage from '../AttractionImage'
+import { useTranslation } from 'react-i18next'
 
 interface OverviewAttractionItem {
   name: string
@@ -28,6 +29,7 @@ function OverviewAttractionCard({
   onHover,
   onSelect,
 }: OverviewAttractionCardProps) {
+  const { t } = useTranslation()
   return (
     <div
       className={`overview-slide${active ? ' overview-slide-active' : ''}`}
@@ -41,7 +43,7 @@ function OverviewAttractionCard({
       }}
       role="button"
       tabIndex={0}
-      aria-label={`在地图中定位${item.name}`}
+      aria-label={t('overviewCard.locate', { name: item.name })}
       aria-pressed={active}
     >
       <div className="overview-slide-img">
@@ -76,7 +78,7 @@ function OverviewAttractionCard({
       <div className="overview-slide-content">
         <div>
           <h2>{item.name}</h2>
-          <p>{item.description || item.address || '暂无描述'}</p>
+          <p>{item.description || item.address || t('overviewCard.noDescription')}</p>
         </div>
       </div>
     </div>
