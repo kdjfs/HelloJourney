@@ -37,7 +37,7 @@
 | 导出 | JSON、打印/PDF | 增加含地图 PNG 长图及地图失败降级 |
 | 设置安全边界 | 无 Web 展示页 | 只读状态页，不回传或回填 Secret |
 
-本轮代码共 7 个提交、54 个前端文件（新增面试文档前统计），约 `+4060 / -465` 行。实现提交如下：
+本轮前端代码共 8 个实现提交、54 个前端文件，约 `+4104 / -479` 行。实现提交如下：
 
 1. `4328450 feat(ui): add resilient itinerary map overview`
 2. `e28e048 feat(ui): add multilingual travel experience`
@@ -46,6 +46,7 @@
 5. `ea9e4ef feat(ui): highlight reservation-required attractions`
 6. `1ac2324 feat(ui): add secure runtime settings overview`
 7. `aa5fc6c perf(ui): shrink knowledge graph bundle`
+8. `6bd237e fix(ui): add AI assistant result tab`
 
 ## 四、专题 1：第三方地图如何在 React 中稳定运行
 
