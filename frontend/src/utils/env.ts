@@ -17,3 +17,9 @@ export function getAmapWebJsKey(): string {
     ? import.meta.env.VITE_AMAP_WEB_JS_KEY.trim()
     : ''
 }
+
+export function getAmapSecurityJsCode(): string {
+  return typeof import.meta.env.VITE_AMAP_SECURITY_JS_CODE === 'string'
+    ? import.meta.env.VITE_AMAP_SECURITY_JS_CODE.trim()
+    : ''
+}

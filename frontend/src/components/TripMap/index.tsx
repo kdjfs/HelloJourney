@@ -3,7 +3,7 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { load as loadAMap } from '@amap/amap-jsapi-loader'
 import { useTranslation } from 'react-i18next'
 import type { TripPlan } from '@/types/api'
-import { getAmapWebJsKey } from '@/utils/env'
+import { getAmapWebJsKey, getAmapSecurityJsCode } from '@/utils/env'
 import {
   buildRouteSegments,
   collectAttractionStops,
@@ -54,6 +54,7 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
   const markerBindingsRef = useRef(new Map<string, MarkerBinding>())
   const [phase, setPhase] = useState<MapPhase>('loading')
   const webKey = getAmapWebJsKey()
+  const securityJsCode = getAmapSecurityJsCode()
   const stops = useMemo(() => collectAttractionStops(plan), [plan])
 
   useEffect(() => {
@@ -65,7 +66,12 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
 
     const initialize = async () => {
       try {
-        const AMap = await loadAMap({ key: webKey, version: '2.0', plugins: AMAP_PLUGINS }) as AMapNamespace
+        const AMap = await loadAMap({
+          key: webKey,
+          version: '2.0',
+          plugins: AMAP_PLUGINS,
+          ...(securityJsCode ? { securityJsCode } : {}),
+        } as Parameters<typeof loadAMap>[0] & { securityJsCode?: string }) as AMapNamespace
         if (cancelled || !containerRef.current) return
 
         const map = new AMap.Map(containerRef.current, {
@@ -146,7 +152,7 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
       mapRef.current?.destroy()
       mapRef.current = null
     }
-  }, [i18n.resolvedLanguage, plan, stops, t, webKey])
+  }, [i18n.resolvedLanguage, plan, stops, t, webKey, securityJsCode])
 
   useEffect(() => {
     markerBindingsRef.current.forEach(({ element }) => element.classList.remove('is-active'))

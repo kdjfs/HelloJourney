@@ -15,6 +15,10 @@ services:
       AMAP_API_BASE_URL: ${AMAP_API_BASE_URL:-https://restapi.amap.com}
       TENCENT_MAPS_KEY: ${TENCENT_MAPS_KEY:-}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      XHS_COOKIE: ${XHS_COOKIE:-}
+      XHS_XS: ${XHS_XS:-}
+      XHS_XS_COMMON: ${XHS_XS_COMMON:-}
+      XHS_XT: ${XHS_XT:-}
       SETTINGS_ALLOW_SECRET_UPDATES: "false"
       TRIP_TASK_DATA_DIR: /app/data/trip_tasks
     ports:
@@ -35,6 +39,8 @@ services:
       args:
         VITE_USE_MOCK: "false"
         VITE_API_BASE_URL: ""
+        VITE_AMAP_WEB_JS_KEY: ${VITE_AMAP_WEB_JS_KEY:-}
+        VITE_AMAP_SECURITY_JS_CODE: ${VITE_AMAP_SECURITY_JS_CODE:-}
     ports:
       - "5173:80"
     depends_on:
