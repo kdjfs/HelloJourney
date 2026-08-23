@@ -125,6 +125,8 @@ public class AppSettings {
 
     public String getAmapMapsKey() { return amapMaps.getKey(); }
     public void setAmapMapsKey(String v) { amapMaps.setKey(v); }
+    public String getAmapMapsBaseUrl() { return amapMaps.getBaseUrl(); }
+    public void setAmapMapsBaseUrl(String v) { amapMaps.setBaseUrl(v); }
     public String getTencentMapsKey() { return tencentMaps.getKey(); }
     public void setTencentMapsKey(String v) { tencentMaps.setKey(v); }
     public String getGoogleMapsApiKey() { return googleMaps.getApiKey(); }

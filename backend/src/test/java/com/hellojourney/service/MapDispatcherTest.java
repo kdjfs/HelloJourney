@@ -34,6 +34,9 @@ class MapDispatcherTest {
     @Mock
     private TencentMapService tencentMapService;
 
+    @Mock
+    private AmapMapService amapMapService;
+
     @InjectMocks
     private MapDispatcher mapDispatcher;
 
