@@ -1,0 +1,40 @@
+.trip-workspace { color: var(--hj-text); }
+.workspace-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 20px; padding: 22px; background: rgba(255,255,255,.96); border: 1px solid var(--hj-border); border-radius: 18px; box-shadow: var(--hj-shadow); }
+.workspace-toolbar h3.ant-typography { margin: 0 0 4px; color: var(--hj-text); }
+.draft-status { color: var(--hj-text-muted); font-size: 12px; min-width: 116px; }
+.workspace-days { display: grid; gap: 18px; }
+.workspace-day { border: 1px solid var(--hj-border); border-radius: 18px; box-shadow: 0 8px 26px rgba(16,50,76,.07); overflow: hidden; }
+.workspace-day .ant-card-head { background: #f8fbfd; }
+.workspace-day .ant-card-body { background: #f2f6f9; color: #1f2733 !important; }
+.workspace-day-title { display: flex; align-items: center; gap: 10px; }
+.day-index { display: inline-grid; place-items: center; width: 36px; height: 28px; border-radius: 9px; color: #fff; background: var(--hj-primary); font-weight: 700; }
+.day-city { color: var(--hj-primary); font-weight: 600; }
+.transfer-note { margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: #edf8fb; color: var(--hj-primary-strong); }
+
+/* 酒店卡片：白色，文字黑灰色 */
+.workspace-hotel { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 12px 16px; border: 1px dashed #b8cbd8; border-radius: 12px; background: #fff; color: #1f2733 !important; }
+.workspace-hotel strong { color: #1f2733 !important; }
+
+/* 景点信息卡片：白色卡片 */
+.attraction-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.attraction-row { display: grid; grid-template-columns: 90px minmax(220px, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px; background: #ffffff; border: 1px solid var(--hj-border); border-radius: 12px; box-shadow: 0 4px 14px rgba(16,50,76,.06); }
+.attraction-time { display: flex; flex-direction: column; color: var(--hj-primary-strong); font-weight: 700; }
+.attraction-time small { color: var(--hj-text-muted); font-weight: 400; }
+.attraction-content { min-width: 0; }
+.attraction-heading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.attraction-content > span, .attraction-content p { display: block; color: var(--hj-text-muted); margin: 4px 0 0; }
+.attraction-actions { justify-content: flex-end; }
+.changeset-list { margin: 12px 0 0; padding: 0; list-style: none; border: 1px solid var(--hj-border); border-radius: 8px; }
+.changeset-list li { padding: 12px 16px; border-top: 1px solid var(--hj-border); }
+.changeset-list li:first-child { border-top: 0; }
+.change-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.change-diff > div { display: grid; gap: 3px; min-width: 0; padding: 9px 11px; border-radius: 8px; background: #f4f7f9; }
+.change-diff small { color: var(--hj-primary); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.change-diff span { overflow-wrap: anywhere; color: var(--hj-text-muted); }
+@media (max-width: 760px) {
+  .workspace-toolbar { align-items: flex-start; flex-direction: column; }
+  .attraction-row { grid-template-columns: 64px 1fr; }
+  .attraction-actions { grid-column: 1 / -1; justify-content: flex-start; padding-left: 78px; }
+  .workspace-hotel { align-items: flex-start; flex-direction: column; }
+  .change-diff { grid-template-columns: 1fr; }
+}

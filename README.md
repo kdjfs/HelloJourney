@@ -4,13 +4,20 @@
 
 [Repository](https://github.com/kdjfs/HelloJourney) · [GPL-2.0 License](LICENSE)
 
+**HelloJourney** 是一个可验证、可编辑、可局部重新规划、可撤销的 AI Travel Workspace。系统通过原生 Tool Calling 调用地图与天气能力，用结构化输出和 Review Agent 约束行程质量，并提供 **Web 端**（React）和 **微信小程序**（UniApp）体验。
+
 HelloJourney combines a React web client, a Spring Boot service, and a UniApp / WeChat mini-program client. It is designed as a real product workflow: model output is enriched with map data, weather, travel content, structured POIs, and live task progress.
 
 ## Why it is interesting
 
 - **AI itinerary planning** with multi-provider LLM support and context-aware follow-up chat.
-- **Real integrations** for Tencent Maps, Google Maps, weather, POI search, geocoding, and route planning.
+- **Agentic pipeline**: native tool calling, structured JSON output, and a Review Agent that blocks invalid plans.
+- **Real integrations** for Tencent Maps, AMap, Google Maps, weather, POI search, geocoding, and route planning — with automatic provider fallback.
+- **Verified attraction photos** via AMap POI identity matching; deterministic placeholder cards when nothing is verified.
+- **Editable itinerary workspace** with undo/redo, cross-day moves, and AI-proposed partial replan change sets you can apply or reject.
 - **Knowledge graph view** built with ECharts for exploring destinations and relationships.
+- **Interactive itinerary map** (dark 3D AMap) with numbered markers, info windows, and route fallbacks.
+- **zh / en / ja i18n**, itinerary PNG export, reservation reminders, and a read-only settings page that never exposes secrets.
 - **Async generation pipeline** with WebSocket progress updates, retryable sections, and history.
 - **Multi-client delivery** across React Web, UniApp, and WeChat mini-program.
 - **Mock-first development** with MSW, plus backend tests with JUnit 5 and Mockito.
@@ -19,11 +26,11 @@ HelloJourney combines a React web client, a Spring Boot service, and a UniApp / 
 
 | Layer | Technologies |
 | --- | --- |
-| Web | React 19 · TypeScript · Vite · Ant Design · ECharts |
+| Web | React 19 · TypeScript · Vite · Ant Design · ECharts · i18next |
 | Service | Java 17 · Spring Boot 3 · WebSocket · OkHttp |
 | Mobile | UniApp · Vue 3 · TypeScript |
-| AI / Data | DeepSeek · OpenAI-compatible providers · Tencent Maps · Google Maps |
-| Quality | MSW · JUnit 5 · Mockito · ESLint |
+| AI / Data | DeepSeek · OpenAI-compatible providers · Tencent Maps · AMap · Google Maps |
+| Quality | MSW · JUnit 5 · Mockito · Vitest · ESLint |
 
 ## Quick start
 
@@ -45,7 +52,7 @@ Start the web client in another terminal:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 

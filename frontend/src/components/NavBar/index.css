@@ -1,0 +1,49 @@
+.landing-navbar {
+  z-index: 1030;
+}
+
+.landing-navbar .navbar-brand {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #fff !important;
+  font-size: 22px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.landing-navbar .landing-cta {
+  padding: 8px 24px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.landing-navbar .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.landing-navbar .nav-link:hover,
+.landing-navbar .nav-link:focus-visible {
+  color: #fff !important;
+}
+
+.landing-locale-item {
+  display: flex;
+  align-items: center;
+  padding-inline: 8px;
+}
+
+.landing-locale-select {
+  min-width: 104px;
+}
+
+.landing-locale-select .ant-select-selector {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  background: rgba(10, 21, 32, 0.42) !important;
+  color: #fff !important;
+}

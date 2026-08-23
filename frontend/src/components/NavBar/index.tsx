@@ -1,9 +1,19 @@
+import { Select } from 'antd'
+import { SettingOutlined } from '@ant-design/icons'
+import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { normalizeAppLocale, type AppLocale } from '@/i18n'
+import './index.css'
+
 interface NavBarProps {
   onBrandClick?: () => void
   onCtaClick?: () => void
 }
 
 function NavBar({ onBrandClick, onCtaClick }: NavBarProps) {
+  const { t, i18n } = useTranslation()
+  const activeLocale = normalizeAppLocale(i18n.resolvedLanguage || i18n.language)
+
   return (
     <nav className="navbar navbar-toggleable-md fixed-top navbar-transparent landing-navbar">
       <div className="container">
@@ -11,7 +21,7 @@ function NavBar({ onBrandClick, onCtaClick }: NavBarProps) {
           <button
             className="navbar-toggler navbar-toggler-right navbar-burger landing-burger"
             type="button"
-            aria-label="Toggle navigation"
+            aria-label={t('navbar.toggle')}
           >
             <span className="navbar-toggler-bar" />
             <span className="navbar-toggler-bar" />
@@ -27,7 +37,7 @@ function NavBar({ onBrandClick, onCtaClick }: NavBarProps) {
               <a
                 className="nav-link"
                 rel="tooltip"
-                title="Star on GitHub"
+                title={t('navbar.github')}
                 data-placement="bottom"
                 href="https://github.com/kdjfs/HelloJourney"
                 target="_blank"
@@ -39,12 +49,32 @@ function NavBar({ onBrandClick, onCtaClick }: NavBarProps) {
               </a>
             </li>
             <li className="nav-item">
+              <Link className="nav-link landing-settings-link" to="/settings">
+                <SettingOutlined aria-hidden="true" />
+                <span>{t('navbar.settings')}</span>
+              </Link>
+            </li>
+            <li className="nav-item landing-locale-item">
+              <Select<AppLocale>
+                className="landing-locale-select"
+                aria-label={t('navbar.language')}
+                value={activeLocale}
+                onChange={(locale) => void i18n.changeLanguage(locale)}
+                options={[
+                  { value: 'zh', label: '中文' },
+                  { value: 'en', label: 'English' },
+                  { value: 'ja', label: '日本語' },
+                ]}
+                popupMatchSelectWidth={false}
+              />
+            </li>
+            <li className="nav-item">
               <button
                 type="button"
                 className="btn btn-danger btn-round landing-cta"
                 onClick={onCtaClick}
               >
-                生成计划
+                {t('navbar.generate')}
               </button>
             </li>
           </ul>

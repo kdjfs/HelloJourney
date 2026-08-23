@@ -46,4 +46,14 @@ public class DayPlan {
     @Builder.Default
     @Schema(description = "餐饮列表")
     private List<Meal> meals = new ArrayList<>();
+
+    @JsonProperty("is_transfer_day")
+    public boolean isTransferDay() {
+        return isTransferDay;
+    }
+
+    @JsonProperty("is_transfer_day")
+    public void setTransferDay(boolean transferDay) {
+        isTransferDay = transferDay;
+    }
 }

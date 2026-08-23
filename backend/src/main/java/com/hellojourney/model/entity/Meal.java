@@ -27,4 +27,13 @@ public class Meal {
     @JsonProperty("estimated_cost")
     @Schema(description = "预估人均消费(元)")
     private int estimatedCost = 0;
+    @Builder.Default
+    private String source = "ai";
+    @Builder.Default
+    private String provider = "deepseek";
+    @JsonProperty("verified_at")
+    private String verifiedAt;
+    @Builder.Default
+    @JsonProperty("verification_status")
+    private String verificationStatus = "ai_suggested";
 }

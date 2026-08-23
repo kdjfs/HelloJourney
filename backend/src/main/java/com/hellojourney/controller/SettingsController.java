@@ -20,6 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Set;
 
 @Slf4j
 @RestController
@@ -39,7 +42,7 @@ public class SettingsController {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
         response.put("message", "ok");
-        response.put("data", runtimeSettingsManager.getRuntimeSettings());
+        response.put("data", publicSettings(runtimeSettingsManager.getRuntimeSettings()));
         return ResponseEntity.ok(response);
     }
 
@@ -49,7 +52,13 @@ public class SettingsController {
             @ApiResponse(responseCode = "200", description = "配置保存成功"),
             @ApiResponse(responseCode = "500", description = "保存配置失败")
     })
-    public ResponseEntity<Map<String, Object>> saveSettings(@RequestBody RuntimeSettingsPayload payload) {
+    public ResponseEntity<Map<String, Object>> saveSettings(
+            @RequestHeader(value = "X-HelloJourney-Admin-Token", required = false) String adminToken,
+            @RequestBody RuntimeSettingsPayload payload) {
+        ResponseEntity<Map<String, Object>> rejection = authorizeSecretUpdate(adminToken);
+        if (rejection != null) {
+            return rejection;
+        }
         try {
             Map<String, Object> updates = new LinkedHashMap<>();
             if (payload.getTencentMapsKey() != null) updates.put("tencent_maps_key", payload.getTencentMapsKey());
@@ -67,17 +76,19 @@ public class SettingsController {
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("success", true);
             response.put("message", "配置已保存并立即生效");
-            response.put("data", updated);
+            response.put("data", publicSettings(updated));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "保存配置失败: " + e.getMessage());
+            log.warn("运行时配置保存失败 (type={})", e.getClass().getSimpleName());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "保存配置失败");
         }
     }
 
     @GetMapping("/llm-providers")
     @Operation(summary = "获取LLM供应商列表", description = "获取所有LLM供应商配置及可用状态")
     public ResponseEntity<Map<String, Object>> getLlmProviders() {
-        List<Map<String, Object>> providers = (List<Map<String, Object>>) runtimeSettingsManager.getRuntimeSettings().get("llm_providers");
+        Map<String, Object> settings = publicSettings(runtimeSettingsManager.getRuntimeSettings());
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) settings.getOrDefault("llm_providers", List.of());
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
         response.put("message", "ok");
@@ -86,5 +97,62 @@ public class SettingsController {
                 "providers", providers
         ));
         return ResponseEntity.ok(response);
+    }
+
+    private ResponseEntity<Map<String, Object>> authorizeSecretUpdate(String suppliedToken) {
+        AppSettings.SettingsSecurityConfig security = appSettings.getSettings();
+        if (security == null || !security.isAllowSecretUpdates()) {
+            return forbidden("运行时敏感配置修改未启用");
+        }
+
+        String expectedToken = security.getAdminToken();
+        if (expectedToken == null || expectedToken.isBlank()
+                || suppliedToken == null || suppliedToken.isBlank()
+                || !MessageDigest.isEqual(
+                        expectedToken.getBytes(StandardCharsets.UTF_8),
+                        suppliedToken.getBytes(StandardCharsets.UTF_8))) {
+            return forbidden("无权修改运行时敏感配置");
+        }
+        return null;
+    }
+
+    private ResponseEntity<Map<String, Object>> forbidden(String message) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", false);
+        response.put("message", message);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> publicSettings(Map<String, Object> raw) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (raw == null) return result;
+
+        Set<String> publicKeys = Set.of(
+                "tencent_maps_configured", "google_maps_configured", "xhs_configured",
+                "llm_active_provider"
+        );
+        for (String key : publicKeys) {
+            if (raw.containsKey(key)) result.put(key, raw.get(key));
+        }
+
+        Object providersValue = raw.get("llm_providers");
+        if (providersValue instanceof List<?> providers) {
+            List<Map<String, Object>> safeProviders = providers.stream()
+                    .filter(Map.class::isInstance)
+                    .map(Map.class::cast)
+                    .map(provider -> {
+                        Map<String, Object> safe = new LinkedHashMap<>();
+                        for (String key : List.of("key", "name", "model", "configured", "active")) {
+                            if (provider.containsKey(key)) safe.put(key, provider.get(key));
+                        }
+                        return safe;
+                    })
+                    .toList();
+            result.put("llm_providers", safeProviders);
+        } else {
+            result.put("llm_providers", List.of());
+        }
+        return result;
     }
 }

@@ -1,0 +1,14 @@
+package com.hellojourney.agent.tool;
+
+public enum AgentEventType {
+    UNDERSTANDING_REQUEST,
+    SEARCHING_ATTRACTIONS,
+    CHECKING_WEATHER,
+    COMPARING_HOTELS,
+    SEARCHING_RESTAURANTS,
+    GEOCODING,
+    CALCULATING_ROUTE,
+    REVIEWING_ITINERARY,
+    COMPLETED,
+    FAILED
+}

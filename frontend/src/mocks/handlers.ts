@@ -59,16 +59,17 @@ export const handlers = [
     })
   }),
 
-  http.get('*/api/poi/photo', ({ request }) => {
-    const url = new URL(request.url)
-    const name = url.searchParams.get('name') || '景点'
-
+  http.get('*/api/poi/photo', () => {
     return HttpResponse.json({
       success: true,
-      message: '获取图片成功',
+      message: '暂无已验证图片',
       data: {
-        name,
-        photo_url: `https://picsum.photos/seed/${encodeURIComponent(name)}/800/600`,
+        imageUrl: '',
+        provider: 'none',
+        matchedName: '',
+        matchedPoiId: '',
+        confidence: 0,
+        verified: false,
       },
     })
   }),
@@ -85,25 +86,34 @@ export const handlers = [
       success: true,
       message: 'ok',
       data: {
-        vite_amap_web_key: '',
-        vite_amap_web_js_key: '',
-        google_maps_api_key: '',
-        google_maps_proxy: '',
-        xhs_cookie: '',
-        openai_api_key: '',
-        openai_base_url: '',
-        openai_model: '',
+        tencent_maps_configured: true,
+        google_maps_configured: false,
+        xhs_configured: false,
+        llm_active_provider: 'deepseek',
+        llm_providers: [
+          {
+            key: 'deepseek',
+            name: 'DeepSeek',
+            model: 'deepseek-chat',
+            configured: true,
+            active: true,
+          },
+        ],
       },
     })
   }),
 
-  http.put('*/api/settings', async ({ request }) => {
-    const body = await request.json()
+  http.delete('*/api/trip/tasks/:taskId', ({ params }) => {
+    return HttpResponse.json({ task_id: params.taskId, status: 'cancelled', message: 'Mock 任务已取消' })
+  }),
 
+  http.post('*/api/trip/plans/:planId/replan', async () => {
+    await delay(500)
     return HttpResponse.json({
-      success: true,
-      message: '配置已保存并立即生效',
-      data: body,
+      id: 'change-mock-1',
+      title: '放慢下午节奏',
+      summary: '将第二个景点移到后一天，减少当天步行距离。',
+      operations: [{ type: 'attraction.move', fromDayIndex: 0, attractionIndex: 1, toDayIndex: 1, at: 0 }],
     })
   }),
 ]

@@ -84,9 +84,9 @@ app:
     active-provider: deepseek       # 当前 LLM 供应商
     providers:
       deepseek:
-        api-key: "sk-xxxxx"
-        base-url: https://api.deepseek.com/v1
-        model: deepseek-chat
+        api-key: ${LLM_DEEPSEEK_API_KEY:}
+        base-url: https://api.deepseek.com
+        model: deepseek-v4-pro
 
   xhs:
     cookie: "你的小红书Cookie"       # 小红书内容抓取
@@ -103,10 +103,10 @@ app:
 
 ### 运行时配置
 
-支持通过 API 动态修改配置（无需重启），持久化到 `runtime_settings.json`：
+配置 API 默认只公开非敏感状态：
 
 - `GET /api/settings` — 获取当前配置
-- `PUT /api/settings` — 更新配置
+- `PUT /api/settings` — 生产默认关闭；仅在显式开启并携带管理令牌时可用
 - `GET /api/settings/llm-providers` — 获取 LLM 供应商列表
 
 ## API 概览
@@ -135,7 +135,7 @@ API 文档：启动后访问 `http://localhost:8000/swagger-ui.html`
 
 | 供应商 | 模型 | 说明 |
 |--------|------|------|
-| DeepSeek | deepseek-chat | 默认推荐 |
+| DeepSeek | deepseek-v4-pro | 默认推荐 |
 | OpenAI | gpt-4 | 需代理 |
 | GLM (智谱) | glm-4 | |
 | 豆包 (字节) | doubao-pro-4k | |

@@ -1,0 +1,91 @@
+/* 图片根容器：填满父级，便于 antd Image 预览 */
+.attraction-image-root.ant-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.attraction-image-root .ant-image-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.attraction-image-root .ant-image-mask,
+.attraction-image-root .ant-image-cover {
+  background: rgba(4, 11, 18, 0.42);
+  border-radius: 0;
+}
+
+.attraction-image-mask {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.attraction-image-mask-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.attraction-image-placeholder {
+  align-items: center;
+  background: #17212b;
+  box-sizing: border-box;
+  color: #f4f7fa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  justify-content: center;
+  min-height: 220px;
+  padding: 24px;
+  text-align: center;
+  width: 100%;
+}
+
+.attraction-image-placeholder::after {
+  background: #f5593d;
+  content: '';
+  height: 2px;
+  margin-top: 4px;
+  opacity: 0.75;
+  width: 32px;
+}
+
+.attraction-image-placeholder__mark {
+  align-items: center;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 50%;
+  display: flex;
+  height: 48px;
+  justify-content: center;
+  margin-bottom: 4px;
+  width: 48px;
+}
+
+.attraction-image-placeholder__mark svg {
+  fill: none;
+  height: 24px;
+  stroke: #ff8a70;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+  width: 24px;
+}
+
+.attraction-image-placeholder strong {
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.attraction-image-placeholder > span:last-child {
+  color: #afbdc9;
+  font-size: 13px;
+  line-height: 1.5;
+}

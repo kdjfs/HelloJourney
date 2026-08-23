@@ -34,6 +34,9 @@ class MapDispatcherTest {
     @Mock
     private TencentMapService tencentMapService;
 
+    @Mock
+    private AmapMapService amapMapService;
+
     @InjectMocks
     private MapDispatcher mapDispatcher;
 
@@ -129,16 +132,15 @@ class MapDispatcherTest {
         }
 
         @Test
-        @DisplayName("Both fail returns Beijing default")
-        void geocodeUnified_bothFail_returnsBeijingDefault() {
+        @DisplayName("Both fail returns empty unverified result")
+        void geocodeUnified_bothFail_returnsEmptyResult() {
             when(appSettings.getGoogleMapsApiKey()).thenReturn("test-key");
             when(googleMapService.geocode(anyString(), anyString())).thenReturn(null);
             when(tencentMapService.geocode(anyString(), anyString())).thenReturn(null);
 
             Map<String, Double> result = mapDispatcher.geocodeUnified("test", "city", "test", "test");
 
-            assertThat(result.get("longitude")).isEqualTo(116.397128);
-            assertThat(result.get("latitude")).isEqualTo(39.916527);
+            assertThat(result).isEmpty();
         }
 
         @Test

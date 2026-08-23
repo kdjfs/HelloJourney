@@ -1,27 +1,35 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   Card,
-  Typography,
   Button,
   Empty,
   Spin,
-  BackTop,
+  FloatButton,
+  Alert,
+  Image,
+  ConfigProvider,
+  theme,
 } from 'antd'
 import {
   ArrowLeftOutlined,
 } from '@ant-design/icons'
-import TripDayCard from '../../components/TripDayCard'
+import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
+import { deriveWorkspaceBudget, workspacePlanSignature } from '../../features/trip-workspace/model/derivedPlan'
+import TripExportActions from '../../features/export/ui/TripExportActions'
 import BudgetPanel from '../../components/BudgetPanel'
 import OverviewAttractionCard, { type OverviewAttractionItem } from '../../components/OverviewAttractionCard'
-import KnowledgeGraph from '../../components/KnowledgeGraph'
-import AIChat from '../../components/AIChat'
-import { getPoiPhoto } from '../../services/poiApi'
+import { attractionImageCacheKey, resolveAttractionImage } from '../../services/poiApi'
 import { pollTaskStatus } from '../../services/tripApi'
-import type { TripPlan, KnowledgeGraphData, WeatherInfo } from '../../types/api'
+import { buildFallbackGraphData } from '../../utils/knowledgeGraph'
+import type { TripPlan, KnowledgeGraphData, WeatherInfo, TripReviewResult } from '../../types/api'
+import { normalizeAppLocale } from '../../i18n'
 import './index.css'
 
-const { Title } = Typography
+const KnowledgeGraph = lazy(() => import('../../components/KnowledgeGraph'))
+const AIChat = lazy(() => import('../../components/AIChat'))
+const TripMap = lazy(() => import('../../components/TripMap'))
 
 type WeatherIconKind = 'sunny' | 'sun-shower' | 'thunder-storm' | 'cloudy' | 'flurries' | 'rainy'
 
@@ -59,19 +67,16 @@ function parseWeatherDate(rawDate: string): Date | null {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
 }
 
-function formatWeatherDate(rawDate: string): string {
+function formatWeatherDate(rawDate: string, locale: string): string {
   const d = parseWeatherDate(rawDate)
   if (!d) return rawDate || '--'
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+  return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long', day: 'numeric' }).format(d)
 }
 
-function formatWeatherWeekday(rawDate: string, short = false): string {
+function formatWeatherWeekday(rawDate: string, locale: string, short = false): string {
   const d = parseWeatherDate(rawDate)
   if (!d) return rawDate || '--'
-  const days = short
-    ? ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-    : ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
-  return days[d.getDay()]
+  return new Intl.DateTimeFormat(locale, { weekday: short ? 'short' : 'long' }).format(d)
 }
 
 function formatWeatherTemp(temp: number | string | null | undefined): string {
@@ -189,27 +194,39 @@ function getHumidity(text: string): string {
   return '45%'
 }
 
-function getWind(weather: WeatherInfo): string {
+function getWind(weather: WeatherInfo, fallback: string): string {
   const dir = weather.wind_direction || ''
   const power = weather.wind_power || ''
   if (dir || power) return `${dir} ${power}`.trim()
-  return '微风'
+  return fallback
+}
+
+function readStoredTripPlan(): TripPlan | null {
+  const raw = sessionStorage.getItem('tripPlan')
+  if (!raw) return null
+  try { return JSON.parse(raw) as TripPlan } catch { return null }
 }
 
 function Result() {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const urlPlanId = searchParams.get('plan_id')
+  const currentLocale = normalizeAppLocale(i18n.resolvedLanguage)
+  const generatedPlanLocale = sessionStorage.getItem('tripPlanLocale')
 
-  const [tripPlan, setTripPlan] = useState<TripPlan | null>(() => {
-    const raw = sessionStorage.getItem('tripPlan')
-    if (!raw) return null
-    try { return JSON.parse(raw) } catch { return null }
-  })
+  const [tripPlan, setTripPlan] = useState<TripPlan | null>(readStoredTripPlan)
+  const [sourcePlan, setSourcePlan] = useState<TripPlan | null>(readStoredTripPlan)
 
   const [graphData, setGraphData] = useState<KnowledgeGraphData | null>(() => {
     const raw = sessionStorage.getItem('graphData')
     if (!raw || raw === 'null') return null
+    try { return JSON.parse(raw) } catch { return null }
+  })
+
+  const [tripReview, setTripReview] = useState<TripReviewResult | null>(() => {
+    const raw = sessionStorage.getItem('tripReview')
+    if (!raw) return null
     try { return JSON.parse(raw) } catch { return null }
   })
 
@@ -218,32 +235,41 @@ function Result() {
   const [recoveryError, setRecoveryError] = useState('')
   const [activeSection, setActiveSection] = useState('overview')
   const [activeWeatherIndex, setActiveWeatherIndex] = useState(0)
-  const [activeOverviewCard, setActiveOverviewCard] = useState(1)
+  const [activeOverviewCard, setActiveOverviewCard] = useState(0)
+  const [selectedMapAttraction, setSelectedMapAttraction] = useState<{
+    dayIndex: number
+    attractionIndex: number
+  } | null>(null)
   const [attractionPhotos, setAttractionPhotos] = useState<Record<string, string>>({})
   const overviewRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!tripPlan) return
+    let cancelled = false
 
     const loadPhotos = async () => {
       const photos: Record<string, string> = {}
+      const resolvedKeys = new Set<string>()
       for (const day of tripPlan.days) {
+        const city = day.city || tripPlan.city
         for (const attr of day.attractions) {
-          if (attr.image_url) {
-            photos[attr.name] = attr.image_url
-            continue
-          }
+          const key = attractionImageCacheKey(city, attr.name)
+          if (resolvedKeys.has(key)) continue
+          resolvedKeys.add(key)
           try {
-            const url = await getPoiPhoto(attr.name, tripPlan.city)
-            if (url) photos[attr.name] = url
+            const result = await resolveAttractionImage(attr.name, city, attr.poi_id)
+            if (result.verified && result.imageUrl) photos[key] = result.imageUrl
           } catch {
-            // 图片加载失败，使用默认
+            // The card keeps a deterministic named placeholder when the provider is unavailable.
           }
         }
       }
-      setAttractionPhotos(photos)
+      if (!cancelled) setAttractionPhotos(photos)
     }
 
     void loadPhotos()
+    return () => {
+      cancelled = true
+    }
   }, [tripPlan])
 
   useEffect(() => {
@@ -256,39 +282,68 @@ function Result() {
         if (status.status === 'completed' && status.result) {
           const data: TripPlan = status.result.data || status.result
           const gData: KnowledgeGraphData | null = status.result.graph_data || null
+          const review: TripReviewResult | null = status.result.review || null
+          setSourcePlan(structuredClone(data))
           setTripPlan(data)
           setGraphData(gData)
+          setTripReview(review)
           sessionStorage.setItem('tripPlan', JSON.stringify(data))
           if (gData) sessionStorage.setItem('graphData', JSON.stringify(gData))
+          if (review) sessionStorage.setItem('tripReview', JSON.stringify(review))
           sessionStorage.setItem('planId', urlPlanId)
         } else if (status.status === 'failed') {
-          setRecoveryError(status.error || '计划生成失败')
+          setRecoveryError(status.error || t('result.planFailed'))
         } else {
-          setRecoveryError('历史计划详情不可恢复，请重新生成')
+          setRecoveryError(t('result.historyUnavailable'))
         }
       } catch {
-        setRecoveryError('历史计划详情不可恢复，请重新生成')
+        setRecoveryError(t('result.historyUnavailable'))
       } finally {
         setLoading(false)
       }
     }
 
     void recoverPlan()
-  }, [tripPlan, urlPlanId, loading])
+  }, [loading, t, tripPlan, urlPlanId])
 
   const overviewAttractions: OverviewAttractionItem[] = tripPlan
     ? tripPlan.days.flatMap((day, dayIdx) =>
-        day.attractions.map((attr) => ({
+        day.attractions.map((attr, attractionIdx) => ({
           name: attr.name,
+          city: day.city || tripPlan.city,
           address: attr.address,
           visit_duration: attr.visit_duration,
           description: attr.description,
           dayArrayIndex: dayIdx,
+          attractionArrayIndex: attractionIdx,
           rating: attr.rating,
           ticket_price: attr.ticket_price,
+          reservation_required: attr.reservation_required,
+          reservation_tips: attr.reservation_tips,
         })),
       )
     : []
+
+  const workspaceEdited = Boolean(
+    tripPlan
+    && sourcePlan
+    && workspacePlanSignature(tripPlan) !== workspacePlanSignature(sourcePlan),
+  )
+  const effectiveBudget = useMemo(
+    () => tripPlan && sourcePlan ? deriveWorkspaceBudget(tripPlan, sourcePlan) : tripPlan?.budget,
+    [sourcePlan, tripPlan],
+  )
+  const effectiveTripPlan = useMemo<TripPlan | null>(
+    () => tripPlan ? { ...tripPlan, budget: effectiveBudget } : null,
+    [effectiveBudget, tripPlan],
+  )
+
+  /* 编辑后后端图谱已失效，切换为基于最新工作区数据生成的图谱。撤销到原始版本时自动恢复后端图谱。 */
+  const effectiveGraphData = useMemo<KnowledgeGraphData | null>(
+    () => (!workspaceEdited ? graphData : null) ?? (effectiveTripPlan ? buildFallbackGraphData(effectiveTripPlan) : null),
+    [effectiveTripPlan, graphData, workspaceEdited],
+  )
+  const graphDerived = (workspaceEdited || graphData == null) && effectiveGraphData != null
 
   const weatherList = tripPlan?.weather_info ?? []
   const selectedWeather: WeatherInfo | null =
@@ -303,21 +358,13 @@ function Result() {
     setActiveSection(key)
   }
 
-  const goToDayFromOverview = (dayIndex: number) => {
-    setActiveSection('days')
-    setTimeout(() => {
-      document.getElementById(`day-${dayIndex}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 100)
-  }
-
-  const handleImageError = useCallback(() => {
-    // 图片加载失败，保留占位
-  }, [])
-
   if (loading) {
     return (
       <div className="result-loading">
-        <Spin size="large" tip="正在加载旅行计划..." />
+        <div className="result-loading-box">
+          <Spin size="large" />
+          <p>{t('result.loadingPlan')}</p>
+        </div>
       </div>
     )
   }
@@ -325,9 +372,9 @@ function Result() {
   if (!tripPlan) {
     return (
       <div className="result-empty">
-        <Empty description={recoveryError || '没有找到旅行计划数据'}>
+        <Empty description={recoveryError || t('result.noPlan')}>
           <Button type="primary" onClick={() => navigate('/')} icon={<ArrowLeftOutlined />}>
-            返回首页生成计划
+            {t('result.backGenerate')}
           </Button>
         </Empty>
       </div>
@@ -339,26 +386,32 @@ function Result() {
       <div className="lower-shade" />
 
       <main className="result-main">
-        <Button
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/')}
-          style={{ marginBottom: 16, color: '#ecf3fa' }}
-        >
-          返回首页
-        </Button>
+        <div className="result-actions">
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/')}
+            style={{ color: '#ecf3fa' }}
+          >
+            {t('result.backHome')}
+          </Button>
+          <TripExportActions plan={effectiveTripPlan ?? tripPlan} planId={planId} />
+        </div>
 
         <div className="content-wrapper">
+          {/* 所有景点照片共享一个预览组：点击放大后可左右切换 */}
+          <Image.PreviewGroup>
           {/* Top Nav */}
           <div className="top-switch-nav">
             <div className="top-switch-menu-wrap">
               <div className="top-switch-menu" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {[
-                  { key: 'overview', label: '概览' },
-                  ...(tripPlan.budget ? [{ key: 'budget', label: '预算' }] : []),
-                  { key: 'weather', label: '天气' },
-                  { key: 'days', label: '每日行程' },
-                  { key: 'knowledge-graph', label: '知识图谱' },
+                  { key: 'overview', label: t('result.tabOverview') },
+                  ...(effectiveBudget ? [{ key: 'budget', label: t('result.tabBudget') }] : []),
+                  { key: 'weather', label: t('result.tabWeather') },
+                  { key: 'days', label: t('result.tabDays') },
+                  { key: 'knowledge-graph', label: t('result.tabGraph') },
+                  { key: 'assistant', label: t('result.tabAssistant') },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -373,9 +426,38 @@ function Result() {
             </div>
           </div>
 
+          {generatedPlanLocale && normalizeAppLocale(generatedPlanLocale) !== currentLocale && (
+            <Alert className="review-summary" type="info" showIcon title={t('result.regenerateHint')} />
+          )}
+
+          {tripReview && (
+            <Alert
+              className="review-summary"
+              type={tripReview.pass ? (tripReview.warnings.length ? 'warning' : 'success') : 'error'}
+              showIcon
+              title={tripReview.pass ? t('result.reviewPass') : t('result.reviewBlocked')}
+              description={tripReview.warnings.length
+                ? t('result.reviewWarnings', { count: tripReview.warnings.length, messages: tripReview.warnings.slice(0, 2).map((issue) => issue.message).join('；') })
+                : t('result.reviewSuccess')}
+            />
+          )}
+
           {/* Overview */}
-          {activeSection === 'overview' && (
+          <div
+            className={`overview-export-host${activeSection === 'overview' ? '' : ' is-background'}`}
+            aria-hidden={activeSection === 'overview' ? undefined : true}
+          >
             <Card id="overview" className="section-shellless overview-card" styles={{ body: { padding: 0 } }}>
+              <Suspense
+                fallback={(
+                  <div className="trip-map-lazy" role="status">
+                    <Spin />
+                    <span>{t('result.mapLoading')}</span>
+                  </div>
+                )}
+              >
+                <TripMap plan={effectiveTripPlan ?? tripPlan} selectedAttraction={selectedMapAttraction} />
+              </Suspense>
               {overviewAttractions.length > 0 ? (
                 <div ref={overviewRef} className="overview-swiper">
                   <div className="overview-swiper-track">
@@ -383,21 +465,23 @@ function Result() {
                       <OverviewAttractionCard
                         key={`${item.dayArrayIndex}-${item.name}`}
                         item={item}
-                        imageSrc={
-                          attractionPhotos[item.name] ||
-                          `https://picsum.photos/seed/${encodeURIComponent(item.name)}/400/500`
-                        }
+                        imageUrl={attractionPhotos[attractionImageCacheKey(item.city, item.name)]}
                         active={activeOverviewCard === index}
                         onHover={() => setActiveOverviewCard(index)}
-                        onSelectDay={goToDayFromOverview}
-                        onImageError={handleImageError}
+                        onSelect={() => {
+                          setActiveOverviewCard(index)
+                          setSelectedMapAttraction({
+                            dayIndex: item.dayArrayIndex,
+                            attractionIndex: item.attractionArrayIndex,
+                          })
+                        }}
                       />
                     ))}
                   </div>
                 </div>
               ) : (
                 <div style={{ padding: 40, textAlign: 'center' }}>
-                  <Empty description="暂无景点数据" />
+                  <Empty description={t('result.noAttractions')} />
                 </div>
               )}
 
@@ -411,11 +495,11 @@ function Result() {
                 )}
               </div>
             </Card>
-          )}
+          </div>
 
           {/* Budget */}
-          {activeSection === 'budget' && tripPlan.budget && (
-            <BudgetPanel budget={tripPlan.budget} />
+          {activeSection === 'budget' && effectiveBudget && (
+            <BudgetPanel budget={effectiveBudget} />
           )}
 
           {/* Weather */}
@@ -425,8 +509,8 @@ function Result() {
                 <section className="weather-side" style={{ background: getWeatherGradient(selectedWeather.day_weather) }}>
                   <div className="weather-gradient" />
                   <div className="date-container">
-                    <h2 className="date-dayname">{formatWeatherWeekday(selectedWeather.date)}</h2>
-                    <span className="date-day">{formatWeatherDate(selectedWeather.date)}</span>
+                    <h2 className="date-dayname">{formatWeatherWeekday(selectedWeather.date, currentLocale)}</h2>
+                    <span className="date-day">{formatWeatherDate(selectedWeather.date, currentLocale)}</span>
                     <span className="location">
                       <span className="location-icon">
                         <svg width="16" height="16" viewBox="-3 0 20 20" fill="currentColor">
@@ -456,7 +540,7 @@ function Result() {
                             onClick={() => setActiveWeatherIndex(idx)}
                           >
                             <SmallWeatherIcon kind={kind} />
-                            <span className="day-name">{formatWeatherWeekday(item.date, true)}</span>
+                            <span className="day-name">{formatWeatherWeekday(item.date, currentLocale, true)}</span>
                             <span className="day-temp">{formatWeatherTemp(item.day_temp)}</span>
                           </li>
                         )
@@ -467,24 +551,24 @@ function Result() {
                   <div className="today-info-container">
                     <div className="today-info">
                       <div className="today-info-item">
-                        <span className="wea-title">白天</span>
+                        <span className="wea-title">{t('result.daytime')}</span>
                         <span className="value">{selectedWeather.day_weather} · {formatWeatherTemp(selectedWeather.day_temp)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">夜间</span>
+                        <span className="wea-title">{t('result.nighttime')}</span>
                         <span className="value">{selectedWeather.night_weather} · {formatWeatherTemp(selectedWeather.night_temp)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">降水量</span>
+                        <span className="wea-title">{t('result.precipitation')}</span>
                         <span className="value">{getPrecipitation(selectedWeather.day_weather)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">湿度</span>
+                        <span className="wea-title">{t('result.humidity')}</span>
                         <span className="value">{getHumidity(selectedWeather.day_weather)}</span>
                       </div>
                       <div className="today-info-item">
-                        <span className="wea-title">风力</span>
-                        <span className="value">{getWind(selectedWeather)}</span>
+                        <span className="wea-title">{t('result.wind')}</span>
+                        <span className="value">{getWind(selectedWeather, t('result.breeze'))}</span>
                       </div>
                     </div>
                   </div>
@@ -493,38 +577,35 @@ function Result() {
             </Card>
           )}
 
-          {/* Daily Trips */}
+          {/* Daily Trips（浅色主题：白色卡片） */}
           {activeSection === 'days' && (
-            <div>
-              <Title level={3} style={{ marginBottom: 16, color: '#ecf3fa' }}>
-                📋 每日行程
-              </Title>
-              {tripPlan.days.map((day, idx) => (
-                <div key={day.date} id={`day-${idx}`}>
-                  <TripDayCard
-                    day={day}
-                    attractionImages={attractionPhotos}
-                    onImageError={handleImageError}
-                  />
-                </div>
-              ))}
-            </div>
+            <ConfigProvider
+              theme={{
+                algorithm: theme.defaultAlgorithm,
+                token: { colorPrimary: '#176b87', borderRadius: 12 },
+              }}
+            >
+              <EditableTripDays initialPlan={tripPlan} planId={planId} onPlanChange={setTripPlan} />
+            </ConfigProvider>
           )}
 
           {/* Knowledge Graph */}
           {activeSection === 'knowledge-graph' && (
             <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
-              <KnowledgeGraph graphData={graphData} />
+              <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>{t('result.graphLoading')}</span></div>}>
+                <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} tripPlan={effectiveTripPlan} />
+              </Suspense>
             </Card>
           )}
+          </Image.PreviewGroup>
+          <Suspense fallback={activeSection === 'assistant' ? <div className="kg-loading-fallback"><Spin /></div> : null}>
+            <AIChat mode={activeSection === 'assistant' ? 'embedded' : 'floating'} tripPlan={effectiveTripPlan} />
+          </Suspense>
         </div>
       </main>
 
-      <BackTop visibilityHeight={300}>
-        <div className="back-top-button">Top</div>
-      </BackTop>
+      <FloatButton.BackTop visibilityHeight={300} tooltip={t('result.backTop')} />
 
-      <AIChat tripPlan={tripPlan} />
     </div>
   )
 }

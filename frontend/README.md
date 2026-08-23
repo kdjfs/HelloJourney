@@ -1,6 +1,6 @@
 # HelloJourney Frontend
 
-基于 React 19 的 AI 旅行规划 Web 前端，提供行程输入、结果展示、知识图谱可视化、AI 对话等交互功能，采用暗色毛玻璃风格 UI。
+基于 React 19 的 AI Travel Workspace，提供多城市输入、Agent 活动时间线、可编辑行程、撤销/重做、局部重规划和来源核验标签。
 
 ## 技术栈
 
@@ -61,13 +61,13 @@ src/
 ### 环境要求
 
 - Node.js 20+
-- npm 10+
+- npm 8+（推荐使用仓库锁文件与 `npm ci`）
 
 ### 安装与启动
 
 ```bash
 # 安装依赖
-npm install
+npm ci
 
 # 启动开发服务器
 npm run dev
@@ -128,6 +128,10 @@ VITE_API_BASE_URL=http://your-server:8000 npm run dev
 ```bash
 # 类型检查 + 构建
 npm run build
+
+# 独立类型检查与组件测试
+npm run typecheck
+npm run test
 
 # 预览构建产物
 npm run preview

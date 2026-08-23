@@ -1,54 +1,75 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Form, Input, Select, DatePicker, Button, message, Progress } from 'antd'
+import { Alert, Form, Input, InputNumber, Select, DatePicker, Button, message, Progress } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
+import { useTranslation } from 'react-i18next'
 import { generateTripPlan, getTripHistory } from '../../services/tripApi'
 import { isMockEnabled } from '../../utils/env'
 import NavBar from '../../components/NavBar'
-import type { TripFormData, TripHistoryItem } from '../../types/api'
+import type { TripFormData, TripHistoryItem, TripTaskEvent } from '../../types/api'
+import heroImage from '../../assets/hero.png'
+import { normalizeAppLocale } from '../../i18n'
 import './index.css'
 
 /* 偏好选项 */
 const INTEREST_OPTIONS = [
-  { value: '历史文化', label: '历史文化' },
-  { value: '自然风光', label: '自然风光' },
-  { value: '美食', label: '美食' },
-  { value: '购物', label: '购物' },
-  { value: '艺术', label: '艺术' },
-  { value: '休闲', label: '休闲' },
+  { value: '历史文化', labelKey: 'landing.interestHistory' },
+  { value: '自然风光', labelKey: 'landing.interestNature' },
+  { value: '美食', labelKey: 'landing.interestFood' },
+  { value: '购物', labelKey: 'landing.interestShopping' },
+  { value: '艺术', labelKey: 'landing.interestArt' },
+  { value: '休闲', labelKey: 'landing.interestLeisure' },
 ]
 
-/* 加载阶段对应的中文文本 */
-const stageLabels: Record<string, string> = {
-  submitted: '正在初始化...',
-  initializing: '正在初始化...',
-  attraction_search: '正在搜索景点...',
-  weather_search: '正在查询天气...',
-  hotel_search: '正在推荐酒店...',
-  planning: '正在生成行程计划...',
-  graph_building: '正在构建知识图谱...',
-  completed: '生成完成！',
-  failed: '生成失败',
+/* 常用城市（点击或输入回车添加） */
+const CITY_OPTIONS = [
+  '北京', '上海', '广州', '深圳', '杭州', '成都', '重庆', '西安', '南京', '苏州',
+  '天津', '武汉', '长沙', '厦门', '青岛', '三亚', '昆明', '大理', '桂林', '哈尔滨',
+].map((city) => ({ value: city, label: city }))
+
+const MAX_TRIP_DAYS = 30
+
+const STAGE_LABEL_KEYS: Record<string, string> = {
+  submitted: 'landing.stageSubmitted',
+  initializing: 'landing.stageSubmitted',
+  attraction_search: 'landing.stageAttractions',
+  weather_search: 'landing.stageWeather',
+  hotel_search: 'landing.stageHotels',
+  planning: 'landing.stagePlanning',
+  review: 'landing.stageReview',
+  graph_building: 'landing.stageGraph',
+  completed: 'landing.stageCompleted',
+  failed: 'landing.stageFailed',
+  cancelled: 'landing.stageCancelled',
 }
 
 function Landing() {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [form] = Form.useForm<TripFormData>()
+  const currentLocale = normalizeAppLocale(i18n.resolvedLanguage)
+  const stageLabels = Object.fromEntries(
+    Object.entries(STAGE_LABEL_KEYS).map(([stage, key]) => [stage, t(key)]),
+  )
 
   /* 表单状态 */
   const [loading, setLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [loadingStatus, setLoadingStatus] = useState('')
   const [planCode, setPlanCode] = useState('')
+  const [generationError, setGenerationError] = useState('')
+  const [activityEvents, setActivityEvents] = useState<TripTaskEvent[]>([])
+  const generationController = useRef<AbortController | null>(null)
 
   /* 偏好选择（自定义 pill 按钮需要单独管理） */
   const [preferences, setPreferences] = useState<string[]>(['历史文化', '美食'])
   const [freeTextInput, setFreeTextInput] = useState('')
+  const [additionalCities, setAdditionalCities] = useState<string[]>([])
   const [travelDays, setTravelDays] = useState(3)
 
-  /* 日期选择 */
-  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs('2026-06-01'))
-  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs('2026-06-03'))
+  /* 日期选择：默认从明天开始、共 3 天 */
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().add(1, 'day').startOf('day'))
+  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs().add(3, 'day').startOf('day'))
 
   /* 滚动 */
   const [scrollY, setScrollY] = useState(window.scrollY || 0)
@@ -66,38 +87,45 @@ function Landing() {
   const heroContentTranslate = -heroProgress * 46
   const lowerShadeOpacity = Math.min(Math.max((scrollY - 20) / 360, 0), 1) * 0.7
 
-  /* 日期变化自动计算天数 */
+  /* 日期变化自动计算天数，并自动修正非法区间 */
   const handleStartDateChange = useCallback((date: Dayjs | null) => {
     setStartDate(date)
-    if (date && endDate) {
-      const days = endDate.diff(date, 'day') + 1
-      if (days > 0 && days <= 30) {
-        setTravelDays(days)
-      } else if (days > 30) {
-        message.warning('出行天数不能超过30天')
-        setEndDate(null)
-      } else {
-        message.warning('结束日期不能早于开始日期')
-        setEndDate(null)
-      }
+    if (!date) return
+    const days = endDate ? endDate.diff(date, 'day') + 1 : travelDays
+    if (days > MAX_TRIP_DAYS) {
+      setEndDate(date.add(MAX_TRIP_DAYS - 1, 'day'))
+      setTravelDays(MAX_TRIP_DAYS)
+      message.warning(t('landing.maxDaysAdjusted'))
+    } else if (days < 1) {
+      setEndDate(date.add(travelDays - 1, 'day'))
+      setTravelDays(travelDays)
+      message.info(t('landing.endAdjusted'))
+    } else {
+      setTravelDays(days)
     }
-  }, [endDate])
+  }, [endDate, t, travelDays])
 
   const handleEndDateChange = useCallback((date: Dayjs | null) => {
     setEndDate(date)
-    if (startDate && date) {
-      const days = date.diff(startDate, 'day') + 1
-      if (days > 0 && days <= 30) {
-        setTravelDays(days)
-      } else if (days > 30) {
-        message.warning('出行天数不能超过30天')
-        setEndDate(null)
-      } else {
-        message.warning('结束日期不能早于开始日期')
-        setEndDate(null)
-      }
+    if (!date || !startDate) return
+    const days = date.diff(startDate, 'day') + 1
+    if (days > MAX_TRIP_DAYS) {
+      setEndDate(startDate.add(MAX_TRIP_DAYS - 1, 'day'))
+      setTravelDays(MAX_TRIP_DAYS)
+      message.warning(t('landing.maxDaysAdjusted'))
+    } else if (days < 1) {
+      setEndDate(null)
+      message.warning(t('landing.endBeforeStart'))
+    } else {
+      setTravelDays(days)
     }
-  }, [startDate])
+  }, [startDate, t])
+
+  /* 途经城市：实时路线回显 */
+  const watchedCity = Form.useWatch('city', form)
+  const routePreview = [watchedCity, ...additionalCities]
+    .map((item) => (item || '').trim())
+    .filter(Boolean)
 
   /* 滚动监听 - 使用内联 handler，避免 setState-in-effect */
 
@@ -148,6 +176,8 @@ function Landing() {
     if (!planId) return
     sessionStorage.removeItem('tripPlan')
     sessionStorage.removeItem('graphData')
+    sessionStorage.removeItem('tripReview')
+    sessionStorage.removeItem('tripPlanLocale')
     sessionStorage.setItem('planId', planId)
     navigate(`/result?plan_id=${planId}`)
   }
@@ -156,24 +186,26 @@ function Landing() {
   const formatHistoryTime = (value: string) => {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value
-    return date.toLocaleString()
+    return date.toLocaleString(currentLocale)
   }
 
   /* 提交表单 */
   const handleSubmit = async () => {
     if (!startDate || !endDate) {
-      message.error('请选择出行日期')
+      message.error(t('landing.dateRequired'))
       return
     }
 
     const city = form.getFieldValue('city')
     if (!city) {
-      message.error('请输入目的地城市')
+      message.error(t('landing.cityRequired'))
       return
     }
 
     const transportation = form.getFieldValue('transportation') || '公共交通'
     const accommodation = form.getFieldValue('accommodation') || '经济型酒店'
+    const travelers = form.getFieldValue('travelers') || 1
+    const budgetLimit = form.getFieldValue('budget_limit')
 
     // 保存面板高度以保持布局稳定
     if (panelRef.current) {
@@ -182,19 +214,37 @@ function Landing() {
 
     setLoading(true)
     setLoadingProgress(5)
-    setLoadingStatus('正在初始化...')
+    setLoadingStatus(t('landing.stageSubmitted'))
     setPlanCode('')
+    setGenerationError('')
+    setActivityEvents([])
+
+    const allCities = [city, ...additionalCities]
+      .map((item) => item.trim())
+      .filter((item, index, items) => item && items.indexOf(item) === index)
+    if (allCities.length > travelDays) {
+      message.error(t('landing.daysLessThanCities'))
+      setLoading(false)
+      return
+    }
+    const baseDays = Math.floor(travelDays / allCities.length)
+    const remainder = travelDays % allCities.length
+    const controller = new AbortController()
+    generationController.current = controller
 
     const requestData: TripFormData = {
       city,
+      cities: allCities.map((cityName, index) => ({ city: cityName, days: baseDays + (index < remainder ? 1 : 0) })),
       start_date: startDate.format('YYYY-MM-DD'),
       end_date: endDate.format('YYYY-MM-DD'),
       travel_days: travelDays,
       transportation,
       accommodation,
+      travelers,
+      budget_limit: budgetLimit,
       preferences,
       free_text_input: freeTextInput,
-      language: 'zh',
+      language: currentLocale,
     }
 
     try {
@@ -210,8 +260,13 @@ function Landing() {
         ]
 
         for (const stage of mockStages) {
+          if (controller.signal.aborted) throw new DOMException(t('landing.taskCancelled'), 'AbortError')
           setLoadingProgress(stage.progress)
           setLoadingStatus(stageLabels[stage.label])
+          setActivityEvents((events) => [...events, {
+            task_id: 'mock1234', plan_id: 'mock1234', status: 'processing',
+            stage: stage.label as TripTaskEvent['stage'], progress: stage.progress, message: stageLabels[stage.label],
+          }])
           await new Promise((resolve) => setTimeout(resolve, 800))
         }
       }
@@ -220,18 +275,28 @@ function Landing() {
         requestData,
         useMock
           ? undefined
-          : (event) => {
+            : (event) => {
               if (event.plan_id) setPlanCode(event.plan_id)
               if (typeof event.progress === 'number') {
                 setLoadingProgress(Math.max(0, Math.min(100, event.progress)))
               }
-              setLoadingStatus(event.message || stageLabels[event.stage] || '处理中...')
+              setLoadingStatus(event.message || stageLabels[event.stage] || t('common.processing'))
+              setActivityEvents((events) => [...events.slice(-5), event])
             },
-        { mockByPolling: useMock },
+        {
+          mockByPolling: useMock,
+          signal: controller.signal,
+          onTaskSubmitted: (task) => {
+            setPlanCode(task.plan_id)
+            setActivityEvents((events) => [...events, {
+              task_id: task.task_id, plan_id: task.plan_id, status: 'processing', stage: 'submitted', progress: 5, message: task.message,
+            }])
+          },
+        },
       )
 
       setLoadingProgress(100)
-      setLoadingStatus('生成完成！')
+      setLoadingStatus(t('landing.stageCompleted'))
 
       if (response.success && response.data) {
         const planId = response.plan_id || planCode || 'mock1234'
@@ -239,20 +304,27 @@ function Landing() {
         if (response.graph_data) {
           sessionStorage.setItem('graphData', JSON.stringify(response.graph_data))
         }
+        if (response.review) {
+          sessionStorage.setItem('tripReview', JSON.stringify(response.review))
+        }
         sessionStorage.setItem('planId', planId)
-        message.success('旅行计划生成成功！')
+        sessionStorage.setItem('tripPlanLocale', requestData.language || currentLocale)
+        message.success(t('landing.generationSuccess'))
 
         setTimeout(() => {
           navigate(`/result?plan_id=${planId}`)
         }, 600)
       } else {
-        message.error(response.message || '生成失败，请重试')
+        message.error(response.message || t('landing.generationFailed'))
       }
     } catch (error) {
-      console.error('生成失败：', error)
-      const errorMessage = error instanceof Error ? error.message : '未知错误'
-      message.error(`生成失败：${errorMessage}`)
+      const errorMessage = error instanceof Error ? error.message : t('common.unknownError')
+      const cancelled = error instanceof DOMException && error.name === 'AbortError'
+      setGenerationError(cancelled ? t('landing.generationCancelledDetail') : errorMessage)
+      if (cancelled) message.info(t('landing.generationCancelled'))
+      else message.error(t('landing.generationFailedWithReason', { error: errorMessage }))
     } finally {
+      generationController.current = null
       setTimeout(() => {
         setLoading(false)
         setLoadingProgress(0)
@@ -288,7 +360,7 @@ function Landing() {
         <div
           className="page-header section-dark landing-header"
           style={{
-            backgroundImage: "url('http://demos.creative-tim.com/paper-kit-2/assets/img/antoine-barres.jpg')",
+            backgroundImage: `url(${heroImage})`,
             backgroundPosition: `center ${Math.max(-scrollY * 0.08, -120)}px`,
             backgroundSize: 'cover',
             backgroundRepeat: 'no-repeat',
@@ -307,24 +379,11 @@ function Landing() {
                 <h1 className="presentation-title">HelloJourney</h1>
               </div>
               <h2 className="presentation-subtitle text-center">
-                你的专属 AI 旅行规划师
+                {t('landing.heroSubtitle')}
               </h2>
             </div>
           </div>
 
-          {/* 移动云层效果 */}
-          <div
-            className="moving-clouds"
-            style={{
-              backgroundImage: "url('https://demos.creative-tim.com/paper-kit-2/assets/img/clouds.png')",
-            }}
-          />
-          <div className="fog-low">
-            <img src="https://demos.creative-tim.com/paper-kit-2/assets/img/clouds.png" alt="fog" />
-          </div>
-          <div className="fog-low right">
-            <img src="https://demos.creative-tim.com/paper-kit-2/assets/img/clouds.png" alt="fog" />
-          </div>
           <div className="hero-bottom-shade" />
         </div>
       </div>
@@ -335,8 +394,6 @@ function Landing() {
           ref={panelRef}
           className="form-panel"
           style={{
-            opacity: 0.2 + Math.min(Math.max((scrollY - 80) / 340, 0), 1) * 0.8,
-            transform: `translate3d(0, ${(1 - Math.min(Math.max((scrollY - 80) / 340, 0), 1)) * 56}px, 0)`,
             minHeight: panelHeight === 'auto' ? 'auto' : `${panelHeight}px`,
           }}
         >
@@ -346,20 +403,24 @@ function Landing() {
               city: '北京',
               transportation: '公共交通',
               accommodation: '经济型酒店',
+              travelers: 2,
             }}>
+              {generationError && (
+                <Alert className="generation-alert" type="error" showIcon title={t('landing.previousFailed')} description={generationError} closable onClose={() => setGenerationError('')} />
+              )}
               {/* Step 01: 目的地与日期 */}
               <div className="step">
                 <div className="step-head">
                   <span>01</span>
-                  <h3>目的地与日期</h3>
+                  <h3>{t('landing.stepDestination')}</h3>
                 </div>
                 <div className="grid grid4">
                   <Form.Item
                     name="city"
-                    rules={[{ required: true, message: '请输入目的地城市' }]}
+                    rules={[{ required: true, message: t('landing.cityRequired') }]}
                   >
                     <Input
-                      placeholder="输入目的地城市"
+                      placeholder={t('landing.cityPlaceholder')}
                       size="large"
                       className="field-input"
                     />
@@ -368,8 +429,9 @@ function Landing() {
                   <DatePicker
                     value={startDate}
                     onChange={handleStartDateChange}
-                    placeholder="开始日期"
+                    placeholder={t('landing.startDate')}
                     size="large"
+                    allowClear={false}
                     className="field-input"
                     style={{ width: '100%' }}
                     disabledDate={(current) => current && current < dayjs().startOf('day')}
@@ -378,17 +440,45 @@ function Landing() {
                   <DatePicker
                     value={endDate}
                     onChange={handleEndDateChange}
-                    placeholder="结束日期"
+                    placeholder={t('landing.endDate')}
                     size="large"
+                    allowClear={false}
                     className="field-input"
                     style={{ width: '100%' }}
-                    disabledDate={(current) => current && current < dayjs().startOf('day')}
+                    disabledDate={(current) => current && (current < dayjs().startOf('day') || (startDate !== null && current < startDate.startOf('day')))}
                   />
 
                   <div className="days-chip">
                     <span className="days-number">{travelDays}</span>
-                    <span className="days-unit">天</span>
+                    <span className="days-unit">{t('landing.dayUnit')}</span>
                   </div>
+                </div>
+                <div className="city-route-field">
+                  <label className="field-label" htmlFor="additional-cities">{t('landing.transitCities')}</label>
+                  <Select
+                    id="additional-cities"
+                    mode="tags"
+                    value={additionalCities}
+                    onChange={setAdditionalCities}
+                    tokenSeparators={['、', ',', '，']}
+                    placeholder={t('landing.transitPlaceholder')}
+                    size="large"
+                    className="field-select"
+                    maxCount={8}
+                    options={CITY_OPTIONS}
+                    aria-label={t('landing.transitAria')}
+                  />
+                  {routePreview.length > 0 && (
+                    <div className="route-preview" aria-label={t('landing.routePreview')}>
+                      {routePreview.map((cityName, index) => (
+                        <Fragment key={`${cityName}-${index}`}>
+                          {index > 0 && <span className="route-arrow">→</span>}
+                          <span className={`route-chip${index === 0 ? ' route-chip-main' : ''}`}>{cityName}</span>
+                        </Fragment>
+                      ))}
+                      <span className="route-total">{t('common.daysCount', { count: travelDays })}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -396,7 +486,7 @@ function Landing() {
               <div className="step">
                 <div className="step-head">
                   <span>02</span>
-                  <h3>出行偏好</h3>
+                  <h3>{t('landing.stepPreferences')}</h3>
                 </div>
                 <div className="grid grid2">
                   <Form.Item name="transportation">
@@ -404,10 +494,10 @@ function Landing() {
                       size="large"
                       className="field-select"
                       options={[
-                        { value: '公共交通', label: '公共交通' },
-                        { value: '自驾', label: '自驾' },
-                        { value: '步行', label: '步行' },
-                        { value: '混合', label: '混合' },
+                        { value: '公共交通', label: t('landing.transportPublic') },
+                        { value: '自驾', label: t('landing.transportDrive') },
+                        { value: '步行', label: t('landing.transportWalk') },
+                        { value: '混合', label: t('landing.transportMixed') },
                       ]}
                     />
                   </Form.Item>
@@ -417,12 +507,21 @@ function Landing() {
                       size="large"
                       className="field-select"
                       options={[
-                        { value: '经济型酒店', label: '经济型酒店' },
-                        { value: '舒适型酒店', label: '舒适型酒店' },
-                        { value: '豪华酒店', label: '豪华酒店' },
-                        { value: '民宿', label: '民宿' },
+                        { value: '经济型酒店', label: t('landing.hotelBudget') },
+                        { value: '舒适型酒店', label: t('landing.hotelComfort') },
+                        { value: '豪华酒店', label: t('landing.hotelLuxury') },
+                        { value: '民宿', label: t('landing.hotelHomestay') },
                       ]}
                     />
+                  </Form.Item>
+                </div>
+
+                <div className="grid grid2">
+                  <Form.Item name="travelers" label={t('landing.travelers')} rules={[{ required: true, message: t('landing.travelersRequired') }]}>
+                    <InputNumber min={1} max={20} precision={0} size="large" className="field-number" addonAfter={t('landing.peopleUnit')} aria-label={t('landing.travelers')} />
+                  </Form.Item>
+                  <Form.Item name="budget_limit" label={t('landing.budget')}>
+                    <InputNumber min={0} max={10000000} precision={0} step={500} size="large" className="field-number" addonBefore="¥" placeholder={t('landing.budgetPlaceholder')} aria-label={t('landing.budgetAria')} />
                   </Form.Item>
                 </div>
 
@@ -437,7 +536,7 @@ function Landing() {
                           togglePreference(item.value)
                         }}
                       >
-                        {item.label}
+                        {t(item.labelKey)}
                       </label>
                     ))}
                   </div>
@@ -448,13 +547,13 @@ function Landing() {
               <div className="step">
                 <div className="step-head">
                   <span>03</span>
-                  <h3>补充说明</h3>
+                  <h3>{t('landing.stepNotes')}</h3>
                 </div>
                 <div className="field-textarea">
                   <Input.TextArea
                     value={freeTextInput}
                     onChange={(e) => setFreeTextInput(e.target.value)}
-                    placeholder="例如：希望轻松一点、多安排博物馆、有老人小孩同行..."
+                    placeholder={t('landing.notesPlaceholder')}
                     rows={4}
                     size="large"
                     className="special-textarea"
@@ -470,11 +569,11 @@ function Landing() {
                   onClick={handleSubmit}
                 >
                   {!loading ? (
-                    '生成旅行计划'
+                    t('landing.generate')
                   ) : (
                     <span className="loading-row">
                       <i className="spinner" />
-                      生成中...
+                      {t('landing.generating')}
                     </span>
                   )}
                 </button>
@@ -487,9 +586,9 @@ function Landing() {
             <div className="stepper-wrapper">
               <div className="stepper-header">
                 <h2 className="stepper-title">
-                  {planCode ? `Plan #${planCode}` : '正在生成计划'}
+                  {planCode ? `Plan #${planCode}` : t('landing.progressPlan')}
                 </h2>
-                <p className="stepper-subtitle">AI 正在为您智能规划行程</p>
+                <p className="stepper-subtitle">{t('landing.progressSubtitle')}</p>
               </div>
 
               <div className="stepper-container">
@@ -505,7 +604,7 @@ function Landing() {
                     )}
                   </div>
                   <p className="node-text">
-                    {getNodeLabel(30, '已搜索景点', '搜索景点中')}
+                    {getNodeLabel(30, t('landing.attractionsDone'), t('landing.attractionsActive'))}
                   </p>
                 </div>
                 <div className={`step-divider ${getDividerClass(30)}`} />
@@ -521,7 +620,7 @@ function Landing() {
                     )}
                   </div>
                   <p className="node-text">
-                    {getNodeLabel(50, '已查询天气', '查询天气中')}
+                    {getNodeLabel(50, t('landing.weatherDone'), t('landing.weatherActive'))}
                   </p>
                 </div>
                 <div className={`step-divider ${getDividerClass(50)}`} />
@@ -537,7 +636,7 @@ function Landing() {
                     )}
                   </div>
                   <p className="node-text">
-                    {getNodeLabel(70, '已推荐酒店', '推荐酒店中')}
+                    {getNodeLabel(70, t('landing.hotelsDone'), t('landing.hotelsActive'))}
                   </p>
                 </div>
                 <div className={`step-divider ${getDividerClass(70)}`} />
@@ -554,7 +653,7 @@ function Landing() {
                     )}
                   </div>
                   <p className="node-text">
-                    {loadingProgress >= 100 ? '已完成' : '生成计划中'}
+                    {loadingProgress >= 100 ? t('landing.complete') : t('landing.planningActive')}
                   </p>
                 </div>
               </div>
@@ -562,20 +661,37 @@ function Landing() {
               <div className="stepper-footer">
                 <h3>{loadingStatus}</h3>
                 {loadingProgress < 100 ? (
-                  <p>AI 正在协同工作，请耐心等待...</p>
+                  <p>{t('landing.waiting')}</p>
                 ) : (
-                  <p>即将跳转到结果页...</p>
+                  <p>{t('landing.redirecting')}</p>
                 )}
               </div>
+
+              {activityEvents.length > 0 && (
+                <ol className="agent-activity" aria-label={t('landing.agentActivity')} aria-live="polite">
+                  {activityEvents.slice(-4).map((event, index) => (
+                    <li key={`${event.stage}-${event.progress}-${index}`}>
+                      <span>{event.progress}%</span>
+                      <strong>{stageLabels[event.stage] || event.stage}</strong>
+                      <small>{event.message}</small>
+                    </li>
+                  ))}
+                </ol>
+              )}
 
               <Progress
                 percent={loadingProgress}
                 status={loadingProgress >= 100 ? 'success' : 'active'}
                 showInfo={false}
                 strokeColor="#d76e42"
-                trailColor="rgba(236,243,250,0.08)"
+                railColor="rgba(236,243,250,0.08)"
                 style={{ marginTop: 24, maxWidth: 480, width: '100%' }}
               />
+              {loadingProgress < 100 && (
+                <Button danger ghost className="cancel-generation" onClick={() => generationController.current?.abort()}>
+                  {t('landing.cancel')}
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -586,8 +702,8 @@ function Landing() {
         <div className="history-panel">
           <div className="history-head">
             <div>
-              <p className="history-eyebrow">历史记录</p>
-              <h3 className="history-title">最近生成的旅行计划</h3>
+              <p className="history-eyebrow">{t('landing.historyEyebrow')}</p>
+              <h3 className="history-title">{t('landing.historyTitle')}</h3>
             </div>
             <Button
               type="link"
@@ -604,17 +720,17 @@ function Landing() {
                 }
               }}
             >
-              刷新
+              {t('landing.refresh')}
             </Button>
           </div>
 
           {historyLoading && (
-            <div className="history-loading">加载中...</div>
+            <div className="history-loading">{t('landing.historyLoading')}</div>
           )}
 
           {!historyLoading && historyPlans.length === 0 && (
             <div style={{ padding: '32px 0', textAlign: 'center', color: 'rgba(236,243,250,0.54)' }}>
-              暂无历史计划，生成你的第一个旅行计划吧
+              {t('landing.historyEmpty')}
             </div>
           )}
 
@@ -636,14 +752,14 @@ function Landing() {
                     </div>
                     <p className="history-meta">
                       <span>Plan ID: {item.plan_id}</span>
-                      <span>{item.travel_days} 天</span>
-                      <span>更新于 {formatHistoryTime(item.updated_at)}</span>
+                      <span>{t('common.daysCount', { count: item.travel_days })}</span>
+                      <span>{t('landing.updatedAt', { time: formatHistoryTime(item.updated_at) })}</span>
                     </p>
                     {item.overall_suggestions && (
                       <p className="history-summary">{item.overall_suggestions}</p>
                     )}
                   </div>
-                  <span className="history-open">打开</span>
+                  <span className="history-open">{t('landing.open')}</span>
                 </button>
               ))}
             </div>

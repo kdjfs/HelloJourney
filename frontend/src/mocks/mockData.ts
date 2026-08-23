@@ -4,8 +4,15 @@ export const mockTripPlanResponse: TripPlanResponse = {
   success: true,
   message: '旅行计划生成成功',
   plan_id: 'mock1234',
+  review: {
+    pass: true,
+    warnings: [{ path: '$.days[1].attractions', code: 'route_needs_verification', message: '跨区域路线建议出发前再次确认', severity: 'WARNING' }],
+    errors: [],
+    suggestedFixes: ['出发前使用地图应用确认实时路况'],
+  },
   data: {
     city: '北京',
+    cities: ['北京'],
     start_date: '2026-06-01',
     end_date: '2026-06-03',
     overall_suggestions:
@@ -15,6 +22,7 @@ export const mockTripPlanResponse: TripPlanResponse = {
       total_hotels: 900,
       total_meals: 540,
       total_transportation: 150,
+      total_inter_city_transport: 0,
       total: 1850,
     },
     weather_info: [
@@ -26,6 +34,7 @@ export const mockTripPlanResponse: TripPlanResponse = {
         night_temp: 21,
         wind_direction: '东南风',
         wind_power: '3级',
+        source: 'weather_api', provider: 'tencent', verified_at: '2026-05-31T08:00:00Z', verification_status: 'live_weather',
       },
       {
         date: '2026-06-02',
@@ -35,6 +44,7 @@ export const mockTripPlanResponse: TripPlanResponse = {
         night_temp: 20,
         wind_direction: '南风',
         wind_power: '2级',
+        source: 'weather_api', provider: 'tencent', verified_at: '2026-05-31T08:00:00Z', verification_status: 'live_weather',
       },
       {
         date: '2026-06-03',
@@ -44,12 +54,14 @@ export const mockTripPlanResponse: TripPlanResponse = {
         night_temp: 19,
         wind_direction: '北风',
         wind_power: '3级',
+        source: 'weather_api', provider: 'tencent', verified_at: '2026-05-31T08:00:00Z', verification_status: 'live_weather',
       },
     ],
     days: [
       {
         date: '2026-06-01',
         day_index: 0,
+        city: '北京',
         description: '第一天以北京中轴线历史文化游为主，从故宫出发，登景山俯瞰皇城，傍晚逛南锣鼓巷感受老北京胡同文化。',
         transportation: '公共交通',
         accommodation: '经济型酒店',
@@ -62,6 +74,7 @@ export const mockTripPlanResponse: TripPlanResponse = {
           type: '经济型酒店',
           estimated_cost: 300,
           location: { longitude: 116.397, latitude: 39.901 },
+          poi_id: 'mock-hotel-qianmen', source: 'map_api', provider: 'tencent', verified_at: '2026-05-31T08:00:00Z', verification_status: 'verified',
         },
         attractions: [
           {
@@ -73,9 +86,9 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.8,
             ticket_price: 60,
-            image_url: 'https://picsum.photos/seed/gugong/800/600',
             reservation_required: true,
             reservation_tips: '必须提前1-7天在"故宫博物院"官方小程序预约，现场不售票。',
+            start_time: '09:00', end_time: '12:00', poi_id: 'mock-gugong', source: 'map_api', provider: 'tencent', verified_at: '2026-05-31T08:00:00Z', verification_status: 'verified',
           },
           {
             name: '景山公园',
@@ -86,7 +99,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '城市公园',
             rating: 4.6,
             ticket_price: 10,
-            image_url: 'https://picsum.photos/seed/jingshan/800/600',
           },
           {
             name: '南锣鼓巷',
@@ -97,7 +109,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.4,
             ticket_price: 0,
-            image_url: 'https://picsum.photos/seed/nanluoguxiang/800/600',
           },
         ],
         meals: [
@@ -124,6 +135,7 @@ export const mockTripPlanResponse: TripPlanResponse = {
       {
         date: '2026-06-02',
         day_index: 1,
+        city: '北京',
         description: '第二天探索皇家园林与学府文化，上午颐和园泛舟，下午圆明园怀古，傍晚清华北大校园漫步。',
         transportation: '公共交通',
         accommodation: '经济型酒店',
@@ -147,7 +159,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '自然风光',
             rating: 4.7,
             ticket_price: 30,
-            image_url: 'https://picsum.photos/seed/yiheyuan/800/600',
             reservation_required: false,
           },
           {
@@ -159,7 +170,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.5,
             ticket_price: 25,
-            image_url: 'https://picsum.photos/seed/yuanmingyuan/800/600',
           },
         ],
         meals: [
@@ -186,6 +196,7 @@ export const mockTripPlanResponse: TripPlanResponse = {
       {
         date: '2026-06-03',
         day_index: 2,
+        city: '北京',
         description: '第三天感受现代北京与传统文化的碰撞，上午798艺术区看展，下午天坛感受祭天文化，晚上三里屯感受都市夜生活。',
         transportation: '公共交通',
         accommodation: '经济型酒店',
@@ -209,7 +220,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '艺术',
             rating: 4.5,
             ticket_price: 0,
-            image_url: 'https://picsum.photos/seed/798art/800/600',
           },
           {
             name: '天坛公园',
@@ -220,7 +230,6 @@ export const mockTripPlanResponse: TripPlanResponse = {
             category: '历史文化',
             rating: 4.7,
             ticket_price: 35,
-            image_url: 'https://picsum.photos/seed/tiantan/800/600',
           },
         ],
         meals: [

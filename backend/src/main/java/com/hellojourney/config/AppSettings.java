@@ -21,10 +21,20 @@ public class AppSettings {
     private String host = "0.0.0.0";
     private int port = 8000;
 
+    private AmapMapsConfig amapMaps = new AmapMapsConfig();
     private TencentMapsConfig tencentMaps = new TencentMapsConfig();
     private GoogleMapsConfig googleMaps = new GoogleMapsConfig();
     private XhsConfig xhs = new XhsConfig();
     private LlmConfig llm = new LlmConfig();
+    private SettingsSecurityConfig settings = new SettingsSecurityConfig();
+    private TaskConfig tasks = new TaskConfig();
+    private AgentConfig agent = new AgentConfig();
+
+    @Data
+    public static class AmapMapsConfig {
+        private String key = "";
+        private String baseUrl = "https://restapi.amap.com";
+    }
 
     @Data
     public static class TencentMapsConfig {
@@ -49,6 +59,8 @@ public class AppSettings {
     public static class LlmConfig {
         private String activeProvider = "openai";
         private int timeout = 60;
+        private int maxRetries = 2;
+        private long retryBaseDelayMs = 250;
         private Map<String, LlmProviderProps> providers = new LinkedHashMap<>();
 
         public LlmProviderConfig getActiveProviderConfig() {
@@ -81,6 +93,29 @@ public class AppSettings {
         private String model = "";
     }
 
+    @Data
+    public static class SettingsSecurityConfig {
+        /** Sensitive runtime writes are opt-in even outside production. */
+        private boolean allowSecretUpdates = false;
+        /** Separate administrator credential; never returned by an API. */
+        private String adminToken = "";
+    }
+
+    @Data
+    public static class TaskConfig {
+        private int executionTimeoutSeconds = 300;
+        private String dataDir = "data/trip_tasks";
+    }
+
+    @Data
+    public static class AgentConfig {
+        private int maxIterations = 8;
+        private int toolTimeoutSeconds = 15;
+        private int toolMaxRetries = 1;
+        private int maxToolResultChars = 20_000;
+        private int structuredRepairAttempts = 2;
+    }
+
     public List<String> getCorsOriginsList() {
         return Arrays.stream(corsOrigins.split(","))
                 .map(String::trim)
@@ -88,6 +123,10 @@ public class AppSettings {
                 .toList();
     }
 
+    public String getAmapMapsKey() { return amapMaps.getKey(); }
+    public void setAmapMapsKey(String v) { amapMaps.setKey(v); }
+    public String getAmapMapsBaseUrl() { return amapMaps.getBaseUrl(); }
+    public void setAmapMapsBaseUrl(String v) { amapMaps.setBaseUrl(v); }
     public String getTencentMapsKey() { return tencentMaps.getKey(); }
     public void setTencentMapsKey(String v) { tencentMaps.setKey(v); }
     public String getGoogleMapsApiKey() { return googleMaps.getApiKey(); }

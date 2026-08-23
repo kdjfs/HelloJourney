@@ -1,6 +1,7 @@
 import { apiClient, getRuntimeApiBaseUrl } from './apiClient'
 import { isMockEnabled } from '../utils/env'
 import type { TripFormData, TripHistoryItem, TripPlanResponse, TripTaskEvent } from '../types/api'
+import type { TripChangeSet } from '@/features/trip-workspace/model/workspaceReducer'
 
 export interface SubmitTripPlanResponse {
   task_id: string
@@ -46,7 +47,13 @@ export function connectTripTaskWebSocket(
     finalWsUrl = `${wsBase}${wsUrl}`
   }
   const socket = new WebSocket(finalWsUrl)
-  socket.onmessage = (ev) => callbacks.onEvent(JSON.parse(ev.data))
+  socket.onmessage = (ev) => {
+    try {
+      callbacks.onEvent(JSON.parse(ev.data))
+    } catch {
+      callbacks.onError?.(new Event('invalid-message'))
+    }
+  }
   socket.onerror = (err) => callbacks.onError?.(err)
   socket.onclose = () => callbacks.onClose?.()
   return socket
@@ -55,6 +62,7 @@ export function connectTripTaskWebSocket(
 export interface TaskPollingOptions {
   intervalMs?: number
   maxWaitMs?: number
+  signal?: AbortSignal
 }
 
 export async function waitTaskByPolling(
@@ -67,6 +75,7 @@ export async function waitTaskByPolling(
   const deadline = Date.now() + maxWaitMs
 
   while (Date.now() < deadline) {
+    if (options?.signal?.aborted) throw new DOMException('任务已取消', 'AbortError')
     const status = await pollTaskStatus(taskId)
     const event: TripTaskEvent = {
       task_id: status.task_id,
@@ -86,8 +95,17 @@ export async function waitTaskByPolling(
     if (status.status === 'failed') {
       throw new Error(status.error || '生成失败')
     }
+    if (status.status === 'cancelled') {
+      throw new DOMException('任务已取消', 'AbortError')
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(resolve, intervalMs)
+      options?.signal?.addEventListener('abort', () => {
+        window.clearTimeout(timer)
+        reject(new DOMException('任务已取消', 'AbortError'))
+      }, { once: true })
+    })
   }
 
   throw new Error('任务超时，请稍后再试')
@@ -96,6 +114,9 @@ export async function waitTaskByPolling(
 export interface GenerateTripPlanOptions {
   mockByPolling?: boolean
   pollingOptions?: TaskPollingOptions
+  signal?: AbortSignal
+  onTaskSubmitted?: (task: SubmitTripPlanResponse) => void
+  maxSocketReconnects?: number
 }
 
 export async function generateTripPlan(
@@ -104,6 +125,12 @@ export async function generateTripPlan(
   options?: GenerateTripPlanOptions,
 ): Promise<TripPlanResponse> {
   const task = await submitTripPlan(formData)
+  options?.onTaskSubmitted?.(task)
+
+  if (options?.signal?.aborted) {
+    await cancelTripTask(task.task_id).catch(() => undefined)
+    throw new DOMException('任务已取消', 'AbortError')
+  }
 
   if (options?.mockByPolling ?? isMockEnabled()) {
     const status = await pollTaskStatus(task.task_id)
@@ -114,31 +141,65 @@ export async function generateTripPlan(
   return new Promise((resolve, reject) => {
     let settled = false
     let socket: ReturnType<typeof connectTripTaskWebSocket> | null = null
+    let reconnectAttempts = 0
+    let recovering = false
+    let fallbackStarted = false
+    let reconnectTimer: number | undefined
 
     const cleanup = () => {
       if (socket) {
         try { socket.close() } catch { /* ignore */ }
         socket = null
       }
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer)
+      options?.signal?.removeEventListener('abort', abortTask)
     }
 
     const fallbackToPolling = async () => {
-      if (settled) return
+      if (settled || fallbackStarted) return
+      fallbackStarted = true
       console.log('[TripAPI] WebSocket 不可用，降级为轮询模式')
       try {
-        const result = await waitTaskByPolling(task.task_id, onTaskEvent)
+        const result = await waitTaskByPolling(task.task_id, onTaskEvent, { ...options?.pollingOptions, signal: options?.signal })
         settled = true
+        cleanup()
         resolve(result)
       } catch (err) {
         settled = true
+        cleanup()
         reject(err)
       }
     }
 
-    try {
-      socket = connectTripTaskWebSocket(task.ws_url, {
+    const scheduleRecovery = () => {
+      if (settled || recovering || fallbackStarted) return
+      recovering = true
+      if (socket) {
+        try { socket.close() } catch { /* ignore */ }
+        socket = null
+      }
+      const maxReconnects = options?.maxSocketReconnects ?? 2
+      if (reconnectAttempts >= maxReconnects) {
+        recovering = false
+        void fallbackToPolling()
+        return
+      }
+      const delay = 500 * (2 ** reconnectAttempts)
+      reconnectAttempts += 1
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = undefined
+        recovering = false
+        openSocket()
+      }, delay)
+    }
+
+    const openSocket = () => {
+      if (settled || fallbackStarted) return
+      try {
+        socket = connectTripTaskWebSocket(task.ws_url, {
         onEvent: (event) => {
           if (settled) return
+          reconnectAttempts = 0
           onTaskEvent?.(event)
           if (event.status === 'completed') {
             settled = true
@@ -154,23 +215,44 @@ export async function generateTripPlan(
             cleanup()
             reject(new Error(event.error || event.message || '生成失败'))
           }
-        },
-        onError: () => {
-          if (!settled) {
+          if (event.status === 'cancelled') {
+            settled = true
             cleanup()
-            void fallbackToPolling()
+            reject(new DOMException('任务已取消', 'AbortError'))
           }
         },
+        onError: scheduleRecovery,
         onClose: () => {
-          if (!settled) {
-            void fallbackToPolling()
-          }
+          if (!settled && !recovering) scheduleRecovery()
         },
-      })
-    } catch {
-      if (!settled) {
-        void fallbackToPolling()
+        })
+      } catch {
+        scheduleRecovery()
       }
     }
+
+    function abortTask() {
+      if (settled) return
+      settled = true
+      cleanup()
+      void cancelTripTask(task.task_id)
+      reject(new DOMException('任务已取消', 'AbortError'))
+    }
+
+    options?.signal?.addEventListener('abort', abortTask, { once: true })
+    openSocket()
   })
+}
+
+export async function cancelTripTask(taskId: string) {
+  const res = await apiClient.delete<{ task_id: string; status: string; message: string }>(`/api/trip/tasks/${taskId}`)
+  return res.data
+}
+
+export async function proposePartialReplan(
+  planId: string,
+  request: { instruction: string; scope: 'day' | 'attraction' | 'hotel' | 'route' | 'budget' | 'all'; day_index?: number; current_plan: import('../types/api').TripPlan },
+): Promise<TripChangeSet> {
+  const res = await apiClient.post<TripChangeSet>(`/api/trip/plans/${encodeURIComponent(planId)}/replan`, request)
+  return res.data
 }

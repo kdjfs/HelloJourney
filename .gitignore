@@ -11,6 +11,16 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+!.env.production.example
+runtime_settings.json
+**/runtime_settings.json
+/data/
+
+# 本地测试反馈（含用户粘贴的明文密钥，切勿提交）
+/智途星旅测试反馈/
 
 # Editor directories and files
 .vscode/*

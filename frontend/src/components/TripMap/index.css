@@ -1,0 +1,187 @@
+.trip-map-shell {
+  position: relative;
+  margin-bottom: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(236, 243, 250, 0.14);
+  border-radius: 16px;
+  background: #10202b;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.2);
+}
+
+.trip-map-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px 16px;
+  color: #ecf3fa;
+}
+
+.trip-map-heading h2 {
+  margin: 2px 0 0;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.trip-map-eyebrow {
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.trip-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 16px;
+  color: rgba(236, 243, 250, 0.74);
+  font-size: 12px;
+}
+
+.trip-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trip-map-legend i {
+  width: 20px;
+  border-top: 3px solid;
+}
+
+.trip-map-legend .is-driving { border-color: #37b4ff; }
+.trip-map-legend .is-walking { border-color: #6ad38f; border-top-style: dashed; }
+.trip-map-legend .is-fallback { border-color: #ffd166; border-top-style: dashed; }
+
+.trip-map-canvas {
+  width: 100%;
+  height: clamp(340px, 50vw, 520px);
+  min-height: 340px;
+  background: #0c1a25;
+}
+
+.trip-map-loading {
+  position: absolute;
+  inset: 73px 0 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  color: #d8e8f4;
+  background: linear-gradient(135deg, rgba(10, 28, 40, 0.92), rgba(15, 40, 54, 0.82));
+  backdrop-filter: blur(5px);
+}
+
+.trip-map-loading .anticon { font-size: 28px; }
+
+.trip-map-fallback {
+  min-height: 250px;
+  margin-bottom: 24px;
+  padding: 36px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px dashed rgba(125, 211, 252, 0.34);
+  border-radius: 16px;
+  color: #ecf3fa;
+  text-align: center;
+  background: radial-gradient(circle at 50% 0, rgba(55, 180, 255, 0.12), transparent 60%), #10202b;
+}
+
+.trip-map-fallback__icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 4px;
+  place-items: center;
+  border-radius: 50%;
+  color: #7dd3fc;
+  background: rgba(125, 211, 252, 0.12);
+  font-size: 22px;
+}
+
+.trip-map-fallback strong { font-size: 17px; }
+.trip-map-fallback > span:last-child { max-width: 560px; color: rgba(236, 243, 250, 0.68); }
+
+.trip-map-marker {
+  position: relative;
+  width: 46px;
+  height: 54px;
+  padding: 0;
+  border: 0;
+  color: #07131c;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 7px 12px rgba(0, 0, 0, 0.38));
+  transition: filter 160ms ease, transform 160ms ease;
+}
+
+.trip-map-marker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px 2px 10px 2px;
+  background: #7dd3fc;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.trip-map-marker__core {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: #7dd3fc;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.trip-map-marker:hover,
+.trip-map-marker:focus-visible,
+.trip-map-marker.is-active {
+  z-index: 2;
+  outline: none;
+  filter: drop-shadow(0 0 12px rgba(255, 209, 102, 0.95));
+  transform: translateY(-5px) scale(1.12);
+}
+
+.trip-map-marker.is-active .trip-map-marker__core,
+.trip-map-marker.is-active::after {
+  background: #ffd166;
+}
+
+.trip-map-info {
+  display: flex;
+  width: min(280px, calc(100vw - 48px));
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  border-radius: 12px;
+  color: #ecf3fa;
+  background: rgba(8, 24, 34, 0.96);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
+  font-size: 12px;
+  line-height: 1.45;
+  backdrop-filter: blur(10px);
+}
+
+.trip-map-info strong { color: #fff; font-size: 15px; }
+.trip-map-info span { color: rgba(236, 243, 250, 0.74); }
+
+@media (max-width: 640px) {
+  .trip-map-heading { align-items: flex-start; flex-direction: column; }
+  .trip-map-legend { justify-content: flex-start; }
+  .trip-map-loading { inset-block-start: 116px; }
+}

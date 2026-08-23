@@ -1,43 +1,77 @@
+import AttractionImage from '../AttractionImage'
+import { useTranslation } from 'react-i18next'
+import { Tooltip } from 'antd'
+import './index.css'
+
 interface OverviewAttractionItem {
   name: string
+  city: string
   address: string
   visit_duration: number
   description: string
   dayArrayIndex: number
+  attractionArrayIndex: number
   rating?: number
   ticket_price?: number
   category?: string
+  reservation_required?: boolean
+  reservation_tips?: string
 }
 
 interface OverviewAttractionCardProps {
   item: OverviewAttractionItem
-  imageSrc: string
+  imageUrl?: string
   active: boolean
   onHover?: () => void
-  onSelectDay?: (dayArrayIndex: number) => void
-  onImageError?: () => void
+  onSelect?: () => void
 }
 
 function OverviewAttractionCard({
   item,
-  imageSrc,
+  imageUrl,
   active,
   onHover,
-  onSelectDay,
-  onImageError,
+  onSelect,
 }: OverviewAttractionCardProps) {
+  const { t } = useTranslation()
   return (
     <div
       className={`overview-slide${active ? ' overview-slide-active' : ''}`}
       onMouseEnter={onHover}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && onSelect) {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={t('overviewCard.locate', { name: item.name })}
+      aria-pressed={active}
     >
       <div className="overview-slide-img">
-        <img
-          src={imageSrc || `https://picsum.photos/seed/${encodeURIComponent(item.name)}/400/500`}
-          alt={item.name}
-          loading="lazy"
-          onError={onImageError}
+        <AttractionImage
+          attractionName={item.name}
+          city={item.city}
+          imageUrl={imageUrl}
         />
+        {item.reservation_required && (
+          <Tooltip
+            title={item.reservation_tips || t('overviewCard.reservationFallback')}
+            trigger={['hover', 'focus']}
+            mouseEnterDelay={0}
+          >
+            <span
+              className="overview-reservation-badge"
+              role="note"
+              tabIndex={0}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              🔔 {t('overviewCard.reservation')}
+            </span>
+          </Tooltip>
+        )}
         <svg
           data-name="Layer 1"
           xmlns="http://www.w3.org/2000/svg"
@@ -64,19 +98,7 @@ function OverviewAttractionCard({
       <div className="overview-slide-content">
         <div>
           <h2>{item.name}</h2>
-          <p>{item.description || item.address || '暂无描述'}</p>
-          <a
-            className="show-more"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault()
-              onSelectDay?.(item.dayArrayIndex)
-            }}
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
-            </svg>
-          </a>
+          <p>{item.description || item.address || t('overviewCard.noDescription')}</p>
         </div>
       </div>
     </div>

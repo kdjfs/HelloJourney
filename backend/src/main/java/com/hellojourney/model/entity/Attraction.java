@@ -52,4 +52,23 @@ public class Attraction {
     @JsonProperty("reservation_tips")
     @Schema(description = "预约提示")
     private String reservationTips = "";
+    @JsonProperty("start_time")
+    @Schema(description = "建议开始时间(HH:mm)")
+    private String startTime;
+    @JsonProperty("end_time")
+    @Schema(description = "建议结束时间(HH:mm)")
+    private String endTime;
+    @Builder.Default
+    @Schema(description = "数据来源", example = "map_api")
+    private String source = "ai";
+    @Builder.Default
+    @Schema(description = "数据提供方", example = "tencent")
+    private String provider = "deepseek";
+    @JsonProperty("verified_at")
+    @Schema(description = "外部数据验证时间")
+    private String verifiedAt;
+    @Builder.Default
+    @JsonProperty("verification_status")
+    @Schema(description = "验证状态", example = "ai_suggested")
+    private String verificationStatus = "ai_suggested";
 }

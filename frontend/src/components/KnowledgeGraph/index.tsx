@@ -1,27 +1,41 @@
 import { useState } from 'react'
-import { Typography, Empty } from 'antd'
+import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
+import { Typography, Empty, Alert, Tag, Input, Button } from 'antd'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
 import * as echarts from 'echarts/core'
 import { GraphChart } from 'echarts/charts'
-import { TooltipComponent, TitleComponent } from 'echarts/components'
+import { TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import type { KnowledgeGraphData, GraphCategory } from '../../types/api'
-
-echarts.use([GraphChart, TooltipComponent, TitleComponent, CanvasRenderer])
+import { apiClient } from '../../services/apiClient'
+import { DeepSeekLogo } from '../DeepSeekLogo'
+import type { KnowledgeGraphData, GraphCategory, TripPlan, TripChatResponse } from '../../types/api'
 
 const { Text } = Typography
 
+echarts.use([GraphChart, TooltipComponent, CanvasRenderer])
+
 interface KnowledgeGraphProps {
   graphData: KnowledgeGraphData | null
+  /** 图谱是否由前端根据行程数据推导生成（后端未返回时） */
+  derived?: boolean
+  /** 供 AI 解读使用的行程数据 */
+  tripPlan?: TripPlan | null
 }
 
-const categoryLabels: Record<string, string> = {
-  attraction: '景点',
-  hotel: '酒店',
-  restaurant: '餐厅',
-  transportation: '交通',
-  city: '城市',
-  default: '其他',
+interface SelectedNode {
+  name: string
+  category: number
+  value?: string
+}
+
+const categoryLabelKeys: Record<string, string> = {
+  attraction: 'knowledgeGraph.categoryAttraction',
+  hotel: 'knowledgeGraph.categoryHotel',
+  restaurant: 'knowledgeGraph.categoryRestaurant',
+  transportation: 'knowledgeGraph.categoryTransportation',
+  city: 'knowledgeGraph.categoryCity',
+  default: 'knowledgeGraph.categoryOther',
 }
 
 const categoryColors: Record<string, string> = {
@@ -33,12 +47,21 @@ const categoryColors: Record<string, string> = {
   default: '#ccc',
 }
 
-function getCategoryLabel(name: string): string {
+function getCategoryLabel(name: string, t: TFunction): string {
   const lower = name.toLowerCase()
-  for (const [key, label] of Object.entries(categoryLabels)) {
-    if (lower.includes(key)) return label
+  for (const [key, labelKey] of Object.entries(categoryLabelKeys)) {
+    if (lower.includes(key)) return t(labelKey)
   }
-  return categoryLabels.default
+  return t(categoryLabelKeys.default)
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
 }
 
 function getCategoryColor(name: string, index: number): string {
@@ -50,26 +73,45 @@ function getCategoryColor(name: string, index: number): string {
   return fallback[index % fallback.length]
 }
 
-function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
-  const [error, setError] = useState(false)
+function KnowledgeGraph({ graphData, derived = false, tripPlan }: KnowledgeGraphProps) {
+  const { t } = useTranslation()
+  const [renderError, setRenderError] = useState(false)
+  const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null)
+  const [aiQuestion, setAiQuestion] = useState('')
+  const [aiAnswer, setAiAnswer] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const aiPresetQuestions = [
+    t('knowledgeGraph.presetHighlights'),
+    t('knowledgeGraph.presetRoute'),
+    t('knowledgeGraph.presetBudget'),
+  ]
 
-  if (!graphData) {
+  const nodes = Array.isArray(graphData?.nodes) ? graphData.nodes : []
+  const edges = Array.isArray(graphData?.edges) ? graphData.edges : []
+  const categoriesRaw = Array.isArray(graphData?.categories) ? graphData.categories : []
+
+  if (!graphData || nodes.length === 0) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Empty description="暂无知识图谱数据" />
+        <Empty description={t('knowledgeGraph.empty')} />
       </div>
     )
   }
 
-  if (graphData.nodes.length === 0) {
+  if (renderError) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Empty description="知识图谱节点为空" />
+        <Alert
+          type="error"
+          showIcon
+          message={t('knowledgeGraph.renderFailed')}
+          description={t('knowledgeGraph.renderFailedDetail')}
+        />
       </div>
     )
   }
 
-  const categories: Array<{ name: string; itemStyle: { color: string } }> = graphData.categories.map(
+  const categories: Array<{ name: string; itemStyle: { color: string } }> = categoriesRaw.map(
     (cat: GraphCategory, idx: number) => ({
       name: cat.name,
       itemStyle: { color: getCategoryColor(cat.name, idx) },
@@ -78,12 +120,16 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
 
   const option = {
     tooltip: {
+      backgroundColor: 'rgba(10, 21, 32, 0.95)',
+      borderColor: 'rgba(236, 243, 250, 0.18)',
+      textStyle: { color: '#ecf3fa' },
       formatter: (params: { data?: { name?: string; category?: number; value?: string } }) => {
         if (params.data) {
-          const catName = params.data.category !== undefined && graphData.categories[params.data.category]
-            ? graphData.categories[params.data.category].name
+          const catName = params.data.category !== undefined && categoriesRaw[params.data.category]
+            ? categoriesRaw[params.data.category].name
             : ''
-          return `${params.data.name}<br/>类型：${catName}`
+          const detail = params.data.value ? `<br/>${escapeHtml(params.data.value)}` : ''
+          return `${escapeHtml(params.data.name)}<br/>${escapeHtml(t('knowledgeGraph.type', { category: catName }))}${detail}`
         }
         return ''
       },
@@ -95,14 +141,14 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
         force: { repulsion: 300, edgeLength: [100, 280], gravity: 0.12 },
         roam: true,
         draggable: true,
-        data: graphData.nodes.map((node) => ({
+        data: nodes.map((node) => ({
           name: node.name,
           category: node.category,
           symbolSize: node.symbolSize || 30,
           itemStyle: node.itemStyle,
           value: node.value,
         })),
-        links: graphData.edges.map((edge) => ({
+        links: edges.map((edge) => ({
           source: edge.source,
           target: edge.target,
           label: edge.label ? { show: true, formatter: edge.label } : undefined,
@@ -111,10 +157,14 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
         label: {
           show: true,
           fontSize: 12,
-          color: '#333',
+          color: '#e8f0f8',
+        },
+        edgeLabel: {
+          color: 'rgba(236, 243, 250, 0.55)',
+          fontSize: 10,
         },
         lineStyle: {
-          color: 'source',
+          color: 'rgba(236, 243, 250, 0.25)',
           curveness: 0.15,
         },
         emphasis: {
@@ -125,12 +175,30 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
     ],
   }
 
-  if (error) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Text type="danger">图表加载失败</Text>
-      </div>
-    )
+  const selectedCategoryName = selectedNode !== null && categoriesRaw[selectedNode.category]
+    ? categoriesRaw[selectedNode.category].name
+    : ''
+  const selectedColor = selectedNode !== null
+    ? getCategoryColor(selectedCategoryName, selectedNode.category)
+    : '#ccc'
+
+  const askAi = async (question: string) => {
+    const text = question.trim()
+    if (!text || aiLoading || !tripPlan) return
+    setAiLoading(true)
+    setAiAnswer('')
+    try {
+      const res = await apiClient.post<TripChatResponse>('/api/chat/ask', {
+        message: text,
+        trip_plan: tripPlan,
+        history: [],
+      })
+      setAiAnswer(res.data.success ? res.data.reply : t('knowledgeGraph.aiUnavailable'))
+    } catch {
+      setAiAnswer(t('knowledgeGraph.networkFailed'))
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   return (
@@ -138,13 +206,47 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
       <ReactEChartsCore
         echarts={echarts}
         option={option}
-        style={{ width: '100%', height: 600 }}
+        style={{ width: '100%', height: 560 }}
         notMerge
-        onError={() => setError(true)}
-        onChartReady={() => {
-          setError(false)
+        opts={{ renderer: 'canvas' }}
+        onEvents={{
+          click: (params: { dataType?: string; data?: { name?: string; category?: number; value?: string } }) => {
+            if (params.dataType === 'node' && params.data) {
+              setSelectedNode({
+                name: params.data.name ?? '',
+                category: params.data.category ?? 0,
+                value: params.data.value,
+              })
+            } else {
+              setSelectedNode(null)
+            }
+          },
         }}
+        onChartReady={() => setRenderError(false)}
       />
+
+      {/* 节点详情面板 */}
+      <div className={`kg-node-detail${selectedNode ? ' has-selection' : ''}`}>
+        {selectedNode ? (
+          <>
+            <span className="kg-node-detail-dot" style={{ background: selectedColor }} />
+            <strong>{selectedNode.name}</strong>
+            <Tag style={{ marginInlineStart: 4 }}>{getCategoryLabel(selectedCategoryName, t)}</Tag>
+            {selectedNode.value && <p>{selectedNode.value}</p>}
+          </>
+        ) : (
+          <span className="kg-node-detail-hint">{t('knowledgeGraph.interactionHint')}</span>
+        )}
+      </div>
+
+      {derived && (
+        <div style={{ textAlign: 'center', marginTop: 8 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t('knowledgeGraph.derived')}
+          </Text>
+        </div>
+      )}
+
       <div className="kg-legend" style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -152,8 +254,9 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
         justifyContent: 'center',
         marginTop: 16,
         padding: '0 16px',
+        color: 'rgba(236, 243, 250, 0.8)',
       }}>
-        {graphData.categories.map((cat: GraphCategory, idx: number) => (
+        {categoriesRaw.map((cat: GraphCategory, idx: number) => (
           <span key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
             <span style={{
               width: 10,
@@ -162,9 +265,66 @@ function KnowledgeGraph({ graphData }: KnowledgeGraphProps) {
               backgroundColor: getCategoryColor(cat.name, idx),
               display: 'inline-block',
             }} />
-            {getCategoryLabel(cat.name)}
+            {getCategoryLabel(cat.name, t)}
           </span>
         ))}
+      </div>
+
+      {/* AI 图谱解读（DeepSeek，走后端接口） */}
+      <div className="kg-ai-box">
+        <div className="kg-ai-head">
+          <i className="kg-ai-logo"><DeepSeekLogo size={18} /></i>
+          <span>{t('knowledgeGraph.aiTitle')}</span>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t('knowledgeGraph.aiProvider')}
+          </Text>
+        </div>
+
+        {!tripPlan ? (
+          <p className="kg-ai-empty">{t('knowledgeGraph.noPlan')}</p>
+        ) : (
+          <>
+            <div className="kg-ai-presets">
+              {aiPresetQuestions.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  className="kg-ai-preset"
+                  disabled={aiLoading}
+                  onClick={() => void askAi(question)}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+
+            <div className="kg-ai-input">
+              <Input.TextArea
+                value={aiQuestion}
+                onChange={(e) => setAiQuestion(e.target.value)}
+                placeholder={t('knowledgeGraph.questionPlaceholder')}
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                disabled={aiLoading}
+                onPressEnter={(e) => {
+                  if (!e.shiftKey) {
+                    e.preventDefault()
+                    void askAi(aiQuestion)
+                  }
+                }}
+              />
+              <Button
+                type="primary"
+                loading={aiLoading}
+                disabled={!aiQuestion.trim()}
+                onClick={() => void askAi(aiQuestion)}
+              >
+                {t('knowledgeGraph.ask')}
+              </Button>
+            </div>
+
+            {aiAnswer && <div className="kg-ai-answer">{aiAnswer}</div>}
+          </>
+        )}
       </div>
     </div>
   )

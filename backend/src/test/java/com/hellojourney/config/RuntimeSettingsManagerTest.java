@@ -85,22 +85,27 @@ class RuntimeSettingsManagerTest {
     class GetRuntimeSettings {
 
         @Test
-        @DisplayName("Returns all expected keys")
-        void getRuntimeSettings_returnsAllKeys() {
+        @DisplayName("Returns only public status and never secret values")
+        void getRuntimeSettings_neverReturnsSecretValues() {
             Map<String, Object> result = runtimeSettingsManager.getRuntimeSettings();
 
-            assertThat(result).containsKeys(
-                    "tencent_maps_key",
-                    "google_maps_api_key",
-                    "xhs_cookie",
-                    "llm_active_provider",
-                    "llm_providers"
+            assertThat(result).containsKeys("llm_active_provider", "llm_providers");
+            assertThat(result).doesNotContainKeys(
+                    "tencent_maps_key", "google_maps_api_key", "xhs_cookie",
+                    "xhs_xs", "xhs_xs_common", "xhs_xt"
             );
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> providers = (List<Map<String, Object>>) result.get("llm_providers");
+            assertThat(providers).allSatisfy(provider -> {
+                assertThat(provider).doesNotContainKeys("api_key", "base_url");
+                assertThat(provider).containsKeys("key", "name", "model", "configured");
+            });
         }
 
         @Test
-        @DisplayName("Null values converted to empty")
-        void getRuntimeSettings_nullValues_convertedToEmpty() {
+        @DisplayName("Configured flags are false for null values")
+        void getRuntimeSettings_nullValues_reportNotConfigured() {
             when(appSettings.getTencentMapsKey()).thenReturn(null);
             when(appSettings.getGoogleMapsApiKey()).thenReturn(null);
             when(appSettings.getXhsCookie()).thenReturn(null);
@@ -108,9 +113,9 @@ class RuntimeSettingsManagerTest {
 
             Map<String, Object> result = runtimeSettingsManager.getRuntimeSettings();
 
-            assertThat(result.get("tencent_maps_key")).isEqualTo("");
-            assertThat(result.get("google_maps_api_key")).isEqualTo("");
-            assertThat(result.get("xhs_cookie")).isEqualTo("");
+            assertThat(result.get("tencent_maps_configured")).isEqualTo(false);
+            assertThat(result.get("google_maps_configured")).isEqualTo(false);
+            assertThat(result.get("xhs_configured")).isEqualTo(false);
             assertThat(result.get("llm_active_provider")).isEqualTo("");
         }
     }
@@ -126,7 +131,7 @@ class RuntimeSettingsManagerTest {
 
             Map<String, Object> result = runtimeSettingsManager.updateRuntimeSettings(updates);
 
-            assertThat(result.get("tencent_maps_key")).isEqualTo("new-tencent-key");
+            assertThat(result.get("tencent_maps_configured")).isEqualTo(true);
             verify(appSettings).setTencentMapsKey("new-tencent-key");
         }
 

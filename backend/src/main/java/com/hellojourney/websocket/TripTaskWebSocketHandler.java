@@ -2,24 +2,34 @@ package com.hellojourney.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hellojourney.controller.TripController;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class TripTaskWebSocketHandler extends TextWebSocketHandler {
     private final TripController tripController;
     private final ObjectMapper objectMapper;
+    private final TaskExecutor webSocketExecutor;
+
+    public TripTaskWebSocketHandler(
+            TripController tripController,
+            ObjectMapper objectMapper,
+            @Qualifier("webSocketExecutor") TaskExecutor webSocketExecutor) {
+        this.tripController = tripController;
+        this.objectMapper = objectMapper;
+        this.webSocketExecutor = webSocketExecutor;
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -45,7 +55,7 @@ public class TripTaskWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        BlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>();
+        BlockingQueue<Map<String, Object>> queue = new ArrayBlockingQueue<>(64);
         task.getSubscribers().add(queue);
 
         Map<String, Object> snapshot = buildTaskEvent(taskId, task, true);
@@ -61,7 +71,7 @@ public class TripTaskWebSocketHandler extends TextWebSocketHandler {
         session.getAttributes().put("queue", queue);
 
         TripController.TaskState finalTask = task;
-        new Thread(() -> {
+        webSocketExecutor.execute(() -> {
             try {
                 while (session.isOpen()) {
                     Map<String, Object> event = queue.poll(30, TimeUnit.SECONDS);
@@ -72,12 +82,15 @@ public class TripTaskWebSocketHandler extends TextWebSocketHandler {
                         }
                     }
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             } catch (Exception e) {
+                log.debug("任务事件连接关闭 (task_id={}, type={})", taskId, e.getClass().getSimpleName());
             } finally {
                 finalTask.getSubscribers().remove(queue);
                 try { session.close(); } catch (Exception ignored) {}
             }
-        }).start();
+        });
     }
 
     @Override
