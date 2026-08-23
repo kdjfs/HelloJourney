@@ -11,10 +11,11 @@
 | 日期 | 2026-08-21 |
 | 来源分支 | `test/hello-journey-v3-upgrade` |
 | 目标分支 | `main` |
-| 来源分支 HEAD | `6131112` fix(ui): force dark hotel text on white card for readability |
+| 来源分支 HEAD | `bceae82` chore(config): wire AMap JS security code and pass XHS keys through compose |
 | main HEAD（合并基线） | `a479cba` docs: 补充了 HelloJourney 项目三个子模块的完整说明文档（2026-05-23） |
-| 版本关系 | main 是来源分支的祖先（`git merge-base` = `a479cba`），main 无独有提交 → 合并为干净 fast-forward，预期无冲突 |
-| 差异规模 | 31 个提交，153 个文件，+18,462 / -2,110 行 |
+| 版本关系 | main 是来源分支的祖先（已核验 `git merge-base` = `a479cba`，main 无独有提交）→ 可 fast-forward，预期无冲突 |
+| 差异规模 | 42 个提交（31 个 V3 基础升级 + 10 个 codex 前端升级/文档 + 1 个配置接线/发布说明） |
+| 保护标签 | `v2-before-v3-upgrade` → `a479cba`（已创建并核验，勿删除） |
 | 远程仓库 | https://github.com/kdjfs/HelloJourney.git |
 
 ---
@@ -68,6 +69,17 @@
 - 前后端多阶段 Dockerfile、Nginx 同源反向代理（含 WebSocket、CSP 等安全响应头）、healthcheck、`docker-compose.dev.yml`。
 - `package-lock.json` 提交、Vitest + Testing Library、ESLint 配置。
 - 安全边界：Settings 接口不返回 Secret、生产默认禁写 Secret（Admin Token 可选）、错误响应与日志脱敏、CORS/WebSocket Origin 显式配置。
+
+### 9. codex 前端体验升级（2026-08-21 追加，9 个功能提交）
+
+- **景点地图总览**：暗色 3D 高德地图（JS API 2.0 + 安全密钥）、编号 Marker、InfoWindow、Driving → Walking → 直线降级、卡片定位联动；无 Key / 无坐标确定性降级。
+- **中/英/日 i18n**：345 个等量语言键；AntD、Day.js、请求语言同步；`hj.locale` 持久化；语言切换测试。
+- **攻略图片导出**：摘要、预算、地图、逐日行程合成 PNG（两阶段截图、`preserveDrawingBuffer`）；地图失败自动导出无地图版本。
+- **编辑实时联动**：增删改/排序/跨天移动/酒店修改/undo/redo 与地图、知识图谱、预算实时同步（`derivedPlan` 统一派生）。
+- **预约提醒**：概览醒目角标 + Tooltip；每日行程 Tag 保留并完成 i18n。
+- **Web 设置页**：`/settings` 只读配置状态页（NavBar 入口、未配置指引），无 Secret 表单。
+- **性能与结构**：ECharts 官方模块化导入（KnowledgeGraph chunk 1,142kB → 532kB，gzip 约 -53%）；AI 助手升级为正式结果页签；地图实例保活以支持跨页签导出。
+- **本轮配置接线**（`bceae82`）：TripMap 传递 `securityJsCode` 到 amap-jsapi-loader；compose 透传 `XHS_*` 与 `VITE_AMAP_*`；frontend Dockerfile 声明 AMap 构建参数；新增本发布说明。
 
 ---
 
@@ -263,6 +275,62 @@
 | `uniapp/src/pages/settings/settings.vue` | M | 设置页（密钥不再直接写入展示） |
 | `uniapp/src/types/api.ts` | M | 类型同步 |
 
+### codex 前端升级文件（追加批次）
+
+| 文件 | 类型 | 修改目的 |
+| --- | --- | --- |
+| `frontend/src/components/TripMap/index.tsx` | A | 行程地图总览：3D 高德地图、编号 Marker、InfoWindow、路线降级、保活 |
+| `frontend/src/components/TripMap/amapAdapter.ts` | A | 高德适配层：坐标/路线/覆盖物与 DOM 绑定 |
+| `frontend/src/components/TripMap/amapAdapter.test.ts` | A | 适配层单测 |
+| `frontend/src/components/TripMap/mapDom.ts` | A | Marker/InfoWindow DOM 构建 |
+| `frontend/src/components/TripMap/TripMapFallback.tsx` | A | 无 Key/无坐标/加载失败确定性降级 |
+| `frontend/src/components/TripMap/index.css` | A | 地图容器与 Marker 样式 |
+| `frontend/src/components/TripMap/index.test.tsx` | A | 地图组件测试（含 Key 环境变量分支） |
+| `frontend/src/i18n/index.ts` | A | i18next 初始化、语言探测与 `hj.locale` 持久化 |
+| `frontend/src/i18n/locales/zh.json` | A | 中文语言包 |
+| `frontend/src/i18n/locales/en.json` | A | 英文语言包 |
+| `frontend/src/i18n/locales/ja.json` | A | 日文语言包 |
+| `frontend/src/i18n/index.test.tsx` | A | 语言切换与持久化测试 |
+| `frontend/src/components/AppProviders/index.tsx` | A | AntD/i18next/Day.js 统一 Provider |
+| `frontend/src/pages/Settings/index.tsx` | A | `/settings` 只读配置状态页 |
+| `frontend/src/pages/Settings/index.css` | A | 设置页样式 |
+| `frontend/src/pages/Settings/index.test.tsx` | A | 设置页测试 |
+| `frontend/src/features/export/model/domCapture.ts` | A | 两阶段 PNG 截图（摘要/预算/地图/逐日行程） |
+| `frontend/src/features/trip-workspace/model/derivedPlan.ts` | A | 编辑态统一派生（地图/图谱/预算实时联动） |
+| `frontend/src/components/NavBar/index.tsx` | A/M | 导航与设置入口 |
+| `frontend/src/components/AIChat/index.tsx` | M | 升级为正式结果页签（保留悬浮入口） |
+| `frontend/src/components/BudgetPanel/index.tsx` | M | i18n + 联动派生 |
+| `frontend/src/components/KnowledgeGraph/index.tsx` | M | ECharts 模块化导入 + i18n |
+| `frontend/src/components/TripDayCard/index.tsx` | M | 预约提醒 Tag + i18n |
+| `frontend/src/components/OverviewAttractionCard/index.tsx` | M | 预约提醒角标/Tooltip + i18n |
+| `frontend/src/components/AttractionImage/index.tsx` | M | i18n + 联动 |
+| `frontend/src/components/AsyncState/index.tsx` | M | i18n |
+| `frontend/src/components/AppErrorBoundary/index.tsx` | M | i18n |
+| `frontend/src/components/VerificationBadge/index.tsx` | M | i18n |
+| `frontend/src/features/export/model/tripExport.ts` | M | 地图感知导出 + 无地图降级 |
+| `frontend/src/features/export/ui/TripExportActions.tsx` | M | 导出交互 + i18n |
+| `frontend/src/features/trip-workspace/ui/EditableTripDays.tsx` | M | 实时联动 + 预约 Tag + i18n |
+| `frontend/src/features/trip-workspace/ui/editableTripDays.css` | M | 白色信息卡片与深色文字 |
+| `frontend/src/pages/Result/index.tsx` | M | 地图页签、AI 页签、联动、i18n |
+| `frontend/src/pages/Result/index.css` | M | 地图/导出/提醒样式 |
+| `frontend/src/pages/Landing/index.tsx` | M | i18n + 请求语言 |
+| `frontend/src/router/index.tsx` | M | `/settings` 路由 |
+| `frontend/src/services/settingsApi.ts` | M | 设置状态类型同步 |
+| `frontend/src/services/tripApi.ts` | M | 请求语言头同步 |
+| `frontend/src/utils/env.ts` | M | 新增 `getAmapSecurityJsCode()` |
+| `frontend/src/types/api.ts` | M | 预约提醒/地图所需类型 |
+| `frontend/src/mocks/handlers.ts` | M | 地图/预约字段 Mock 同步 |
+| `frontend/src/mocks/mockData.ts` | M | Mock 数据补充 |
+| `frontend/.env.example` | M | 新增 `VITE_AMAP_WEB_JS_KEY`、`VITE_AMAP_SECURITY_JS_CODE` |
+| `frontend/index.html` | M | 语言/字体/构建元信息 |
+| `frontend/vite.config.ts` | M | 高德 chunk 拆分与测试配置 |
+| `frontend/package.json` / `package-lock.json` | M | i18n、@amap/amap-jsapi-loader、dom 截图、测试依赖 |
+| `frontend/Dockerfile` | M | 声明 AMap 构建参数 |
+| `docker-compose.dev.yml` | M | 透传 `VITE_AMAP_*` 与 `XHS_*` |
+| `docs/HELLOJOURNEY_FRONTEND_UPGRADE_INTERVIEW_HIGHLIGHTS_V2.md` | A | 前端升级面试亮点文档 |
+| `docs/HELLOJOURNEY_V3_RELEASE_NOTES.md` | A | 本发布说明 |
+| `docs/MERGE_PLAN.md` | A | 合并计划（见仓库根/同级文档） |
+
 ---
 
 ## 技术架构变化
@@ -361,6 +429,30 @@
 | UniApp `npm run build:mp-weixin` | PASS（仅 Sass legacy API 警告） |
 | Docker `docker compose config --quiet` | PASS |
 | 浏览器 Mock 主流程 | 生成 → Result → 景点新增/undo → Replan 预览/reject → 验证标签 → 移动端 390×844 无溢出 |
+
+### codex 前端升级门禁（2026-08-21）
+
+| 范围 | 结果 |
+| --- | --- |
+| `npm run typecheck` | PASS |
+| `npm run lint` | PASS |
+| `npm run test -- --pool=threads --maxWorkers=1` | PASS（codex 报告 13 files / 25 tests；本轮接线后复跑 12 files / 24 tests，0 失败） |
+| `npm run build` | PASS |
+| `npm audit --omit=dev` | 0 vulnerabilities |
+| 敏感信息扫描 | PASS |
+| Landing / Settings HTTP 冒烟 | 均 200 |
+| KnowledgeGraph chunk | 1,142.47 kB → 532.74 kB（gzip 379.59 kB → 179.54 kB，约 -53%） |
+
+### 本轮配置与运行时复核（2026-08-21，真实 Key）
+
+| 项 | 结果 |
+| --- | --- |
+| `.env` 配置存在性 | AMAP_API_KEY / VITE_AMAP_WEB_JS_KEY / VITE_AMAP_SECURITY_JS_CODE / XHS_COOKIE / TENCENT_MAPS_KEY / LLM_DEEPSEEK_API_KEY 全部 SET |
+| Docker 后端 `/api/settings` | `xhs_configured=true`、`tencent_maps_configured=true`、`llm_active_provider=deepseek` |
+| 高德服务端 Key | `/api/poi/photo`（广州塔/广州）→ `verified=true, provider=amap, confidence=1.0` |
+| 前端 5173（nginx 生产 bundle） | AMap JS Key 已烘焙进 `env-ITiz_L4k.js` |
+| 前端 5174（Vite dev server） | `.env.local` 注入，`env.ts` 转换产物已内联 Key |
+| XHS 边界 | 仅 Cookie 已配置；`XHS_XS/XS_COMMON/XT` 为空，Adapter 按需降级 |
 
 ### 已知环境备注
 
