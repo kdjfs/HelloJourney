@@ -2,15 +2,19 @@ package com.hellojourney.controller;
 
 import com.hellojourney.service.MapDispatcher;
 import com.hellojourney.service.image.AttractionImageService;
+import com.hellojourney.service.image.XhsImageProxyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -21,6 +25,7 @@ import java.util.Map;
 public class PoiController {
     private final MapDispatcher mapDispatcher;
     private final AttractionImageService attractionImageService;
+    private final XhsImageProxyService xhsImageProxyService;
 
     @GetMapping("/detail/{poiId}")
     @Operation(summary = "获取POI详情", description = "根据POI ID获取详细信息")
@@ -54,6 +59,23 @@ public class PoiController {
             log.error("搜索POI失败: {}", e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "搜索POI失败: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/xhs-image")
+    @Operation(summary = "小红书景点图片代理", description = "服务端解析小红书笔记首图并带 Referer 下载，避免直链 403 与过期")
+    public ResponseEntity<byte[]> getXhsAttractionImage(
+            @Parameter(name = "name", description = "景点名称", required = true) @RequestParam String name,
+            @Parameter(name = "city", description = "城市名称") @RequestParam(required = false, defaultValue = "") String city) {
+        if (name.isBlank() || name.length() > 80 || city.length() > 80) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return xhsImageProxyService.loadImage(name, city)
+                .map(payload -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(payload.contentType()))
+                        .cacheControl(CacheControl.maxAge(Duration.ofHours(6)).cachePublic())
+                        .body(payload.bytes()))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/photo")

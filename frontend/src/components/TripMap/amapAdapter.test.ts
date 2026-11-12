@@ -4,6 +4,7 @@ import {
   buildRouteSegments,
   collectAttractionStops,
   createRoutePolyline,
+  hasUsableSecurityCode,
   type AMapNamespace,
   type RoutePoint,
 } from './amapAdapter'
@@ -79,7 +80,7 @@ describe('TripMap AMap adapter', () => {
 
     expect(polylineOptions[0]).toMatchObject({
       path: [[116.4, 39.9], [116.41, 39.91]],
-      strokeColor: '#6ad38f',
+      strokeColor: '#1f8a5f',
     })
   })
 
@@ -93,7 +94,37 @@ describe('TripMap AMap adapter', () => {
 
     expect(polylineOptions[0]).toMatchObject({
       path: [[116.4, 39.9], [116.41, 39.91]],
-      strokeColor: '#ffd166',
+      strokeColor: '#c9752a',
     })
+  })
+})
+
+describe('TripMap security code detection', () => {
+  const customStyle = 'amap://styles/darkblue'
+  const plainStyle = 'normal'
+
+  function namespaceWith(jscode?: string): AMapNamespace {
+    return { getConfig: () => ({ jscode }) } as unknown as AMapNamespace
+  }
+
+  it('accepts the map when the SDK resolved a security code', () => {
+    expect(hasUsableSecurityCode(namespaceWith('4c35d8fe'), '4c35d8fe', customStyle)).toBe(true)
+  })
+
+  it('rejects a configured security code that never reached the SDK', () => {
+    expect(hasUsableSecurityCode(namespaceWith(''), '4c35d8fe', customStyle)).toBe(false)
+    expect(hasUsableSecurityCode(namespaceWith(undefined), '4c35d8fe', customStyle)).toBe(false)
+  })
+
+  it('rejects a custom style that has no security code to fetch it with', () => {
+    expect(hasUsableSecurityCode(namespaceWith(''), '', customStyle)).toBe(false)
+  })
+
+  it('keeps a plain style usable when no security code is configured', () => {
+    expect(hasUsableSecurityCode(namespaceWith(''), '', plainStyle)).toBe(true)
+  })
+
+  it('never blocks a map when the SDK exposes no runtime config', () => {
+    expect(hasUsableSecurityCode({} as AMapNamespace, '4c35d8fe', customStyle)).toBe(true)
   })
 })

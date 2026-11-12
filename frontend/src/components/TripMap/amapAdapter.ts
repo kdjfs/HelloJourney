@@ -1,26 +1,23 @@
-import type { Attraction, Location, TripPlan } from '@/types/api'
+import { samePoint, toRoutePoint } from './mapGeometry'
+import type { RouteMode, RoutePoint, RouteSegment } from './mapGeometry'
 
-export type RoutePoint = [longitude: number, latitude: number]
-export type RouteMode = 'driving' | 'walking' | 'straight'
-
-export interface MapAttractionStop {
-  key: string
-  dayIndex: number
-  attractionIndex: number
-  point: RoutePoint
-  attraction: Attraction
-}
-
-export interface RouteSegment {
-  start: RoutePoint
-  end: RoutePoint
-}
+/**
+ * 本文件只保留 AMap 专有的部分：命名空间类型、路线服务调用、折线样式。
+ * 与 SDK 无关的几何计算搬到了 ./mapGeometry，由 AMap 和 Google 两个渲染器共用。
+ *
+ * 下面几行是历史入口的转发：已有调用方和测试仍然可以从 './amapAdapter'
+ * 取到这些类型与函数，不必改 import 路径。
+ */
+export { buildRouteSegments, collectAttractionStops, toRoutePoint } from './mapGeometry'
+export type { MapAttractionStop, RouteMode, RoutePoint, RouteSegment } from './mapGeometry'
 
 export interface AMapMap {
   add(overlays: AMapOverlay | AMapOverlay[]): void
   destroy(): void
   setFitView(overlays?: AMapOverlay[], immediately?: boolean, avoid?: number[], maxZoom?: number): void
   setZoomAndCenter(zoom: number, center: RoutePoint): void
+  /** 容器尺寸变化（例如全屏切换）后需要通知地图重算画布大小 */
+  resize?(): void
 }
 
 export interface AMapMarker {
@@ -60,96 +57,47 @@ export interface AMapNamespace {
   Walking?: RouteServiceConstructor
   Pixel: new (x: number, y: number) => unknown
   DrivingPolicy?: { LEAST_TIME?: number }
+  /** Runtime config exposed by JSAPI 2.0; carries the resolved `jscode`. */
+  getConfig?: () => { jscode?: string }
 }
 
 const ROUTE_STYLES: Record<RouteMode, Record<string, unknown>> = {
   driving: {
-    strokeColor: '#37b4ff',
+    strokeColor: '#2f7fd0',
     strokeWeight: 5,
-    strokeOpacity: 0.92,
+    strokeOpacity: 0.95,
     strokeStyle: 'solid',
     lineJoin: 'round',
     lineCap: 'round',
-    outlineColor: 'rgba(4, 19, 32, 0.72)',
-    borderWeight: 1,
+    outlineColor: 'rgba(255, 255, 255, 0.92)',
+    borderWeight: 1.5,
   },
   walking: {
-    strokeColor: '#6ad38f',
+    strokeColor: '#1f8a5f',
     strokeWeight: 4,
-    strokeOpacity: 0.9,
+    strokeOpacity: 0.95,
     strokeStyle: 'dashed',
     strokeDasharray: [12, 8],
     lineJoin: 'round',
     lineCap: 'round',
-    outlineColor: 'rgba(8, 32, 20, 0.55)',
-    borderWeight: 1,
+    outlineColor: 'rgba(255, 255, 255, 0.85)',
+    borderWeight: 1.5,
   },
   straight: {
-    strokeColor: '#ffd166',
+    strokeColor: '#c9752a',
     strokeWeight: 3,
-    strokeOpacity: 0.85,
+    strokeOpacity: 0.92,
     strokeStyle: 'dashed',
     strokeDasharray: [8, 8],
     lineJoin: 'round',
     lineCap: 'round',
-    outlineColor: 'rgba(33, 17, 8, 0.52)',
-    borderWeight: 1,
+    outlineColor: 'rgba(255, 255, 255, 0.8)',
+    borderWeight: 1.5,
   },
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null
-}
-
-export function toRoutePoint(location?: Location | null): RoutePoint | null {
-  if (!location) return null
-  const longitude = Number(location.longitude)
-  const latitude = Number(location.latitude)
-  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null
-  if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) return null
-  if (longitude === 0 && latitude === 0) return null
-  return [longitude, latitude]
-}
-
-export function collectAttractionStops(plan: TripPlan): MapAttractionStop[] {
-  return plan.days.flatMap((day, dayIndex) =>
-    day.attractions.flatMap((attraction, attractionIndex) => {
-      const point = toRoutePoint(attraction.location)
-      return point
-        ? [{
-            key: `${dayIndex}-${attractionIndex}`,
-            dayIndex,
-            attractionIndex,
-            point,
-            attraction,
-          }]
-        : []
-    }),
-  )
-}
-
-function samePoint(a: RoutePoint, b: RoutePoint): boolean {
-  return a[0] === b[0] && a[1] === b[1]
-}
-
-export function buildRouteSegments(plan: TripPlan, stops: MapAttractionStop[]): RouteSegment[] {
-  return plan.days.flatMap((day, dayIndex) => {
-    const attractionPoints = stops
-      .filter((stop) => stop.dayIndex === dayIndex)
-      .sort((a, b) => a.attractionIndex - b.attractionIndex)
-      .map((stop) => stop.point)
-
-    if (attractionPoints.length === 0) return []
-    const hotelPoint = toRoutePoint(day.hotel?.location)
-    const orderedPoints = hotelPoint
-      ? [hotelPoint, ...attractionPoints, hotelPoint]
-      : attractionPoints
-
-    return orderedPoints.slice(0, -1).flatMap((start, index) => {
-      const end = orderedPoints[index + 1]
-      return samePoint(start, end) ? [] : [{ start, end }]
-    })
-  })
 }
 
 function pointFromUnknown(raw: unknown): RoutePoint | null {
@@ -256,4 +204,28 @@ export async function createRoutePolyline(
   }
 
   return new AMap.Polyline({ path: [segment.start, segment.end], ...ROUTE_STYLES.straight, showDir: true, zIndex: 90 })
+}
+
+/**
+ * `@amap/amap-jsapi-loader` only forwards key/version/plugins to the JSAPI script
+ * URL, so the security code has to reach the SDK through
+ * `window._AMapSecurityConfig` before the bundle executes. AMap appends the
+ * resolved value to tile and service requests as `jscode`, and rejects requests
+ * without it — which paints an empty canvas instead of throwing. Detecting the
+ * mismatch keeps that failure explainable instead of silent.
+ *
+ * Returns true when the SDK exposes no runtime config, so a build that does not
+ * surface `getConfig` never blocks a map that would otherwise render.
+ */
+export function hasUsableSecurityCode(
+  AMap: AMapNamespace,
+  configuredSecurityJsCode: string,
+  mapStyle: string,
+): boolean {
+  const runtimeConfig = AMap.getConfig?.()
+  if (!runtimeConfig) return true
+  if (runtimeConfig.jscode?.trim()) return true
+  // Without a usable code the custom style cannot be fetched either, so both a
+  // configured code and a custom style require the injection to have landed.
+  return !configuredSecurityJsCode && !mapStyle.startsWith('amap://styles/')
 }

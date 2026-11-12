@@ -5,6 +5,11 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HelloJourney - AI Travel Planner</title>
+    <!-- AMap needs window._AMapSecurityConfig before its bundle executes, but it is
+         NOT set here: the deployment CSP (frontend/nginx.conf) forbids inline
+         scripts and would silently block it, leaving the map blank. It is set from
+         the application bundle instead, in src/utils/env.ts#applyAmapSecurityConfig,
+         immediately before @amap/amap-jsapi-loader injects the SDK. -->
   </head>
   <body>
     <div id="root"></div>

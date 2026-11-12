@@ -1,21 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { LoadingOutlined } from '@ant-design/icons'
-import { load as loadAMap } from '@amap/amap-jsapi-loader'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { FullscreenExitOutlined, FullscreenOutlined, LoadingOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { TripPlan } from '@/types/api'
-import { getAmapWebJsKey, getAmapSecurityJsCode } from '@/utils/env'
-import {
-  buildRouteSegments,
-  collectAttractionStops,
-  createRoutePolyline,
-  type AMapInfoWindow,
-  type AMapMap,
-  type AMapMarker,
-  type AMapNamespace,
-  type AMapOverlay,
-} from './amapAdapter'
+import { isMapProviderReady, useMapProvider } from '@/features/map-provider/model/mapProvider'
+import type { MapProvider } from '@/features/map-provider/model/mapProvider'
+import { createAmapRenderer } from './amapRenderer'
+import { createGoogleRenderer } from './googleRenderer'
+import { collectAttractionStops } from './mapGeometry'
+import { isMapRendererError } from './mapRenderer'
+import type { MapRenderer, MapRendererContext } from './mapRenderer'
 import TripMapFallback from './TripMapFallback'
-import { buildInfoWindowElement, buildMarkerElement } from './mapDom'
 import './index.css'
 
 export interface TripMapSelection {
@@ -28,157 +22,186 @@ interface TripMapProps {
   selectedAttraction?: TripMapSelection | null
 }
 
-interface MarkerBinding {
-  marker: AMapMarker
-  infoWindow: AMapInfoWindow
-  element: HTMLButtonElement
-  point: [number, number]
-  handlers: Record<'mouseover' | 'mouseout' | 'click', () => void>
-  keyHandler: (event: KeyboardEvent) => void
+type MapPhase = 'loading' | 'ready' | 'load-error' | 'security-code-missing'
+
+/**
+ * 按用户选定的底图挑渲染器。
+ *
+ * 两家 SDK 的差异全部关在各自的 renderer 里，这里只做一次二选一，
+ * 页面其余部分（标题、图例、全屏、兜底）对两套实现是同一份代码。
+ */
+function createRenderer(provider: MapProvider, context: MapRendererContext): Promise<MapRenderer> {
+  return provider === 'google'
+    ? createGoogleRenderer(context)
+    : createAmapRenderer(context)
 }
 
-type MapPhase = 'loading' | 'ready' | 'load-error'
+/**
+ * 地图只关心「点位与路线的几何形状」，不关心 plan 对象的引用。
+ * 由此派生出稳定签名：工作区里任何一次编辑（撤销、保存、切换标签页）
+ * 都会产生新的 plan 引用，若直接依赖 plan，地图实例会被反复销毁重建，
+ * 这正是行程页卡顿的主要来源之一。
+ */
+function buildPlanSignature(plan: TripPlan): string {
+  const parts: string[] = []
+  plan.days.forEach((day, dayIndex) => {
+    const hotel = day.hotel?.location
+    parts.push(`h${dayIndex}:${hotel?.longitude ?? ''},${hotel?.latitude ?? ''}`)
+    day.attractions.forEach((attraction, attractionIndex) => {
+      const location = attraction.location
+      parts.push(
+        `a${dayIndex}-${attractionIndex}:${location?.longitude ?? ''},${location?.latitude ?? ''}:${attraction.name}`,
+      )
+    })
+  })
+  return parts.join('|')
+}
 
-const AMAP_PLUGINS = [
-  'AMap.Marker',
-  'AMap.Polyline',
-  'AMap.InfoWindow',
-  'AMap.Driving',
-  'AMap.Walking',
-]
-
-export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
+function TripMap({ plan, selectedAttraction }: TripMapProps) {
   const { t, i18n } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<AMapMap | null>(null)
-  const markerBindingsRef = useRef(new Map<string, MarkerBinding>())
+  const rendererRef = useRef<MapRenderer | null>(null)
   const [phase, setPhase] = useState<MapPhase>('loading')
-  const webKey = getAmapWebJsKey()
-  const securityJsCode = getAmapSecurityJsCode()
+  const [expanded, setExpanded] = useState(false)
+  const provider = useMapProvider()
+  const providerReady = isMapProviderReady(provider)
   const stops = useMemo(() => collectAttractionStops(plan), [plan])
+  const planSignature = useMemo(() => buildPlanSignature(plan), [plan])
+
+  // 回调/文案/数据都从 ref 读取，effect 的依赖里只留真正需要重建地图的量。
+  // ref 必须在 effect 里写入（渲染期写 ref 会被 react-hooks 规则拦截）；
+  // 这两个同步 effect 声明在地图 effect 之前，保证同一轮更新里先同步再重建。
+  const planRef = useRef(plan)
+  const translateRef = useRef(t)
 
   useEffect(() => {
-    if (!webKey || stops.length === 0 || !containerRef.current) return
+    planRef.current = plan
+  }, [plan])
+
+  useEffect(() => {
+    translateRef.current = t
+  }, [t])
+
+  /* 全屏：锁滚动 + Esc 退出 */
+  useEffect(() => {
+    if (!expanded) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpanded(false)
+    }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [expanded])
+
+  /* 容器尺寸变化后通知地图重算画布，否则全屏时地图会被裁切 */
+  useEffect(() => {
+    const host = containerRef.current
+    if (!host || typeof ResizeObserver === 'undefined') return
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        rendererRef.current?.resize?.()
+      })
+    })
+    observer.observe(host)
+    return () => {
+      observer.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!providerReady || !container) return
+    const currentPlan = planRef.current
+    const currentStops = collectAttractionStops(currentPlan)
+    if (currentStops.length === 0) return
     let cancelled = false
-    const markerBindings = markerBindingsRef.current
-    const mapOverlays: AMapOverlay[] = []
     setPhase('loading')
 
     const initialize = async () => {
       try {
-        const AMap = await loadAMap({
-          key: webKey,
-          version: '2.0',
-          plugins: AMAP_PLUGINS,
-          ...(securityJsCode ? { securityJsCode } : {}),
-        } as Parameters<typeof loadAMap>[0] & { securityJsCode?: string }) as AMapNamespace
-        if (cancelled || !containerRef.current) return
-
-        const map = new AMap.Map(containerRef.current, {
-          zoom: 12,
-          center: stops[0].point,
-          viewMode: '3D',
-          mapStyle: 'amap://styles/darkblue',
-          WebGLParams: { preserveDrawingBuffer: true },
+        const renderer = await createRenderer(provider, {
+          container,
+          plan: currentPlan,
+          stops: currentStops,
+          translate: (key, options) => String(translateRef.current(key, options)),
+          isCancelled: () => cancelled,
         })
-        mapRef.current = map
-
-        stops.forEach((stop, index) => {
-          const label = `${stop.dayIndex + 1}-${stop.attractionIndex + 1}`
-          const element = buildMarkerElement(label, t('tripMap.markerAria', { label, name: stop.attraction.name }))
-          const marker = new AMap.Marker({
-            position: stop.point,
-            content: element,
-            anchor: 'bottom-center',
-            zIndex: 120 + index,
-          })
-          const infoWindow = new AMap.InfoWindow({
-            isCustom: true,
-            content: buildInfoWindowElement(
-              stop.attraction.name,
-              t('tripMap.sequence', { day: stop.dayIndex + 1, index: stop.attractionIndex + 1 }),
-              stop.attraction.address || t('common.addressPending'),
-              t('tripMap.duration', {
-                duration: Number.isFinite(stop.attraction.visit_duration) ? stop.attraction.visit_duration : '—',
-              }),
-            ),
-            offset: new AMap.Pixel(0, -44),
-            closeWhenClickMap: true,
-          })
-          const open = () => infoWindow.open(map, marker.getPosition())
-          const close = () => infoWindow.close()
-          const keyHandler = (event: KeyboardEvent) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              open()
-            }
-          }
-          const handlers = { mouseover: open, mouseout: close, click: open }
-          marker.on('mouseover', handlers.mouseover)
-          marker.on('mouseout', handlers.mouseout)
-          marker.on('click', handlers.click)
-          element.addEventListener('keydown', keyHandler)
-          markerBindings.set(stop.key, { marker, infoWindow, element, point: stop.point, handlers, keyHandler })
-          mapOverlays.push(marker)
-        })
-
-        map.add(mapOverlays)
-        map.setFitView(mapOverlays, false, [56, 40, 56, 40], 16)
-        setPhase('ready')
-
-        for (const segment of buildRouteSegments(plan, stops)) {
-          const polyline = await createRoutePolyline(AMap, segment)
-          if (cancelled) return
-          map.add(polyline)
-          mapOverlays.push(polyline)
+        if (cancelled) {
+          renderer.destroy()
+          return
         }
-        if (!cancelled) map.setFitView(mapOverlays, false, [56, 40, 56, 40], 16)
-      } catch {
-        if (!cancelled) setPhase('load-error')
+        rendererRef.current = renderer
+        setPhase('ready')
+        // 路线在后台补，进度不阻塞底图交互
+        void renderer.drawRoutes()
+      } catch (error) {
+        if (cancelled) return
+        if (isMapRendererError(error) && error.reason === 'cancelled') return
+        if (isMapRendererError(error) && error.reason === 'security-code-missing') {
+          setPhase('security-code-missing')
+          return
+        }
+        setPhase('load-error')
       }
     }
 
     void initialize()
     return () => {
       cancelled = true
-      markerBindings.forEach(({ marker, infoWindow, element, handlers, keyHandler }) => {
-        marker.off('mouseover', handlers.mouseover)
-        marker.off('mouseout', handlers.mouseout)
-        marker.off('click', handlers.click)
-        element.removeEventListener('keydown', keyHandler)
-        infoWindow.close()
-      })
-      markerBindings.clear()
-      mapRef.current?.destroy()
-      mapRef.current = null
+      rendererRef.current?.destroy()
+      rendererRef.current = null
     }
-  }, [i18n.resolvedLanguage, plan, stops, t, webKey, securityJsCode])
+  }, [provider, providerReady, i18n.resolvedLanguage, planSignature])
 
   useEffect(() => {
-    markerBindingsRef.current.forEach(({ element }) => element.classList.remove('is-active'))
-    if (!selectedAttraction || phase !== 'ready') return
-    const binding = markerBindingsRef.current.get(`${selectedAttraction.dayIndex}-${selectedAttraction.attractionIndex}`)
-    if (!binding || !mapRef.current) return
-    binding.element.classList.add('is-active')
-    mapRef.current.setZoomAndCenter(16, binding.point)
-    binding.infoWindow.open(mapRef.current, binding.marker.getPosition())
-  }, [phase, selectedAttraction])
+    const renderer = rendererRef.current
+    if (!renderer) return
+    if (!selectedAttraction || phase !== 'ready') {
+      renderer.clearSelection()
+      return
+    }
+    renderer.selectStop(`${selectedAttraction.dayIndex}-${selectedAttraction.attractionIndex}`)
+  }, [phase, provider, selectedAttraction])
 
-  if (!webKey) return <TripMapFallback kind="missing-key" />
+  if (!providerReady) return <TripMapFallback kind="missing-key" provider={provider} />
   if (stops.length === 0) return <TripMapFallback kind="missing-coordinate" />
-  if (phase === 'load-error') return <TripMapFallback kind="load-error" />
+  if (phase === 'security-code-missing') return <TripMapFallback kind="security-code-missing" />
+  if (phase === 'load-error') return <TripMapFallback kind="load-error" provider={provider} />
 
   return (
-    <section className="trip-map-shell" aria-label={t('tripMap.overview')}>
+    <section
+      className={`trip-map-shell${expanded ? ' is-expanded' : ''}`}
+      aria-label={t('tripMap.overview')}
+    >
       <div className="trip-map-heading">
         <div>
           <span className="trip-map-eyebrow">{t('tripMap.overview')}</span>
           <h2>{t('tripMap.title')}</h2>
         </div>
-        <div className="trip-map-legend" aria-label={t('tripMap.legend')}>
-          <span><i className="is-driving" />{t('tripMap.driving')}</span>
-          <span><i className="is-walking" />{t('tripMap.walking')}</span>
-          <span><i className="is-fallback" />{t('tripMap.straight')}</span>
+        <div className="trip-map-tools">
+          <div className="trip-map-legend" aria-label={t('tripMap.legend')}>
+            <span><i className="is-driving" />{t('tripMap.driving')}</span>
+            <span><i className="is-walking" />{t('tripMap.walking')}</span>
+            <span><i className="is-fallback" />{t('tripMap.straight')}</span>
+          </div>
+          <button
+            type="button"
+            className="trip-map-expand"
+            aria-label={expanded ? t('tripMap.collapse') : t('tripMap.expand')}
+            title={expanded ? t('tripMap.collapse') : t('tripMap.expand')}
+            aria-pressed={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+          </button>
         </div>
       </div>
       <div ref={containerRef} id="trip-map-canvas" className="trip-map-canvas" data-trip-map-capture="true" />
@@ -191,3 +214,9 @@ export default function TripMap({ plan, selectedAttraction }: TripMapProps) {
     </section>
   )
 }
+
+/**
+ * 地图是这一页最贵的子树（WebGL canvas + 大量 overlay）。
+ * 图片陆续返回、卡片选中态变化都不应该让它重新参与渲染。
+ */
+export default memo(TripMap)

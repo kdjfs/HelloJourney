@@ -1,34 +1,41 @@
+/* ==========================================================================
+   行程地图：浅色底图 + 松绿主题标记
+   ========================================================================== */
+
 .trip-map-shell {
   position: relative;
-  margin-bottom: 24px;
   overflow: hidden;
-  border: 1px solid rgba(236, 243, 250, 0.14);
-  border-radius: 16px;
-  background: #10202b;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-xl);
+  background: var(--hj-surface);
+  box-shadow: var(--hj-shadow-sm);
 }
 
 .trip-map-heading {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
-  padding: 18px 20px 16px;
-  color: #ecf3fa;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--hj-border-soft);
+  color: var(--hj-text);
 }
 
 .trip-map-heading h2 {
-  margin: 2px 0 0;
-  color: inherit;
-  font-size: 22px;
+  margin: 3px 0 0;
+  color: var(--hj-text);
+  font-family: var(--hj-font-serif);
+  font-size: 20px;
+  font-weight: 600;
   line-height: 1.25;
 }
 
 .trip-map-eyebrow {
-  color: #7dd3fc;
+  color: var(--hj-primary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .trip-map-legend {
@@ -36,8 +43,9 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px 16px;
-  color: rgba(236, 243, 250, 0.74);
+  color: var(--hj-text-muted);
   font-size: 12px;
+  font-weight: 600;
 }
 
 .trip-map-legend span {
@@ -51,72 +59,145 @@
   border-top: 3px solid;
 }
 
-.trip-map-legend .is-driving { border-color: #37b4ff; }
-.trip-map-legend .is-walking { border-color: #6ad38f; border-top-style: dashed; }
-.trip-map-legend .is-fallback { border-color: #ffd166; border-top-style: dashed; }
+.trip-map-legend .is-driving { border-color: #2f7fd0; }
+.trip-map-legend .is-walking { border-color: #1f8a5f; border-top-style: dashed; }
+.trip-map-legend .is-fallback { border-color: #d99a2b; border-top-style: dashed; }
+
+.trip-map-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.trip-map-expand {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-xs);
+  background: var(--hj-surface);
+  color: var(--hj-text-2);
+  font-size: 15px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
+}
+
+.trip-map-expand:hover {
+  border-color: var(--hj-primary);
+  background: var(--hj-primary-soft);
+  color: var(--hj-primary-strong);
+}
+
+/* ---------- 全屏态：真正铺满整屏，不留缝 ---------- */
+.trip-map-shell.is-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.trip-map-shell.is-expanded .trip-map-canvas {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.trip-map-shell.is-expanded .trip-map-loading {
+  inset: 74px 0 0;
+}
+
+@media (max-width: 640px) {
+  .trip-map-shell.is-expanded .trip-map-heading {
+    padding: 12px 16px 10px;
+  }
+
+  .trip-map-tools {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
 
 .trip-map-canvas {
   width: 100%;
-  height: clamp(340px, 50vw, 520px);
+  height: clamp(340px, 44vw, 480px);
   min-height: 340px;
-  background: #0c1a25;
+  background: #eef1ea;
 }
 
 .trip-map-loading {
   position: absolute;
-  inset: 73px 0 0;
+  inset: 74px 0 0;
   display: grid;
   place-content: center;
   justify-items: center;
   gap: 10px;
-  color: #d8e8f4;
-  background: linear-gradient(135deg, rgba(10, 28, 40, 0.92), rgba(15, 40, 54, 0.82));
-  backdrop-filter: blur(5px);
+  background: rgba(250, 249, 245, 0.94);
+  color: var(--hj-text-2);
+  font-size: 13px;
 }
 
-.trip-map-loading .anticon { font-size: 28px; }
+.trip-map-loading .anticon {
+  font-size: 26px;
+  color: var(--hj-primary);
+}
 
 .trip-map-fallback {
-  min-height: 250px;
-  margin-bottom: 24px;
-  padding: 36px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  border: 1px dashed rgba(125, 211, 252, 0.34);
-  border-radius: 16px;
-  color: #ecf3fa;
+  min-height: 260px;
+  padding: 40px 24px;
+  border: 1px dashed var(--hj-border-strong);
+  border-radius: var(--hj-r-xl);
+  background: var(--hj-surface-2);
+  color: var(--hj-text);
   text-align: center;
-  background: radial-gradient(circle at 50% 0, rgba(55, 180, 255, 0.12), transparent 60%), #10202b;
 }
 
 .trip-map-fallback__icon {
   display: grid;
-  width: 42px;
-  height: 42px;
-  margin-bottom: 4px;
   place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
   border-radius: 50%;
-  color: #7dd3fc;
-  background: rgba(125, 211, 252, 0.12);
+  background: var(--hj-primary-soft);
+  color: var(--hj-primary);
   font-size: 22px;
 }
 
-.trip-map-fallback strong { font-size: 17px; }
-.trip-map-fallback > span:last-child { max-width: 560px; color: rgba(236, 243, 250, 0.68); }
+.trip-map-fallback strong {
+  font-size: 16px;
+  font-weight: 700;
+}
 
+.trip-map-fallback > span:last-child {
+  max-width: 560px;
+  color: var(--hj-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ---------- 标记 ---------- */
 .trip-map-marker {
   position: relative;
-  width: 46px;
-  height: 54px;
+  width: 44px;
+  height: 52px;
   padding: 0;
   border: 0;
-  color: #07131c;
   background: transparent;
+  color: #fff;
   cursor: pointer;
-  filter: drop-shadow(0 7px 12px rgba(0, 0, 0, 0.38));
+  filter: drop-shadow(0 6px 10px rgba(20, 30, 25, 0.28));
   transition: filter 160ms ease, transform 160ms ease;
 }
 
@@ -125,10 +206,10 @@
   position: absolute;
   left: 50%;
   bottom: 1px;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   border-radius: 2px 2px 10px 2px;
-  background: #7dd3fc;
+  background: var(--hj-primary);
   transform: translateX(-50%) rotate(45deg);
 }
 
@@ -136,12 +217,12 @@
   position: relative;
   z-index: 1;
   display: grid;
-  width: 44px;
-  height: 44px;
   place-items: center;
-  border: 3px solid rgba(255, 255, 255, 0.92);
+  width: 42px;
+  height: 42px;
+  border: 3px solid #fff;
   border-radius: 50%;
-  background: #7dd3fc;
+  background: var(--hj-primary);
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
@@ -152,36 +233,52 @@
 .trip-map-marker.is-active {
   z-index: 2;
   outline: none;
-  filter: drop-shadow(0 0 12px rgba(255, 209, 102, 0.95));
-  transform: translateY(-5px) scale(1.12);
+  filter: drop-shadow(0 0 12px rgba(210, 103, 63, 0.85));
+  transform: translateY(-4px) scale(1.1);
 }
 
 .trip-map-marker.is-active .trip-map-marker__core,
 .trip-map-marker.is-active::after {
-  background: #ffd166;
+  background: var(--hj-accent);
 }
 
+/* ---------- 信息窗 ---------- */
 .trip-map-info {
   display: flex;
   width: min(280px, calc(100vw - 48px));
   flex-direction: column;
   gap: 5px;
   padding: 13px 15px;
-  border: 1px solid rgba(125, 211, 252, 0.32);
-  border-radius: 12px;
-  color: #ecf3fa;
-  background: rgba(8, 24, 34, 0.96);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-md);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--hj-shadow);
+  color: var(--hj-text-2);
   font-size: 12px;
-  line-height: 1.45;
-  backdrop-filter: blur(10px);
+  line-height: 1.5;
 }
 
-.trip-map-info strong { color: #fff; font-size: 15px; }
-.trip-map-info span { color: rgba(236, 243, 250, 0.74); }
+.trip-map-info strong {
+  color: var(--hj-text);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.trip-map-info span {
+  color: var(--hj-text-muted);
+}
 
 @media (max-width: 640px) {
-  .trip-map-heading { align-items: flex-start; flex-direction: column; }
-  .trip-map-legend { justify-content: flex-start; }
-  .trip-map-loading { inset-block-start: 116px; }
+  .trip-map-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .trip-map-legend {
+    justify-content: flex-start;
+  }
+
+  .trip-map-loading {
+    inset-block-start: 112px;
+  }
 }
