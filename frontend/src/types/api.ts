@@ -144,6 +144,8 @@ export interface TripPlanResponse {
   data?: TripPlan
   graph_data?: KnowledgeGraphData
   review?: TripReviewResult
+  /** 生成过程中的降级提示（如小红书 Cookie 失效导致景点退化为地图 POI） */
+  warnings?: string[]
 }
 
 export interface CityStay {
@@ -214,6 +216,10 @@ export interface LlmProviderStatus {
 export interface BackendRuntimeSettings {
   tencent_maps_configured: boolean
   google_maps_configured: boolean
+  /** 服务端高德 Web 服务 Key 是否已配置（老版本后端可能不返回该字段） */
+  amap_maps_configured?: boolean
+  /** 后端是否开启运行时敏感配置写入（关闭时设置页的提交会 403） */
+  secret_updates_enabled?: boolean
   xhs_configured: boolean
   llm_active_provider: string
   llm_providers: LlmProviderStatus[]

@@ -24,6 +24,10 @@ public class RuntimeSettingsPayload {
     @Schema(description = "Google Maps API Key")
     private String googleMapsApiKey;
 
+    @JsonProperty("amap_maps_key")
+    @Schema(description = "高德地图 Web 服务 Key（服务端 POI / 路线 / 地理编码）")
+    private String amapMapsKey;
+
     @JsonProperty("xhs_cookie")
     @Schema(description = "小红书Cookie")
     private String xhsCookie;

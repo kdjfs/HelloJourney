@@ -3,9 +3,12 @@ package com.hellojourney.controller;
 import com.hellojourney.agent.TripPlannerAgent;
 import com.hellojourney.config.AppSettings;
 import com.hellojourney.config.RuntimeSettingsManager;
+import com.hellojourney.model.dto.LlmProviderConfig;
 import com.hellojourney.model.dto.RuntimeSettingsPayload;
 import com.hellojourney.service.MapDispatcher;
+import com.hellojourney.service.LlmModelCatalogService;
 import com.hellojourney.service.LlmService;
+import com.hellojourney.service.XhsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -17,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +39,8 @@ public class SettingsController {
     private final MapDispatcher mapDispatcher;
     private final TripPlannerAgent tripPlannerAgent;
     private final AppSettings appSettings;
+    private final XhsService xhsService;
+    private final LlmModelCatalogService modelCatalogService;
 
     @GetMapping("")
     @Operation(summary = "获取当前配置", description = "获取所有运行时配置项，包括地图Key、LLM供应商列表等")
@@ -63,6 +69,7 @@ public class SettingsController {
             Map<String, Object> updates = new LinkedHashMap<>();
             if (payload.getTencentMapsKey() != null) updates.put("tencent_maps_key", payload.getTencentMapsKey());
             if (payload.getGoogleMapsApiKey() != null) updates.put("google_maps_api_key", payload.getGoogleMapsApiKey());
+            if (payload.getAmapMapsKey() != null) updates.put("amap_maps_key", payload.getAmapMapsKey());
             if (payload.getXhsCookie() != null) updates.put("xhs_cookie", payload.getXhsCookie());
             if (payload.getLlmActiveProvider() != null) updates.put("llm_active_provider", payload.getLlmActiveProvider());
             if (payload.getLlmProviders() != null) updates.put("llm_providers", payload.getLlmProviders());
@@ -84,6 +91,30 @@ public class SettingsController {
         }
     }
 
+    /**
+     * 校验一段小红书 Cookie 是否可用（不写入配置）。
+     * 与 PUT /api/settings 同样需要管理员令牌，且需开启 allow-secret-updates。
+     */
+    @PostMapping("/xhs-cookie/validate")
+    @Operation(summary = "校验小红书 Cookie", description = "用传入的 Cookie 试抓一次小红书页面，返回是否有效及原因")
+    public ResponseEntity<Map<String, Object>> validateXhsCookie(
+            @RequestHeader(value = "X-HelloJourney-Admin-Token", required = false) String adminToken,
+            @RequestBody(required = false) Map<String, String> payload) {
+        ResponseEntity<Map<String, Object>> rejection = authorizeSecretUpdate(adminToken);
+        if (rejection != null) {
+            return rejection;
+        }
+
+        String cookie = payload == null ? null : payload.get("cookie");
+        Map<String, Object> validation = xhsService.validateCookie(cookie);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", Boolean.TRUE.equals(validation.get("valid")));
+        response.put("message", validation.get("message"));
+        response.put("data", validation);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/llm-providers")
     @Operation(summary = "获取LLM供应商列表", description = "获取所有LLM供应商配置及可用状态")
     public ResponseEntity<Map<String, Object>> getLlmProviders() {
@@ -97,6 +128,71 @@ public class SettingsController {
                 "providers", providers
         ));
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 拉取 OpenAI 兼容中转站的可用模型。
+     *
+     * <p>密钥只由服务端持有：浏览器把地址与密钥发给本接口，服务端带 Bearer 去请求
+     * {@code {baseUrl}/models}，只回模型 id。密钥不会被回显，也不写进日志。</p>
+     */
+    @PostMapping("/llm/models")
+    @Operation(summary = "拉取中转站可用模型", description = "服务端携带密钥请求 OpenAI 兼容的 /models 接口，返回模型 id 列表")
+    public ResponseEntity<Map<String, Object>> listLlmModels(
+            @RequestHeader(value = "X-HelloJourney-Admin-Token", required = false) String adminToken,
+            @RequestBody(required = false) Map<String, String> payload) {
+        ResponseEntity<Map<String, Object>> rejection = authorizeSecretUpdate(adminToken);
+        if (rejection != null) {
+            return rejection;
+        }
+
+        String baseUrl = payload == null ? null : trimToNull(payload.get("base_url"));
+        String apiKey = payload == null ? null : trimToNull(payload.get("api_key"));
+
+        // 未重新填写时复用当前激活供应商的配置，便于打开面板后直接刷新列表
+        if (baseUrl == null || apiKey == null) {
+            AppSettings.LlmConfig llm = appSettings.getLlm();
+            LlmProviderConfig active = llm != null ? llm.getActiveProviderConfig() : null;
+            if (active != null) {
+                if (baseUrl == null) baseUrl = trimToNull(active.getBaseUrl());
+                if (apiKey == null) apiKey = trimToNull(active.getApiKey());
+            }
+        }
+        if (baseUrl == null || apiKey == null) {
+            return messageResponse(HttpStatus.BAD_REQUEST, false, "请填写中转站地址与密钥");
+        }
+
+        try {
+            List<String> models = modelCatalogService.listModels(baseUrl, apiKey);
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("base_url", baseUrl);
+            data.put("models", models);
+            data.put("count", models.size());
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("success", true);
+            response.put("message", models.isEmpty() ? "中转站未返回可用模型" : "ok");
+            response.put("data", data);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return messageResponse(HttpStatus.BAD_REQUEST, false, e.getMessage());
+        } catch (IOException e) {
+            log.warn("拉取模型列表失败 (baseUrl={})", baseUrl);
+            return messageResponse(HttpStatus.BAD_GATEWAY, false, e.getMessage());
+        }
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static ResponseEntity<Map<String, Object>> messageResponse(
+            HttpStatus status, boolean success, String message) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", success);
+        response.put("message", message);
+        return ResponseEntity.status(status).body(response);
     }
 
     private ResponseEntity<Map<String, Object>> authorizeSecretUpdate(String suppliedToken) {
@@ -129,8 +225,8 @@ public class SettingsController {
         if (raw == null) return result;
 
         Set<String> publicKeys = Set.of(
-                "tencent_maps_configured", "google_maps_configured", "xhs_configured",
-                "llm_active_provider"
+                "tencent_maps_configured", "google_maps_configured", "amap_maps_configured", "xhs_configured",
+                "secret_updates_enabled", "llm_active_provider"
         );
         for (String key : publicKeys) {
             if (raw.containsKey(key)) result.put(key, raw.get(key));
