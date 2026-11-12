@@ -44,7 +44,8 @@ Frontend Nginx :80
 | `LLM_DEEPSEEK_MODEL` | 是 | 默认 `deepseek-v4-pro` |
 | `LLM_SILICONFLOW_API_KEY` | 可选 | 选择 SiliconFlow 时配置 |
 | `TENCENT_MAPS_KEY` | 建议 | POI、地理编码、天气、路线工具 |
-| `GOOGLE_MAPS_API_KEY` | 可选 | Google Maps 备用 Provider |
+| `GOOGLE_MAPS_API_KEY` | 可选 | Google Maps 服务端 Provider（POI / 地理编码 / 路线 / 天气） |
+| `VITE_GOOGLE_MAPS_JS_KEY` | 可选 | Google 地图**底图**的浏览器 Key（构建时内联，按 HTTP 来源限制）。与上一行不是同一把钥匙，详见 [Google 地图接入指南](./GOOGLE_MAPS_INTEGRATION.md) |
 | `CORS_ALLOWED_ORIGINS` | 生产必需 | 逗号分隔的明确 HTTPS Origin，不允许 `*` |
 | `TRIP_TASK_DATA_DIR` | 是 | 单实例任务数据目录，容器默认 `/app/data/trip_tasks` |
 | `SETTINGS_ALLOW_SECRET_UPDATES` | 是 | 生产必须保持 `false`；临时管理也应使用独立后台而非公开 Web UI |
@@ -156,3 +157,60 @@ proxy_read_timeout 360s;
 - 目前没有终端用户认证、配额与公网 API rate limit。对公网发布前应在网关增加认证、限流和 WAF。
 - XHS adapter 受 Cookie 与上游变化影响，仅作为可选增强，不能成为 SLA 依赖。
 - `docker-compose.dev.yml` 是联调基线，不替代生产编排、备份、监控和灾难恢复方案。
+
+## 小红书 Cookie 的日常运维（v3.1 起）
+
+小红书只作为「景点攻略 / 配图」的数据源，链路失败不会阻断行程生成，但会退化为地图 POI 数据。
+
+### 首次配置
+
+1. 后端环境（或 `runtime_settings.json`）设置 `XHS_COOKIE`：浏览器登录 xiaohongshu.com 后，F12 → Network → 任一 `api/sns/web` 请求 → Request Headers → 复制整段 `Cookie`。必须包含 `web_session=0400...`（40 位），游客态的 `web_session=0300...`（32 位）一定失败。
+2. 若希望在网页里直接维护 Cookie，开启运行时写入：
+   ```
+   SETTINGS_ALLOW_SECRET_UPDATES=true
+   SETTINGS_ADMIN_TOKEN=<一段足够长的随机串>
+   ```
+3. 打开 `/settings` → 「小红书 Cookie 管理」→ 粘贴 Cookie + 管理员令牌 → 先「校验 Cookie」再「保存并生效」。
+   - 令牌只放在 `X-HelloJourney-Admin-Token` 请求头里，不写浏览器存储；关闭 `allow-secret-updates` 后该面板必定被拒。
+
+### 常见现象
+
+| 现象 | 含义 | 处理 |
+|---|---|---|
+| 校验返回「Cookie 缺少 web_session」 | 复制的是游客态 Cookie | 确认已登录后重新复制请求头 |
+| 校验返回「页面跳转到了登录页」 | 会话已失效 | 重新登录并替换 Cookie |
+| 生成行程正常但景点是地图 POI | 小红书抓取失败（网络/页面结构） | 看后端日志 `xhs_attraction_adapter_failed` |
+| 同一城市反复生成很慢 | 首次抓取无缓存 | 已内置 6 小时缓存，同城同关键词第二次起走缓存 |
+
+### 已知边界
+
+- 当前实现是 SSR 页面抓取（非签名直连接口），页面结构大改时需要更新 `XhsService.extractInitialState`。
+- 景点配图仍走高德图片服务；小红书图片代理（防盗链 + 磁盘缓存）尚未接入，见 TODO。
+
+## 景点图片：高德 + 小红书双层取图（v3.2）
+
+结果页的景点图现在有两级来源：
+
+1. `AmapAttractionImageProvider`（@Order(10)）：高德 POI 图片，身份可校验，命中即返回。
+2. `XhsAttractionImageProvider`（@Order(20)）：仅在高德解析不出图片时启用，取小红书笔记首图。
+
+小红书图片**不直出直链**（直链带 Referer 校验、分钟级失效，非 localhost 部署会 403 / 破图），而是返回本服务的代理路由：
+
+```
+GET /api/poi/xhs-image?name=<景点名>&city=<城市>
+```
+
+代理逻辑（`XhsImageProxyService`）：
+- 按景点名实时解析小红书首图直链，只允许 `*.xhscdn.com` / `*.xiaohongshu.com` 域名（避免变成开放代理）
+- 带 `Referer: https://www.xiaohongshu.com/` 与浏览器 UA 下载，`8MB` 上限、`callTimeout 25s`
+- 字节流内存缓存 6 小时（LRU 200 条），响应带 `Cache-Control: max-age=6h`
+- 解析结果（直链）单独缓存 20 分钟，避免"校验存在性"和"图片加载"各抓一次小红书
+
+排查：图片 404 且日志有 `xhs_image_resolve_failed` → Cookie 失效或该景点没有可用笔记图，属正常降级（高德也没图）。
+
+## 降级提示如何呈现
+
+小红书 Cookie 失效/抓取失败时，`TripPlanResponse.warnings` 会带上一条中文提示，前端结果页顶部以黄色提示条展示：
+「小红书 Cookie 已失效或未配置，本次「杭州」的景点数据已降级为地图 POI，请到「设置 → 小红书 Cookie 管理」更新后重新生成。」
+
+该字段为空表示链路数据源全部正常。生成过程中 warnings 也会同步写入 `sessionStorage.tripWarnings`，刷新结果页仍可见。
