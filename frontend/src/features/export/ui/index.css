@@ -1,0 +1,26 @@
+/* 「分享到手机」降级预览：让任何浏览器都能通过长按保存长图 */
+.export-share-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.export-share-preview img {
+  display: block;
+  width: 100%;
+  max-height: 52vh;
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-md);
+  background: var(--hj-surface-2);
+  object-fit: contain;
+  /* 手机上长按可保存图片 */
+  -webkit-touch-callout: default;
+  touch-action: manipulation;
+}
+
+.export-share-hint {
+  margin: 0;
+  color: var(--hj-text-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
