@@ -655,6 +655,12 @@
   font-size: 14px;
 }
 
+.stepper-elapsed {
+  color: var(--hj-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .stepper-container {
   display: flex;
   align-items: flex-start;

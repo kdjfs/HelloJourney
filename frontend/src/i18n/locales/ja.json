@@ -161,6 +161,7 @@
     "complete": "完了",
     "planningActive": "旅程を作成中",
     "waiting": "AI エージェントが連携しています。しばらくお待ちください…",
+    "elapsed": "経過 {{time}}",
     "redirecting": "結果ページを開きます…",
     "agentActivity": "Agent の実行状況",
     "cancel": "作成をキャンセル",

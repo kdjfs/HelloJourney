@@ -161,6 +161,7 @@
     "complete": "Complete",
     "planningActive": "Building itinerary",
     "waiting": "AI agents are collaborating. This may take a moment…",
+    "elapsed": "{{time}} elapsed",
     "redirecting": "Opening the result page…",
     "agentActivity": "Agent activity",
     "cancel": "Cancel generation",

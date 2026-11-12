@@ -161,6 +161,7 @@
     "complete": "已完成",
     "planningActive": "生成计划中",
     "waiting": "AI 正在协同工作，请耐心等待…",
+    "elapsed": "已用时 {{time}}",
     "redirecting": "即将跳转到结果页…",
     "agentActivity": "Agent 执行动态",
     "cancel": "取消生成",

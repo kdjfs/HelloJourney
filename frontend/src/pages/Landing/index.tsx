@@ -29,6 +29,13 @@ const CITY_OPTIONS = [
 
 const MAX_TRIP_DAYS = 30
 
+/** 把秒数格式化成 1分23秒 / 45秒，生成可能要几分钟，让用户看到"还在动" */
+function formatElapsed(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
+}
+
 const STAGE_LABEL_KEYS: Record<string, string> = {
   submitted: 'landing.stageSubmitted',
   initializing: 'landing.stageSubmitted',
@@ -102,6 +109,17 @@ function Landing() {
   const generationError = generation?.status === 'failed' || generation?.status === 'cancelled'
     ? (generation.error ?? '')
     : ''
+
+  /* 生成计时：慢模型可能要几分钟，界面必须显示"还在跑"（用 startedAt 起算，切页面也不重置） */
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!loading) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [loading])
+  const elapsedSeconds = loading && generation?.startedAt
+    ? Math.max(0, Math.floor((now - generation.startedAt) / 1000))
+    : 0
 
   /* 偏好选择（自定义 pill 按钮需要单独管理） */
   const [preferences, setPreferences] = useState<string[]>(['历史文化', '美食'])
@@ -562,6 +580,9 @@ function Landing() {
                 <h2 className="stepper-title">{loadingStatus || t('landing.progressPlan')}</h2>
                 <p className="stepper-subtitle">
                   {loadingProgress < 100 ? t('landing.waiting') : t('landing.redirecting')}
+                  {loading && elapsedSeconds > 0 && (
+                    <span className="stepper-elapsed"> · {t('landing.elapsed', { time: formatElapsed(elapsedSeconds) })}</span>
+                  )}
                 </p>
               </div>
 

@@ -19,6 +19,13 @@ import {
 } from './generationContext'
 
 const STORAGE_KEY = 'tripGeneration'
+/**
+ * 前端等待任务的上限，必须与后端 trip.planning.execution-timeout-seconds（默认 600s）对齐。
+ * 之前这里用 waitTaskByPolling 的默认 120s，慢模型（中转站单次调用 100s+）还没跑完
+ * 前端就先报「任务超时」，用户看到失败但后端其实还在算。
+ */
+const POLL_MAX_WAIT_MS = 600_000
+const POLL_INTERVAL_MS = 1_500
 const STAGE_LABEL_KEYS: Record<string, string> = {
   submitted: 'landing.stageSubmitted',
   initializing: 'landing.stageSubmitted',
@@ -196,6 +203,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
         {
           mockByPolling: useMock,
           signal: controller.signal,
+          pollingOptions: { maxWaitMs: POLL_MAX_WAIT_MS, intervalMs: POLL_INTERVAL_MS },
           onTaskSubmitted: (task) => {
             patch({ taskId: task.task_id, planId: task.plan_id, progress: 5, message: task.message })
           },
@@ -272,7 +280,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
               message: event.message || stageLabel(event.stage, 'common.processing'),
             })
           },
-          { signal: controller.signal },
+          { signal: controller.signal, maxWaitMs: POLL_MAX_WAIT_MS, intervalMs: POLL_INTERVAL_MS },
         )
         finishSuccess(response as TripPlanResponse, requestRef.current)
       } catch (error) {
