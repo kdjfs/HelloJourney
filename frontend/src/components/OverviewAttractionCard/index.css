@@ -1,24 +1,164 @@
-.overview-reservation-badge {
+/* ==========================================================================
+   概览景点卡：固定 4:3 媒体区 + 固定行高的正文，网格中永不参差
+   ========================================================================== */
+
+.overview-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-lg);
+  background: var(--hj-surface);
+  box-shadow: var(--hj-shadow-xs);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.overview-card:hover {
+  border-color: var(--hj-border-strong);
+  box-shadow: var(--hj-shadow);
+  transform: translateY(-3px);
+}
+
+.overview-card.is-active {
+  border-color: var(--hj-primary);
+  box-shadow: 0 0 0 2px var(--hj-primary-ring), var(--hj-shadow);
+}
+
+.overview-card:focus-visible {
+  outline: 3px solid var(--hj-primary-ring);
+  outline-offset: 2px;
+}
+
+/* ---------- 媒体区 ---------- */
+.overview-card-media {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--hj-surface-3);
+}
+
+.overview-card-media .attraction-image-root,
+.overview-card-media .attraction-image-placeholder {
+  width: 100%;
+  height: 100%;
+}
+
+.overview-card:hover .attraction-image-root img {
+  transform: scale(1.03);
+}
+
+.overview-card-media .attraction-image-root img {
+  transition: transform 0.35s ease;
+}
+
+.overview-card-day {
   position: absolute;
-  z-index: 5;
-  top: 14px;
-  right: 14px;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 5px 11px;
-  border: 1px solid rgba(255, 241, 236, 0.75);
-  border-radius: 999px;
-  background: rgba(177, 45, 42, 0.94);
-  box-shadow: 0 7px 18px rgba(77, 9, 7, 0.32);
-  color: #fff8f5;
-  font-size: 12px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--hj-r-pill);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--hj-primary-strong);
+  font-size: 11.5px;
   font-weight: 750;
-  letter-spacing: 0.03em;
-  backdrop-filter: blur(8px);
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px rgba(20, 24, 20, 0.16);
+}
+
+.overview-reservation-badge {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(191, 67, 39, 0.35);
+  border-radius: var(--hj-r-pill);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--hj-danger);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 6px rgba(20, 24, 20, 0.14);
 }
 
 .overview-reservation-badge:focus-visible {
-  outline: 3px solid rgba(255, 220, 137, 0.9);
+  outline: 3px solid var(--hj-primary-ring);
   outline-offset: 2px;
+}
+
+/* 来源徽标：配置小红书 Cookie 后，实拍图来自小红书，这里给个可见的标识 */
+.overview-card-source {
+  position: absolute;
+  z-index: 3;
+  bottom: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--hj-r-pill);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--hj-accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(20, 24, 20, 0.16);
+}
+
+/* ---------- 正文 ---------- */
+.overview-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
+}
+
+.overview-card-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  color: var(--hj-text);
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+.overview-card-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.9em;
+  margin: 0;
+  color: var(--hj-text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.overview-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed var(--hj-border-soft);
+  color: var(--hj-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }

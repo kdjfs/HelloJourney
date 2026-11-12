@@ -1,4 +1,7 @@
-/* 图片根容器：填满父级，便于 antd Image 预览 */
+/* ==========================================================================
+   景点图片：容器填满父级，图片 object-fit: cover，缺失时给确定性占位
+   ========================================================================== */
+
 .attraction-image-root.ant-image {
   display: block;
   width: 100%;
@@ -6,16 +9,16 @@
 }
 
 .attraction-image-root .ant-image-img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
 .attraction-image-root .ant-image-mask,
 .attraction-image-root .ant-image-cover {
-  background: rgba(4, 11, 18, 0.42);
   border-radius: 0;
+  background: linear-gradient(180deg, rgba(12, 34, 32, 0.1), rgba(12, 34, 32, 0.55));
 }
 
 .attraction-image-mask {
@@ -23,69 +26,101 @@
   align-items: center;
   gap: 6px;
   color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 650;
   letter-spacing: 0.04em;
 }
 
 .attraction-image-mask-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
 }
 
+/* ---------- 占位：本地内联插画（零请求、约 1KB） ---------- */
 .attraction-image-placeholder {
-  align-items: center;
-  background: #17212b;
-  box-sizing: border-box;
-  color: #f4f7fa;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  height: 100%;
+  align-items: center;
   justify-content: center;
-  min-height: 220px;
-  padding: 24px;
-  text-align: center;
+  gap: 7px;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-align: center;
+  color: var(--hj-text-2);
+  background: var(--hj-surface-3);
+}
+
+.attraction-image-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .attraction-image-placeholder::after {
-  background: #f5593d;
   content: '';
-  height: 2px;
-  margin-top: 4px;
-  opacity: 0.75;
-  width: 32px;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(23, 32, 38, 0.32) 100%);
+  pointer-events: none;
+}
+
+.attraction-image-placeholder__mark,
+.attraction-image-placeholder strong,
+.attraction-image-caption {
+  position: relative;
+  z-index: 1;
 }
 
 .attraction-image-placeholder__mark {
-  align-items: center;
-  border: 1px solid rgb(255 255 255 / 18%);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 50%;
-  display: flex;
-  height: 48px;
-  justify-content: center;
-  margin-bottom: 4px;
-  width: 48px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--hj-primary);
+  box-shadow: 0 4px 12px rgba(20, 30, 25, 0.18);
 }
 
 .attraction-image-placeholder__mark svg {
+  width: 17px;
+  height: 17px;
   fill: none;
-  height: 24px;
-  stroke: #ff8a70;
+  stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.6;
-  width: 24px;
+  stroke-width: 1.7;
 }
 
 .attraction-image-placeholder strong {
-  font-size: 18px;
-  line-height: 1.35;
+  /* 卡片正文已经有景点名，这里保留可访问名称但不再重复显示 */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.attraction-image-placeholder > span:last-child {
-  color: #afbdc9;
-  font-size: 13px;
-  line-height: 1.5;
+.attraction-image-caption {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--hj-r-pill);
+  background: rgba(255, 255, 255, 0.86);
+  color: #2c3f45;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.4;
 }

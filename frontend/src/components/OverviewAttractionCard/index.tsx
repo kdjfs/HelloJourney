@@ -21,22 +21,35 @@ interface OverviewAttractionItem {
 interface OverviewAttractionCardProps {
   item: OverviewAttractionItem
   imageUrl?: string
+  /** 图片来源（amap / xhs / …），用于在小红书图片上打出「实拍」标识 */
+  imageSource?: string
   active: boolean
   onHover?: () => void
   onSelect?: () => void
 }
 
+/**
+ * 概览页的景点卡。
+ * 所有卡片共用同一条尺寸规则（媒体区固定 4:3 + 正文固定行高），
+ * 这样无论图片原始比例如何，网格里都不会再出现「高矮参差」。
+ */
 function OverviewAttractionCard({
   item,
   imageUrl,
+  imageSource,
   active,
   onHover,
   onSelect,
 }: OverviewAttractionCardProps) {
   const { t } = useTranslation()
+  const hasDuration = Number.isFinite(item.visit_duration) && item.visit_duration > 0
+  const hasPrice = typeof item.ticket_price === 'number' && Number.isFinite(item.ticket_price)
+  const hasRating = typeof item.rating === 'number' && Number.isFinite(item.rating) && item.rating > 0
+  const fromXhs = Boolean(imageUrl) && (imageSource ?? '').toLowerCase().includes('xhs')
+
   return (
-    <div
-      className={`overview-slide${active ? ' overview-slide-active' : ''}`}
+    <article
+      className={`overview-card${active ? ' is-active' : ''}`}
       onMouseEnter={onHover}
       onClick={onSelect}
       onKeyDown={(event) => {
@@ -50,12 +63,20 @@ function OverviewAttractionCard({
       aria-label={t('overviewCard.locate', { name: item.name })}
       aria-pressed={active}
     >
-      <div className="overview-slide-img">
+      <div className="overview-card-media">
         <AttractionImage
           attractionName={item.name}
           city={item.city}
           imageUrl={imageUrl}
         />
+        <span className="overview-card-day">
+          {t('common.dayIndex', { day: item.dayArrayIndex + 1 })}
+        </span>
+        {fromXhs && (
+          <span className="overview-card-source" title={t('overviewCard.xhsPhotoHint')}>
+            {t('overviewCard.xhsPhoto')}
+          </span>
+        )}
         {item.reservation_required && (
           <Tooltip
             title={item.reservation_tips || t('overviewCard.reservationFallback')}
@@ -72,36 +93,20 @@ function OverviewAttractionCard({
             </span>
           </Tooltip>
         )}
-        <svg
-          data-name="Layer 1"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 1200 120"
-          preserveAspectRatio="none"
-          className="overview-shape"
-        >
-          <path
-            d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z"
-            opacity=".25"
-            className="shape-fill"
-          />
-          <path
-            d="M0,0V15.81C13,36.92,27.64,56.86,47.69,72.05,99.41,111.27,165,111,224.58,91.58c31.15-10.15,60.09-26.07,89.67-39.8,40.92-19,84.73-46,130.83-49.67,36.26-2.85,70.9,9.42,98.6,31.56,31.77,25.39,62.32,62,103.63,73,40.44,10.79,81.35-6.69,119.13-24.28s75.16-39,116.92-43.05c59.73-5.85,113.28,22.88,168.9,38.84,30.2,8.66,59,6.17,87.09-7.5,22.43-10.89,48-26.93,60.65-49.24V0Z"
-            opacity=".5"
-            className="shape-fill"
-          />
-          <path
-            d="M0,0V5.63C149.93,59,314.09,71.32,475.83,42.57c43-7.64,84.23-20.12,127.61-26.46,59-8.63,112.48,12.24,165.56,35.4C827.93,77.22,886,95.24,951.2,90c86.53-7,172.46-45.71,248.8-84.81V0Z"
-            className="shape-fill"
-          />
-        </svg>
       </div>
-      <div className="overview-slide-content">
-        <div>
-          <h2>{item.name}</h2>
-          <p>{item.description || item.address || t('overviewCard.noDescription')}</p>
+
+      <div className="overview-card-body">
+        <h3 className="overview-card-title">{item.name}</h3>
+        <p className="overview-card-desc">
+          {item.description || item.address || t('overviewCard.noDescription')}
+        </p>
+        <div className="overview-card-meta">
+          {hasDuration && <span>{t('common.minutes', { count: item.visit_duration })}</span>}
+          {hasPrice && <span>¥{item.ticket_price}</span>}
+          {hasRating && <span>★ {item.rating}</span>}
         </div>
       </div>
-    </div>
+    </article>
   )
 }
 

@@ -1,49 +1,215 @@
-.landing-navbar {
-  z-index: 1030;
+/* ==========================================================================
+   全站顶部导航（Landing / Settings 共用）
+   两种状态：默认实心白底；transparent 时悬浮在头图上、文字反白。
+   ========================================================================== */
+
+.site-nav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--hj-border-soft);
+  backdrop-filter: saturate(140%) blur(10px);
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.landing-navbar .navbar-brand {
+.site-nav--transparent {
+  background: transparent;
+  border-bottom-color: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.site-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(var(--hj-max), 100% - 2 * var(--hj-gutter));
+  height: 68px;
+  margin: 0 auto;
+}
+
+/* ---------- 品牌 ---------- */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   padding: 0;
-  border: none;
+  border: 0;
   background: none;
-  color: #fff !important;
-  font-size: 22px;
-  font-weight: 600;
+  color: var(--hj-text);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   cursor: pointer;
+  transition: opacity 0.18s ease;
 }
 
-.landing-navbar .landing-cta {
-  padding: 8px 24px;
-  border-radius: 30px;
-  font-size: 13px;
-  font-weight: 600;
+.site-brand:hover {
+  opacity: 0.75;
 }
 
-.landing-navbar .nav-link {
+.site-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--hj-primary);
+  color: #fff;
+  box-shadow: 0 8px 18px -10px rgba(18, 105, 92, 0.9);
+}
+
+.site-brand-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.site-nav--transparent .site-brand {
+  color: #fff;
+}
+
+.site-nav--transparent .site-brand-mark {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+  backdrop-filter: blur(6px);
+}
+
+/* ---------- 右侧动作 ---------- */
+.site-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.site-nav-icon,
+.site-nav-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-  color: rgba(255, 255, 255, 0.72) !important;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--hj-r-pill);
+  background: transparent;
+  color: var(--hj-text-2);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease;
 }
 
-.landing-navbar .nav-link:hover,
-.landing-navbar .nav-link:focus-visible {
+.site-nav-icon {
+  padding: 0 10px;
+  font-size: 17px;
+}
+
+.site-nav-icon:hover,
+.site-nav-link:hover {
+  background: var(--hj-surface-3);
+  color: var(--hj-text);
+}
+
+.site-nav-locale {
+  min-width: 92px;
+  color: var(--hj-text-2);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* antd v6 的 Select 内部结构是 .ant-select-content，旧版本是 .ant-select-selection-item，
+   两套都覆盖，否则文字会继承到不可见颜色。 */
+.site-nav-locale .ant-select-selector,
+.site-nav-locale .ant-select-content,
+.site-nav-locale .ant-select-selection-item,
+.site-nav-locale .ant-select-selection-placeholder,
+.site-nav-locale .ant-select-arrow {
+  color: inherit !important;
+}
+
+.site-nav-locale .ant-select-selector {
+  border-radius: var(--hj-r-pill) !important;
+}
+
+.site-nav-cta {
+  height: 36px;
+  margin-left: 6px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--hj-r-pill);
+  background: var(--hj-primary);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  box-shadow: 0 10px 22px -14px rgba(18, 105, 92, 0.95);
+}
+
+.site-nav-cta:hover {
+  background: var(--hj-primary-strong);
+  color: #fff;
+}
+
+/* ---------- 反白（悬浮头图） ---------- */
+.site-nav--transparent .site-nav-icon,
+.site-nav--transparent .site-nav-link,
+.site-nav--transparent .site-nav-locale {
+  color: rgba(255, 255, 255, 0.86) !important;
+}
+
+.site-nav--transparent .site-nav-icon:hover,
+.site-nav--transparent .site-nav-link:hover {
+  background: rgba(255, 255, 255, 0.16);
   color: #fff !important;
 }
 
-.landing-locale-item {
-  display: flex;
-  align-items: center;
-  padding-inline: 8px;
+.site-nav--transparent .site-nav-cta {
+  background: #fff;
+  color: var(--hj-primary-strong);
+  box-shadow: 0 12px 24px -14px rgba(0, 0, 0, 0.6);
 }
 
-.landing-locale-select {
-  min-width: 104px;
+.site-nav--transparent .site-nav-cta:hover {
+  background: #fff;
+  color: var(--hj-primary-strong);
 }
 
-.landing-locale-select .ant-select-selector {
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  background: rgba(10, 21, 32, 0.42) !important;
-  color: #fff !important;
+/* ---------- 响应式 ---------- */
+@media (max-width: 860px) {
+  .site-nav-link-text {
+    display: none;
+  }
+
+  .site-nav-link {
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-nav-inner {
+    height: 60px;
+    gap: 8px;
+  }
+
+  .site-brand-text {
+    font-size: 15px;
+  }
+
+  /* 手机上把次要入口收起，只留设置 / 语言 / 主 CTA，避免 CTA 被压成圆点 */
+  .site-nav-icon {
+    display: none;
+  }
+
+  .site-nav-locale {
+    min-width: 68px;
+    font-size: 13px;
+  }
+
+  .site-nav-cta {
+    margin-left: 2px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
 }

@@ -1,55 +1,68 @@
-/* 全局基础样式 - 对齐原 Vue 项目 Paper Kit 2 风格 */
+/* ==========================================================================
+   HelloJourney · 全局基础层
+   依赖 index.css 中的设计令牌；只放「元素级默认值 + 可复用的原子类 + antd 覆盖」。
+   页面级布局请写在各自页面的 index.css 里。
+   ========================================================================== */
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-weight: 400;
+  margin: 0;
+  padding: 0;
   font-size: 15px;
-  line-height: 1.5;
-  color: #ecf3fa;
-  background-color: #0a1520;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
+  color: var(--hj-text);
+  background-color: var(--hj-bg);
   overflow-x: hidden;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: inherit;
-  font-weight: 600;
+/* ---------- 排版 ---------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-family: var(--hj-font-sans);
+  font-weight: 650;
+  line-height: 1.28;
+  color: var(--hj-text);
+  letter-spacing: -0.01em;
 }
 
-h1 { font-size: 3.6em; }
-h2 { font-size: 2.8em; }
-h3 { font-size: 1.825em; line-height: 1.4; margin: 20px 0 0; }
-h4 { font-size: 1.6em; line-height: 1.2em; }
-h5 { font-size: 1.35em; line-height: 1.4em; }
-h6 { font-size: 0.9em; font-weight: 600; text-transform: uppercase; line-height: 1.5em; }
+h1 { font-size: clamp(28px, 4vw, 40px); }
+h2 { font-size: clamp(22px, 2.6vw, 28px); }
+h3 { font-size: 19px; }
+h4 { font-size: 16px; }
+h5 { font-size: 15px; }
+h6 { font-size: 13px; }
 
 p {
+  margin: 0 0 0.5em;
   font-size: 15px;
-  line-height: 1.5em;
-  margin-bottom: 5px;
+  line-height: 1.65;
 }
 
 a {
-  color: #51cbce;
+  color: var(--hj-primary);
   text-decoration: none;
+  transition: color 0.18s ease;
 }
 
-a:hover, a:focus {
-  color: #3aa5a8;
-  text-decoration: none;
+a:hover,
+a:focus {
+  color: var(--hj-primary-strong);
 }
 
 img {
@@ -57,132 +70,193 @@ img {
   height: auto;
 }
 
-/* 按钮基础样式 */
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+}
+
+/* ---------- 可复用原子类 ---------- */
+
+/* 眉题：小号大写字距文本 */
+.hj-eyebrow {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hj-text-muted);
+}
+
+/* 卡片：全站统一表面 */
+.hj-card {
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-lg);
+  background: var(--hj-surface);
+  box-shadow: var(--hj-shadow-sm);
+}
+
+/* 分区标题行 */
+.hj-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+}
+
+.hj-section-head h2 {
+  margin: 2px 0 0;
+  font-size: 20px;
+}
+
+.hj-section-head p {
+  margin: 0;
+  color: var(--hj-text-muted);
+  font-size: 13px;
+}
+
+/* 药丸标签 */
+.hj-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-pill);
+  background: var(--hj-surface-2);
+  color: var(--hj-text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 弱化的元信息行 */
+.hj-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  color: var(--hj-text-muted);
+  font-size: 13px;
+}
+
+/* 数字强调 */
+.hj-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* 分割线 */
+.hj-divider {
+  height: 1px;
+  border: 0;
+  margin: 0;
+  background: var(--hj-border);
+}
+
+/* 隐藏但对读屏可见 */
+.hj-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- 按钮基础 ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  gap: 8px;
+  border: 1px solid transparent;
   cursor: pointer;
   font-family: inherit;
   font-weight: 600;
-  text-transform: uppercase;
-  transition: all 0.15s ease-in;
+  letter-spacing: 0.01em;
+  transition: transform 0.16s ease, background-color 0.18s ease,
+    border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
 }
 
-.btn-round {
-  border-radius: 30px;
-  padding: 11px 23px;
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
-.btn-danger {
-  background-color: #f5593d;
-  color: #fff;
-}
-
-.btn-danger:hover {
-  background-color: #e33a1e;
-  color: #fff;
-}
-
-.btn-danger:active {
-  background-color: #cc2f15;
-}
-
-.btn-danger:disabled {
-  background-color: #f5a89d;
+.btn:disabled {
   cursor: not-allowed;
 }
 
-/* 导航栏基础样式 (Paper Kit 2 navbar) */
-.navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1050;
-  padding: 0.5rem 0;
-  transition: background-color 0.3s ease;
+.btn-round {
+  border-radius: var(--hj-r-pill);
+  padding: 10px 22px;
 }
 
-.navbar-transparent {
-  background-color: transparent;
-}
-
-.navbar .container {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.navbar-translate {
-  display: flex;
-  align-items: center;
-}
-
-.navbar-brand {
-  font-size: 24px;
-  font-weight: 700;
+.btn-danger {
+  background: var(--hj-accent);
   color: #fff;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: none;
-  border: none;
-  cursor: pointer;
+  box-shadow: 0 10px 22px -12px rgba(210, 103, 63, 0.9);
 }
 
-.navbar-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-}
-
-.nav-link {
-  color: rgba(255, 255, 255, 0.85);
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-}
-
-.nav-link:hover {
+.btn-danger:hover {
+  background: var(--hj-accent-strong);
   color: #fff;
 }
 
-/* 表单相关 */
+.btn-danger:disabled {
+  background: #e5b7a5;
+  box-shadow: none;
+}
+
+.btn-ghost {
+  background: var(--hj-surface);
+  border-color: var(--hj-border-strong);
+  color: var(--hj-text);
+}
+
+.btn-ghost:hover {
+  background: var(--hj-surface-2);
+  border-color: var(--hj-primary);
+  color: var(--hj-primary);
+}
+
+/* ---------- 表单原子 ---------- */
 .field-label {
-  color: rgba(236, 243, 250, 0.82);
-  font-size: 13px;
-  font-weight: 600;
+  display: inline-block;
+  margin-bottom: 6px;
+  color: var(--hj-text-2);
+  font-size: 12px;
+  font-weight: 650;
   letter-spacing: 0.04em;
 }
 
 .field-input {
-  background: rgba(236, 243, 250, 0.08);
-  border-color: rgba(236, 243, 250, 0.18);
-  color: #ecf3fa;
+  border-radius: var(--hj-r-sm);
+  border-color: var(--hj-border) !important;
+  background: var(--hj-surface) !important;
+  color: var(--hj-text) !important;
 }
 
-.field-input:hover,
-.field-input:focus {
-  border-color: rgba(138, 196, 255, 0.4);
+.field-input:hover {
+  border-color: var(--hj-border-strong) !important;
 }
 
-/* 滚动条 */
+.field-input:focus,
+.field-input:focus-within {
+  border-color: var(--hj-primary) !important;
+  box-shadow: 0 0 0 3px var(--hj-primary-ring) !important;
+}
+
+/* ---------- 滚动条 ---------- */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -190,90 +264,113 @@ img {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(138, 196, 255, 0.3);
-  border-radius: 3px;
+  border: 3px solid transparent;
+  border-radius: var(--hj-r-pill);
+  background-clip: content-box;
+  background-color: #cfc7b7;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(138, 196, 255, 0.5);
+  background-color: #b8ae9a;
 }
 
-/* Ant Design 全局微调 */
-.ant-card {
-  border-radius: 12px;
-}
-
-.ant-btn-primary {
-  box-shadow: none;
-}
-
-.ant-message-notice-content {
-  border-radius: 10px;
-}
-
-/* 动画相关 */
-@keyframes cloudLoop {
-  0% { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(-50%, 0, 0); }
-}
-
-.moving-clouds {
-  position: absolute;
-  z-index: 1;
-  bottom: 0;
-  left: 0;
-  width: 250em;
-  height: 43.75em;
-  animation: cloudLoop 80s linear infinite;
-  background-size: cover;
-  background-position: 0 100%;
-}
-
-.fog-low {
-  position: absolute;
-  z-index: 1;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-}
-
-.fog-low img {
-  width: 100%;
-  display: block;
-}
-
-/* section-shellless 无边框卡片 */
+/* ---------- 卡片 / 段落容器 ---------- */
 .section-shellless {
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  border: 1px solid var(--hj-border) !important;
+  border-radius: var(--hj-r-lg) !important;
+  background: var(--hj-surface) !important;
+  box-shadow: var(--hj-shadow-sm);
+  overflow: hidden;
 }
 
-/* 空状态面板 */
 .empty-state-panel {
-  padding: 80px 24px;
+  padding: 72px 24px;
   text-align: center;
 }
 
 .empty-desc {
-  color: rgba(236, 243, 250, 0.62);
-  font-size: 16px;
+  color: var(--hj-text-muted);
+  font-size: 15px;
 }
 
 .empty-back-btn {
   margin-top: 18px;
 }
 
-/* 回到顶部 */
-.back-top-button {
-  height: 40px;
-  width: 40px;
-  line-height: 40px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.85);
-  text-align: center;
-  font-size: 13px;
+/* ---------- Ant Design 全局微调 ---------- */
+.ant-card {
+  border-radius: var(--hj-r-lg);
+  border-color: var(--hj-border);
+  box-shadow: var(--hj-shadow-sm);
+}
+
+.ant-card .ant-card-head {
+  border-bottom-color: var(--hj-border-soft);
+}
+
+.ant-btn {
   font-weight: 600;
-  color: #333;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+
+.ant-btn-primary {
+  box-shadow: 0 10px 20px -14px rgba(18, 105, 92, 0.9);
+}
+
+.ant-btn-default {
+  border-color: var(--hj-border-strong);
+}
+
+.ant-alert {
+  border-radius: var(--hj-r-md);
+  align-items: flex-start;
+}
+
+.ant-alert .ant-alert-message {
+  font-weight: 650;
+}
+
+.ant-message-notice-content {
+  border-radius: var(--hj-r-md);
+  box-shadow: var(--hj-shadow);
+}
+
+.ant-modal .ant-modal-content {
+  border-radius: var(--hj-r-lg);
+}
+
+.ant-tag {
+  border-radius: var(--hj-r-pill);
+  font-weight: 600;
+}
+
+.ant-empty .ant-empty-description {
+  color: var(--hj-text-muted);
+}
+
+.ant-segmented {
+  border-radius: var(--hj-r-pill);
+  padding: 4px;
+}
+
+.ant-segmented .ant-segmented-item {
+  border-radius: var(--hj-r-pill);
+}
+
+.ant-float-btn {
+  box-shadow: var(--hj-shadow);
+}
+
+/* 打印：隐藏导航与浮层，保留正文 */
+@media print {
+  .navbar,
+  .chat-fab,
+  .chat-panel,
+  .ant-float-btn,
+  .result-tabs {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
 }
