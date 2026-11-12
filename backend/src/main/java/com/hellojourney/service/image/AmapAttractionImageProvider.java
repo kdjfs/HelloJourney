@@ -17,12 +17,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 @Order(10)
 public class AmapAttractionImageProvider implements AttractionImageProvider {
     private static final int MAX_RESULTS = 10;
+
+    /**
+     * AMap labels seasonal and bloom close-ups with the season or the flower itself;
+     * those describe a plant rather than the attraction, so they are demoted.
+     */
+    private static final Pattern SEASONAL_PHOTO_TITLE =
+            Pattern.compile("(春季|夏季|秋季|冬季|牡丹|樱花|桃花|梅花|荷花|郁金香)");
 
     private final AppSettings appSettings;
     private final ObjectMapper objectMapper;
@@ -114,7 +122,7 @@ public class AmapAttractionImageProvider implements AttractionImageProvider {
                 continue;
             }
 
-            String imageUrl = firstSafePhoto(poi.path("photos"));
+            String imageUrl = bestPhoto(poi.path("photos"), matchedName);
             if (imageUrl.isEmpty()) {
                 continue;
             }
@@ -183,33 +191,83 @@ public class AmapAttractionImageProvider implements AttractionImageProvider {
         }
     }
 
-    private String firstSafePhoto(JsonNode photos) {
+    /**
+     * Picks the most representative safe photo of a POI.
+     *
+     * AMap returns a POI's photos in an arbitrary order, mixing the official POI
+     * gallery with user uploads, so taking the first one regularly illustrates an
+     * attraction with an unrelated picture: 景山公园 and 故宫博物院 both lead with a photo
+     * titled 春季 (a tree-peony close-up), which reads as "the picture does not match
+     * the place". The scoring below prefers, in order:
+     *   1. A photo whose title is the POI's own name — AMap's canonical image for it
+     *      (e.g. 天安门广场's third photo is titled 天安门广场).
+     *   2. The /showpic/ POI gallery over /sns/ugccomment/ user comments.
+     *   3. Anything that is not a seasonal bloom close-up.
+     * Equal scores keep AMap's original order, so unaffected POIs pick the same photo
+     * as before.
+     */
+    private String bestPhoto(JsonNode photos, String poiName) {
         if (!photos.isArray()) {
             return "";
         }
+
+        String bestUrl = "";
+        int bestScore = Integer.MIN_VALUE;
         for (JsonNode photo : photos) {
-            String rawUrl = photo.path("url").asText("").trim();
-            try {
-                URI uri = URI.create(rawUrl);
-                String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-                String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
-                if (host.isEmpty()) {
-                    continue;
-                }
-                if (!"https".equals(scheme)) {
-                    // AMap CDN hosts serve the same files over TLS; upgrade their http URLs
-                    // so the frontend never loads mixed content. Foreign hosts stay rejected.
-                    if (!"http".equals(scheme) || !isTrustedAmapImageHost(host)) {
-                        continue;
-                    }
-                    uri = new URI("https", uri.getUserInfo(), host, uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
-                }
-                return uri.toASCIIString();
-            } catch (IllegalArgumentException | java.net.URISyntaxException ignored) {
-                // Ignore malformed provider data and continue looking for a safe photo.
+            String url = normalizePhotoUrl(photo.path("url").asText("").trim());
+            if (url.isEmpty()) {
+                continue;
+            }
+            int score = photoScore(photo.path("title").asText(""), url, poiName);
+            if (score > bestScore) {
+                bestScore = score;
+                bestUrl = url;
             }
         }
-        return "";
+        return bestUrl;
+    }
+
+    private int photoScore(String rawTitle, String url, String poiName) {
+        String title = normalizeName(rawTitle);
+        String poi = normalizeName(poiName);
+        int score = 0;
+        if (title.length() >= 2 && !poi.isEmpty()
+                && (title.equals(poi) || poi.contains(title) || title.contains(poi))) {
+            score += 100;
+        }
+        if (url.contains("/showpic/")) {
+            score += 10;
+        }
+        if (SEASONAL_PHOTO_TITLE.matcher(title).find()) {
+            score -= 20;
+        }
+        return score;
+    }
+
+    private String normalizePhotoUrl(String rawUrl) {
+        if (rawUrl.isEmpty()) {
+            return "";
+        }
+        try {
+            URI uri = URI.create(rawUrl);
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            if (host.isEmpty()) {
+                return "";
+            }
+            if (!"https".equals(scheme)) {
+                // AMap CDN hosts serve the same files over TLS; upgrade their http URLs
+                // so the frontend never loads mixed content. Foreign hosts stay rejected.
+                if (!"http".equals(scheme) || !isTrustedAmapImageHost(host)) {
+                    return "";
+                }
+                uri = new URI("https", uri.getUserInfo(), host, uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
+            }
+            return uri.toASCIIString();
+        } catch (IllegalArgumentException | java.net.URISyntaxException ignored) {
+            // Ignore malformed provider data and continue looking for a safe photo.
+            return "";
+        }
     }
 
     private boolean isTrustedAmapImageHost(String host) {

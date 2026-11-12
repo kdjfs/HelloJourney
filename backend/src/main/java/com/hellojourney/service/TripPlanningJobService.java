@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -29,10 +32,13 @@ public class TripPlanningJobService {
             BooleanSupplier cancellationRequested) throws Exception {
         ensureActive(taskId, cancellationRequested);
 
+        // 降级提示（如小红书 Cookie 失效）随响应一起返回，前端结果页会显示提示条
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+
         StructuredTripPlanResult generated = tripPlannerAgent.planTripWithReview(request, (message, progress) -> {
             ensureActive(taskId, cancellationRequested);
             progressCallback.accept(message, progress);
-        }, cancellationRequested);
+        }, cancellationRequested, warnings);
         TripPlan tripPlan = generated.plan();
 
         ensureActive(taskId, cancellationRequested);
@@ -48,6 +54,7 @@ public class TripPlanningJobService {
                 .data(tripPlan)
                 .graphData(graphData)
                 .review(generated.review())
+                .warnings(List.copyOf(warnings))
                 .build());
     }
 

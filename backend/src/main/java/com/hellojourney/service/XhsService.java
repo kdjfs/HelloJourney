@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,8 +27,25 @@ public class XhsService {
     private final MapDispatcher mapDispatcher;
     private final OkHttpClient httpClient;
 
-    private static final Pattern INITIAL_STATE_PATTERN =
-            Pattern.compile("window\\.__INITIAL_STATE__\\s*=\\s*(\\{.*?\\})\\s*</script>", Pattern.DOTALL);
+    /** 命中缓存的有效期：同城同关键词 6 小时内直接复用，避免重复抓取触发风控 */
+    private static final long CACHE_TTL_MS = TimeUnit.HOURS.toMillis(6);
+
+    private final Map<String, CacheEntry> attractionCache = new ConcurrentHashMap<>();
+
+    /** 景点检索缓存条目 */
+    private static final class CacheEntry {
+        private final String text;
+        private final long expiresAt;
+
+        CacheEntry(String text, long expiresAt) {
+            this.text = text;
+            this.expiresAt = expiresAt;
+        }
+
+        boolean isAlive() {
+            return System.currentTimeMillis() < expiresAt;
+        }
+    }
 
     public XhsService(AppSettings appSettings, ObjectMapper objectMapper, LlmService llmService, MapDispatcher mapDispatcher) {
         this.appSettings = appSettings;
@@ -37,6 +55,9 @@ public class XhsService {
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(15, TimeUnit.SECONDS)
+                // 整次调用总预算：避免重定向/慢响应把抓取线程钉死
+                .callTimeout(30, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
                 .followRedirects(true)
                 .followSslRedirects(true)
                 .build();
@@ -45,6 +66,17 @@ public class XhsService {
     public static class XhsCookieExpiredError extends RuntimeException {
         public XhsCookieExpiredError(String message) {
             super(message);
+        }
+    }
+
+    /** 抓取失败（网络/页面结构/风控页），与 Cookie 失效区分，便于上层给出不同提示 */
+    public static class XhsFetchError extends RuntimeException {
+        public XhsFetchError(String message) {
+            super(message);
+        }
+
+        public XhsFetchError(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
@@ -85,7 +117,11 @@ public class XhsService {
     }
 
     private String buildCookieHeader() {
-        String cookieStr = normalizeXhsCookie(appSettings.getXhsCookie());
+        return buildCookieHeader(appSettings.getXhsCookie());
+    }
+
+    private String buildCookieHeader(String rawCookie) {
+        String cookieStr = normalizeXhsCookie(rawCookie);
         if (cookieStr.isEmpty()) return "";
         Map<String, String> cookies = transCookies(cookieStr);
         StringBuilder sb = new StringBuilder();
@@ -105,8 +141,11 @@ public class XhsService {
     }
 
     private JsonNode fetchSsrPage(String url) throws IOException {
-        String cookieHeader = buildCookieHeader();
-        if (cookieHeader.isEmpty()) {
+        return fetchSsrPage(url, buildCookieHeader());
+    }
+
+    private JsonNode fetchSsrPage(String url, String cookieHeader) throws IOException {
+        if (cookieHeader == null || cookieHeader.isEmpty()) {
             throw new XhsCookieExpiredError("小红书 Cookie 未配置");
         }
 
@@ -115,30 +154,88 @@ public class XhsService {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            String html = response.body() != null ? response.body().string() : "";
-
             String finalUrl = response.request().url().toString();
             if (finalUrl.contains("login") || finalUrl.contains("login_url")) {
                 throw new XhsCookieExpiredError("小红书 Cookie 已失效，页面跳转到了登录页");
             }
-
-            Matcher match = INITIAL_STATE_PATTERN.matcher(html);
-            if (!match.find()) {
-                if (html.contains("login") || html.length() < 500) {
-                    throw new XhsCookieExpiredError("小红书 Cookie 已失效或页面未正常加载");
-                }
-                throw new IOException("未能从小红书页面提取到 INITIAL_STATE 数据");
+            if (!response.isSuccessful()) {
+                throw new XhsFetchError("小红书页面返回 HTTP " + response.code());
             }
 
-            String stateJsonStr = match.group(1).replace("undefined", "null");
-            return objectMapper.readTree(stateJsonStr);
+            String contentType = response.header("Content-Type", "");
+            if (!contentType.isEmpty() && !contentType.toLowerCase().contains("html")) {
+                throw new XhsFetchError("小红书返回了非 HTML 内容: " + contentType);
+            }
+
+            String html = response.body() != null ? response.body().string() : "";
+            JsonNode state = extractInitialState(html);
+            if (state == null) {
+                if (html.contains("login")) {
+                    throw new XhsCookieExpiredError("小红书 Cookie 已失效或页面未正常加载");
+                }
+                throw new XhsFetchError("未能从小红书页面提取到 INITIAL_STATE 数据");
+            }
+            return state;
         }
+    }
+
+    /**
+     * 从 SSR 页面里提取 window.__INITIAL_STATE__。
+     * 用括号配平替代原来的非贪婪正则：页面结构小幅调整（尾随多条赋值、压缩格式变化）也不会失配。
+     */
+    private JsonNode extractInitialState(String html) {
+        if (html == null || html.isEmpty()) return null;
+
+        int marker = html.indexOf("__INITIAL_STATE__");
+        if (marker < 0) return null;
+
+        int start = html.indexOf('{', marker);
+        if (start < 0) return null;
+
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+
+        for (int i = start; i < html.length(); i++) {
+            char c = html.charAt(i);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                inString = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    String json = html.substring(start, i + 1)
+                            .replaceAll("([:\\[,])undefined", "$1null");
+                    try {
+                        return objectMapper.readTree(json);
+                    } catch (Exception e) {
+                        log.debug("[XHS_SSR] INITIAL_STATE 解析失败: {}", e.getMessage());
+                        return null;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private JsonNode searchNotes(String keyword, int page, int sortType, int pageSize) throws IOException {
         String encodedKeyword = URLEncoder.encode(keyword, StandardCharsets.UTF_8);
+        String sort = sortType == 1 ? "time_descending"
+                : sortType == 2 ? "popularity_descending"
+                : "general";
         String url = "https://www.xiaohongshu.com/search_result?keyword=" + encodedKeyword
-                + "&type=51&page=" + page + "&sort=general";
+                + "&type=51&page=" + page + "&sort=" + sort + "&page_size=" + pageSize;
 
         log.info("[XHS_SSR] 搜索小红书页面: {}", url);
         JsonNode state = fetchSsrPage(url);
@@ -249,6 +346,15 @@ public class XhsService {
     }
 
     public String searchXhsAttractions(String city, String keywords, String language) {
+        String lang = (language == null ? "zh" : language).trim().toLowerCase().split("-")[0];
+        String cacheKey = city + "|" + keywords + "|" + lang;
+
+        CacheEntry cached = attractionCache.get(cacheKey);
+        if (cached != null && cached.isAlive()) {
+            log.info("[XHS_SERVICE] 命中缓存: {} {} ({})", city, keywords, lang);
+            return cached.text;
+        }
+
         log.info("[XHS_SERVICE] 正在呼叫小红书 API 搜索: {} {}", city, keywords);
         String query = city + " " + keywords + " 旅游 景点攻略";
 
@@ -282,9 +388,12 @@ public class XhsService {
             combinedText = sb.toString();
         } catch (XhsCookieExpiredError e) {
             throw e;
+        } catch (XhsFetchError e) {
+            throw e;
         } catch (Exception e) {
-            log.error("小红书接口抓取崩盘: {}", e.getMessage());
-            throw new XhsCookieExpiredError("小红书访问超时或 Cookie 失效(风控拦截)，抓取失败。请更新 XHS_COOKIE");
+            // 区分「Cookie 失效」与「抓取失败」：前者需要用户更新 Cookie，后者只是本次抓取失败
+            log.error("小红书接口抓取失败: {}", e.getMessage());
+            throw new XhsFetchError("小红书抓取失败: " + e.getMessage(), e);
         }
 
         if (combinedText.isEmpty()) {
@@ -293,7 +402,6 @@ public class XhsService {
 
         log.info("[XHS_SERVICE] 正在调用内联模型提纯小红书游记参数...");
 
-        String lang = (language == null ? "zh" : language).trim().toLowerCase().split("-")[0];
         Map<String, String> langNames = Map.of("en", "English", "ja", "Japanese", "ko", "Korean", "fr", "French", "de", "German", "es", "Spanish");
         String translationInstruction = "";
         if (!"zh".equals(lang) && langNames.containsKey(lang)) {
@@ -326,7 +434,7 @@ public class XhsService {
 
         try {
             List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", extractPrompt));
-            String content = llmService.chat(messages, 0.1, 2000);
+            String content = llmService.chat(messages, 0.1, 4000);
 
             String jsonStr = content;
             if (content.contains("[")) {
@@ -340,20 +448,56 @@ public class XhsService {
 
             StringBuilder finalResult = new StringBuilder("这是小红书热门精选游记的提取结果，附带确切坐标（图片由前端单独搜索获取）：\n");
             for (Map<String, Object> item : extracted) {
-                String name = item.getOrDefault("name", "").toString();
+                String name = Objects.toString(item.get("name"), "").trim();
                 if (name.isEmpty()) continue;
-                String nameZh = item.getOrDefault("name_zh", name).toString();
-                String nameEn = item.getOrDefault("name_en", name).toString();
+                String nameZh = Objects.toString(item.get("name_zh"), name).trim();
+                String nameEn = Objects.toString(item.get("name_en"), name).trim();
                 Map<String, Double> loc = mapDispatcher.geocodeUnified(name, city, nameZh, nameEn);
                 item.put("location", loc);
                 finalResult.append(objectMapper.writeValueAsString(item)).append("\n");
             }
             log.info("[XHS_SERVICE] 小红书数据挖掘完毕，已装载进上下文。");
-            return finalResult.toString();
+            String text = finalResult.toString();
+            attractionCache.put(cacheKey, new CacheEntry(text, System.currentTimeMillis() + CACHE_TTL_MS));
+            return text;
         } catch (Exception e) {
             log.error("大模型提纯小红书数据异常: {}", e.getMessage());
             return "尝试提取小红书结构化数据失败，降级回常规处理。";
         }
+    }
+
+    /**
+     * 用给定的 Cookie 试抓一次小红书页面，供设置页「校验 Cookie」使用（不会写入配置）。
+     *
+     * @return {valid: boolean, message: String}
+     */
+    public Map<String, Object> validateCookie(String rawCookie) {
+        String cookie = normalizeXhsCookie(rawCookie);
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        if (cookie.isEmpty()) {
+            result.put("valid", false);
+            result.put("message", "Cookie 为空，请先从浏览器请求头完整复制");
+            return result;
+        }
+        if (!cookie.contains("web_session")) {
+            result.put("valid", false);
+            result.put("message", "Cookie 缺少 web_session 字段：请确认已登录小红书后，复制请求头里的完整 Cookie");
+            return result;
+        }
+
+        try {
+            fetchSsrPage("https://www.xiaohongshu.com/explore", buildCookieHeader(cookie));
+            result.put("valid", true);
+            result.put("message", "Cookie 有效，已成功读取小红书页面");
+        } catch (XhsCookieExpiredError e) {
+            result.put("valid", false);
+            result.put("message", e.getMessage());
+        } catch (Exception e) {
+            result.put("valid", false);
+            result.put("message", "校验失败: " + e.getMessage());
+        }
+        return result;
     }
 
     public String getPhotoFromXhs(String keyword) {

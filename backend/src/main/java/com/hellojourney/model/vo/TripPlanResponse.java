@@ -9,6 +9,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,4 +33,12 @@ public class TripPlanResponse {
     private KnowledgeGraphData graphData;
     @Schema(description = "Review Agent 结构化校验结果")
     private TripReviewResult review;
+
+    /**
+     * 生成过程中的降级提示（例如小红书 Cookie 失效导致景点数据退化为地图 POI）。
+     * 为空表示全链路数据源均正常；前端在结果页顶部以提示条展示。
+     */
+    @Builder.Default
+    @Schema(description = "生成过程中的降级提示")
+    private List<String> warnings = new ArrayList<>();
 }

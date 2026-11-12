@@ -20,12 +20,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @Component
 public class TripPlannerAgent {
+    /**
+     * 数据源并行拉取用的线程池。
+     * 任务是阻塞式 HTTP 调用，因此用独立的小池子，避免占满 ForkJoinPool 的公共线程。
+     */
+    private static final ExecutorService DATA_FETCH_EXECUTOR = Executors.newFixedThreadPool(6, runnable -> {
+        Thread thread = new Thread(runnable, "trip-data-fetch");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     private final XhsService xhsService;
     private final MapDispatcher mapDispatcher;
     private final ObjectMapper objectMapper;
@@ -59,6 +73,17 @@ public class TripPlannerAgent {
             TripRequest request,
             BiConsumer<String, Integer> progressCallback,
             BooleanSupplier cancellationRequested) throws Exception {
+        return planTripWithReview(request, progressCallback, cancellationRequested, new java.util.ArrayList<>());
+    }
+
+    /**
+     * @param warnings 出参：收集本次生成中的降级提示（如小红书 Cookie 失效），供上层写入响应
+     */
+    public StructuredTripPlanResult planTripWithReview(
+            TripRequest request,
+            BiConsumer<String, Integer> progressCallback,
+            BooleanSupplier cancellationRequested,
+            List<String> warnings) throws Exception {
         List<CityStay> cities = request.getCities();
         int totalCities = cities.size();
         List<String> cityNames = cities.stream().map(CityStay::getCity).toList();
@@ -81,15 +106,24 @@ public class TripPlannerAgent {
             String cityLabel = totalCities > 1 ? " (" + (index + 1) + "/" + totalCities + ")" : "";
 
             emitProgress(progressCallback, "正在搜索 " + city + " 的景点..." + cityLabel, progressBase);
-            allAttractions.put(city, searchAttractions(city, keywords, lang));
-
             emitProgress(progressCallback, "正在查询 " + city + " 的天气..." + cityLabel,
                     progressBase + progressStep);
-            allWeather.put(city, queryWeatherAgent(city, lang, cancellationRequested));
-
             emitProgress(progressCallback, "正在搜索 " + city + " 的酒店..." + cityLabel,
                     progressBase + progressStep * 2);
-            allHotels.put(city, queryHotelAgent(city, request.getAccommodation(), lang, cancellationRequested));
+
+            // 景点 / 天气 / 酒店三个数据源互不依赖，并行拉取可把「串行的 3 次 RTT」
+            // 压缩成 1 次，这是单城市生成耗时里最容易被感知的一段。
+            CompletableFuture<String> attractionsTask = CompletableFuture.supplyAsync(
+                    () -> searchAttractions(city, keywords, lang, warnings), DATA_FETCH_EXECUTOR);
+            CompletableFuture<String> weatherTask = CompletableFuture.supplyAsync(
+                    () -> queryWeatherAgent(city, lang, cancellationRequested), DATA_FETCH_EXECUTOR);
+            CompletableFuture<String> hotelsTask = CompletableFuture.supplyAsync(
+                    () -> queryHotelAgent(city, request.getAccommodation(), lang, cancellationRequested),
+                    DATA_FETCH_EXECUTOR);
+
+            allAttractions.put(city, awaitData(attractionsTask));
+            allWeather.put(city, awaitData(weatherTask));
+            allHotels.put(city, awaitData(hotelsTask));
         }
 
         emitProgress(progressCallback, totalCities > 1 ? "正在生成结构化多城市行程..." : "正在生成结构化行程...", 85);
@@ -113,17 +147,53 @@ public class TripPlannerAgent {
     }
 
     private String searchAttractions(String city, String keywords, String lang) {
+        return searchAttractions(city, keywords, lang, new java.util.ArrayList<>());
+    }
+
+    /** 等待并行任务结果：把 CompletionException 还原成原始异常，保持上层错误处理不变。 */
+    private static String awaitData(CompletableFuture<String> future) throws Exception {
+        try {
+            return future.join();
+        } catch (CompletionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof Exception checked) throw checked;
+            throw exception;
+        }
+    }
+
+    private String searchAttractions(String city, String keywords, String lang, List<String> warnings) {
         try {
             return xhsService.searchXhsAttractions(city, keywords, lang);
+        } catch (XhsService.XhsCookieExpiredError expired) {
+            // Cookie 失效必须让用户看见：此前是静默降级，用户只会觉得"景点变粗糙了"
+            log.warn("xhs_cookie_expired city={} reason={} fallback=map", city, expired.getMessage());
+            addWarning(warnings, "小红书 Cookie 已失效或未配置，本次「" + city + "」的景点数据已降级为地图 POI，"
+                    + "请到「设置 → 小红书 Cookie 管理」更新后重新生成。");
+            return mapAttractionFallback(keywords, city);
+        } catch (XhsService.XhsFetchError fetchError) {
+            log.warn("xhs_fetch_failed city={} reason={} fallback=map", city, fetchError.getMessage());
+            addWarning(warnings, "小红书景点抓取失败（" + fetchError.getMessage() + "），本次「" + city
+                    + "」的景点数据已降级为地图 POI。");
+            return mapAttractionFallback(keywords, city);
         } catch (Exception exception) {
             log.warn("xhs_attraction_adapter_failed city={} type={} fallback=map",
                     city, exception.getClass().getSimpleName());
-            try {
-                return objectMapper.writeValueAsString(
-                        mapDispatcher.searchPoiUnified(keywords, city, true).stream().limit(10).toList());
-            } catch (Exception fallbackException) {
-                return "景点资料暂不可用，所有建议必须标记为 needs_verification";
-            }
+            return mapAttractionFallback(keywords, city);
+        }
+    }
+
+    private String mapAttractionFallback(String keywords, String city) {
+        try {
+            return objectMapper.writeValueAsString(
+                    mapDispatcher.searchPoiUnified(keywords, city, true).stream().limit(10).toList());
+        } catch (Exception fallbackException) {
+            return "景点资料暂不可用，所有建议必须标记为 needs_verification";
+        }
+    }
+
+    private void addWarning(List<String> warnings, String message) {
+        if (warnings != null && !warnings.contains(message)) {
+            warnings.add(message);
         }
     }
 
