@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { apiClient } from '../../services/apiClient'
-import { DeepSeekLogo } from '../DeepSeekLogo'
+import { AILogo } from '../AILogo'
 import type { TripPlan, ChatMessage, TripChatRequest, TripChatResponse } from '../../types/api'
 
 interface AIChatProps {
@@ -79,7 +79,7 @@ function AIChat({ tripPlan, mode = 'floating' }: AIChatProps) {
         <div className={`chat-panel${embedded ? ' chat-panel--embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-label={t('aiChat.title')}>
           <div className="chat-panel-header">
             <span className="chat-panel-brand">
-              <i className="chat-panel-logo"><DeepSeekLogo size={22} /></i>
+              <i className="chat-panel-logo"><AILogo size={22} /></i>
               {t('aiChat.title')}
             </span>
             {!embedded && (
@@ -161,7 +161,7 @@ function AIChat({ tripPlan, mode = 'floating' }: AIChatProps) {
           onClick={() => setChatOpen((open) => !open)}
           aria-label={chatOpen ? t('aiChat.closeAssistant') : t('aiChat.open')}
         >
-          <DeepSeekLogo size={30} />
+          <AILogo size={30} />
         </button>
       )}
     </div>
