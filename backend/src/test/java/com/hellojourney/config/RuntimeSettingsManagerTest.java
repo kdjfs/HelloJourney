@@ -91,7 +91,7 @@ class RuntimeSettingsManagerTest {
 
             assertThat(result).containsKeys("llm_active_provider", "llm_providers");
             assertThat(result).doesNotContainKeys(
-                    "tencent_maps_key", "google_maps_api_key", "xhs_cookie",
+                    "tencent_maps_key", "google_maps_api_key", "amap_maps_key", "xhs_cookie",
                     "xhs_xs", "xhs_xs_common", "xhs_xt"
             );
 

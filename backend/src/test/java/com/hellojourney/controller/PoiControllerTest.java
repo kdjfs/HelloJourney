@@ -5,6 +5,7 @@ import com.hellojourney.service.GoogleMapService;
 import com.hellojourney.service.MapDispatcher;
 import com.hellojourney.service.TencentMapService;
 import com.hellojourney.service.image.AttractionImageService;
+import com.hellojourney.service.image.XhsImageProxyService;
 import com.hellojourney.util.TestDataFactory;
 import com.hellojourney.model.vo.AttractionImageResult;
 import com.hellojourney.model.vo.POIInfo;
@@ -32,6 +33,10 @@ class PoiControllerTest {
 
     @MockBean
     private AttractionImageService attractionImageService;
+
+    /** PoiController 新增了小红书图片代理依赖；@WebMvcTest 不装配 @Service，必须显式 mock */
+    @MockBean
+    private XhsImageProxyService xhsImageProxyService;
 
     @MockBean
     private AppSettings appSettings;

@@ -39,7 +39,8 @@ class TripPlanningJobServiceTest {
         KnowledgeGraphData graph = KnowledgeGraphData.builder().build();
         List<String> progress = new ArrayList<>();
 
-        when(tripPlannerAgent.planTripWithReview(eq(request), any(), any(BooleanSupplier.class))).thenAnswer(invocation -> {
+        // TripPlanningJobService 现在调用带 warnings 出参的四参数重载，桩必须对应同一签名
+        when(tripPlannerAgent.planTripWithReview(eq(request), any(), any(BooleanSupplier.class), org.mockito.ArgumentMatchers.anyList())).thenAnswer(invocation -> {
             java.util.function.BiConsumer<String, Integer> callback = invocation.getArgument(1);
             callback.accept("正在搜索景点", 35);
             return new StructuredTripPlanResult(plan,

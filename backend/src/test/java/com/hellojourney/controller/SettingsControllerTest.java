@@ -9,9 +9,11 @@ import com.hellojourney.config.AppSettings;
 import com.hellojourney.config.RuntimeSettingsManager;
 import com.hellojourney.model.dto.RuntimeSettingsPayload;
 import com.hellojourney.service.GoogleMapService;
+import com.hellojourney.service.LlmModelCatalogService;
 import com.hellojourney.service.LlmService;
 import com.hellojourney.service.MapDispatcher;
 import com.hellojourney.service.TencentMapService;
+import com.hellojourney.service.XhsService;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -61,6 +64,13 @@ class SettingsControllerTest {
 
     @MockBean
     private AppSettings appSettings;
+
+    @MockBean
+    private LlmModelCatalogService modelCatalogService;
+
+    /** SettingsController 现在也依赖 XhsService；@WebMvcTest 不会自动装配 @Service */
+    @MockBean
+    private XhsService xhsService;
 
     @Test
     void getSettings_neverReturnsSecrets() throws Exception {
@@ -211,5 +221,57 @@ class SettingsControllerTest {
                 .andExpect(jsonPath("$.data.providers[0].name").value("GPT (OpenAI)"))
                 .andExpect(jsonPath("$.data.providers[0].api_key").doesNotExist())
                 .andExpect(jsonPath("$.data.providers[0].base_url").doesNotExist());
+    }
+
+    private AppSettings.SettingsSecurityConfig enabledSecurity() {
+        AppSettings.SettingsSecurityConfig security = new AppSettings.SettingsSecurityConfig();
+        security.setAllowSecretUpdates(true);
+        security.setAdminToken("server-only-admin-token");
+        return security;
+    }
+
+    @Test
+    void listLlmModels_anonymousRequestIsRejectedAndSecretNotEchoed() throws Exception {
+        mockMvc.perform(post("/api/settings/llm/models")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"base_url\":\"https://relay.example/v1\",\"api_key\":\"sk-must-not-leak\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("sk-must-not-leak"))));
+
+        verify(modelCatalogService, never()).listModels(any(), any());
+    }
+
+    @Test
+    void listLlmModels_returnsOnlyModelIds() throws Exception {
+        when(appSettings.getSettings()).thenReturn(enabledSecurity());
+        when(modelCatalogService.listModels("https://relay.example/v1", "sk-must-not-leak"))
+                .thenReturn(List.of("glm-4.6", "kimi-k2"));
+
+        mockMvc.perform(post("/api/settings/llm/models")
+                        .header("X-HelloJourney-Admin-Token", "server-only-admin-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"base_url\":\"https://relay.example/v1\",\"api_key\":\"sk-must-not-leak\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.models[0]").value("glm-4.6"))
+                .andExpect(jsonPath("$.data.count").value(2))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("sk-must-not-leak"))));
+    }
+
+    @Test
+    void listLlmModels_requiresBaseUrlAndKey() throws Exception {
+        when(appSettings.getSettings()).thenReturn(enabledSecurity());
+        when(appSettings.getLlm()).thenReturn(null);
+
+        mockMvc.perform(post("/api/settings/llm/models")
+                        .header("X-HelloJourney-Admin-Token", "server-only-admin-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        verify(modelCatalogService, never()).listModels(any(), any());
     }
 }

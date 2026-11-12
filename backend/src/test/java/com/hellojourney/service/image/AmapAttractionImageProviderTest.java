@@ -150,6 +150,102 @@ class AmapAttractionImageProviderTest {
         assertThat(result.getImageUrl()).isEmpty();
     }
 
+    @Test
+    void resolveImage_prefersPhotoTitledWithPoiNameOverUserUpload() {
+        enqueuePoiWithPhotos("天安门广场", "北京市", """
+                [
+                  {"title": "", "url": "https://aos-cdn-image.amap.com/sns/ugccomment/ugc.jpg"},
+                  {"title": "天安门广场", "url": "https://store.is.autonavi.com/showpic/canonical.jpg"}
+                ]
+                """);
+
+        AttractionImageResult result = provider.resolveImage("天安门广场", "北京", null);
+
+        assertThat(result.isVerified()).isTrue();
+        assertThat(result.getImageUrl())
+                .isEqualTo("https://store.is.autonavi.com/showpic/canonical.jpg");
+    }
+
+    @Test
+    void resolveImage_skipsSeasonalBloomPhotoWherePossible() {
+        // 景山公园 leads with a photo titled 春季 that is a tree-peony close-up.
+        enqueuePoiWithPhotos("景山公园", "北京市", """
+                [
+                  {"title": "春季", "url": "https://store.is.autonavi.com/showpic/spring-bloom.jpg"},
+                  {"title": "", "url": "https://store.is.autonavi.com/showpic/pavilion.jpg"}
+                ]
+                """);
+
+        AttractionImageResult result = provider.resolveImage("景山公园", "北京", null);
+
+        assertThat(result.isVerified()).isTrue();
+        assertThat(result.getImageUrl())
+                .isEqualTo("https://store.is.autonavi.com/showpic/pavilion.jpg");
+    }
+
+    @Test
+    void resolveImage_keepsOriginalOrderWhenPhotosAreEquivalent() {
+        // 天坛公园 returns three untitled gallery photos; the first one stays first.
+        enqueuePoiWithPhotos("天坛公园", "北京市", """
+                [
+                  {"title": "", "url": "https://store.is.autonavi.com/showpic/one.jpg"},
+                  {"title": "", "url": "https://store.is.autonavi.com/showpic/two.jpg"}
+                ]
+                """);
+
+        AttractionImageResult result = provider.resolveImage("天坛公园", "北京", null);
+
+        assertThat(result.getImageUrl()).isEqualTo("https://store.is.autonavi.com/showpic/one.jpg");
+    }
+
+    @Test
+    void resolveImage_skipsUnsafePhotoAndKeepsScanning() {
+        enqueuePoiWithPhotos("广州塔", "广州市", """
+                [
+                  {"title": "", "url": "http://evil.example.com/tower.jpg"},
+                  {"title": "", "url": "http://store.is.autonavi.com/showpic/tower.jpg"}
+                ]
+                """);
+
+        AttractionImageResult result = provider.resolveImage("广州塔", "广州", null);
+
+        assertThat(result.isVerified()).isTrue();
+        assertThat(result.getImageUrl())
+                .isEqualTo("https://store.is.autonavi.com/showpic/tower.jpg");
+    }
+
+    @Test
+    void resolveImage_noSafePhotoAmongMany_returnsNotFound() {
+        enqueuePoiWithPhotos("广州塔", "广州市", """
+                [
+                  {"title": "", "url": "javascript:alert(1)"},
+                  {"title": "", "url": "http://evil.example.com/tower.jpg"}
+                ]
+                """);
+
+        AttractionImageResult result = provider.resolveImage("广州塔", "广州", null);
+
+        assertThat(result.isVerified()).isFalse();
+        assertThat(result.getImageUrl()).isEmpty();
+    }
+
+    private void enqueuePoiWithPhotos(String name, String city, String photosJson) {
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("""
+                        {
+                          "status": "1",
+                          "pois": [{
+                            "id": "B000TEST",
+                            "name": "%s",
+                            "cityname": "%s",
+                            "business": {"alias": ""},
+                            "photos": %s
+                          }]
+                        }
+                        """.formatted(name, city, photosJson)));
+    }
+
     private void enqueuePoi(String name, String city, String id, String alias, String photoUrl) {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
