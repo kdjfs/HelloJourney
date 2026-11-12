@@ -114,6 +114,11 @@ public class AppSettings {
         private int toolMaxRetries = 1;
         private int maxToolResultChars = 20_000;
         private int structuredRepairAttempts = 2;
+        /**
+         * 结构化行程（一次性输出整份 JSON）的单独超时。
+         * 走中转站的慢模型单次要 100s 以上，用全局 llm.timeout 会把正常请求当作超时重试。
+         */
+        private int structuredTimeoutSeconds = 240;
     }
 
     public List<String> getCorsOriginsList() {

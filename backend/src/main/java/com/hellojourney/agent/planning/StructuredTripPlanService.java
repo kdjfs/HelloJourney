@@ -51,11 +51,14 @@ public class StructuredTripPlanService {
 
         for (int attempt = 0; attempt <= maxRepairs; attempt++) {
             ensureActive(cancellationRequested);
+            // 整份行程 JSON 一次输出，慢模型单次可达 100s+：用独立的长超时，
+            // 否则会被全局 llm timeout 当成网络错误重试，白白翻倍耗时。
+            int planTimeout = Math.max(60, appSettings.getAgent().getStructuredTimeoutSeconds());
             LlmChatResult response = llmService.complete(LlmChatRequest.builder()
                     .messages(List.of(LlmMessage.system(systemPrompt), LlmMessage.user(userPrompt)))
                     .responseFormat(Map.of("type", "json_object"))
                     .maxTokens(8_000)
-                    .build());
+                    .build(), planTimeout);
             addUsage(totalUsage, response.usage());
 
             ValidationOutcome outcome = validateResponse(response.content(), response.finishReason(), request);

@@ -40,6 +40,7 @@ app:
     tool-max-retries: ${AGENT_TOOL_MAX_RETRIES:1}
     max-tool-result-chars: ${AGENT_MAX_TOOL_RESULT_CHARS:20000}
     structured-repair-attempts: ${AGENT_STRUCTURED_REPAIR_ATTEMPTS:3}
+    structured-timeout-seconds: ${AGENT_STRUCTURED_TIMEOUT_SECONDS:240}
 
   llm:
     active-provider: ${LLM_ACTIVE_PROVIDER:deepseek}

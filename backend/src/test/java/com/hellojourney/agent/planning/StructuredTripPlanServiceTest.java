@@ -18,6 +18,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,7 +44,7 @@ class StructuredTripPlanServiceTest {
 
     @Test
     void generate_usesJsonOutputAndReturnsReviewedPlan() throws Exception {
-        when(llmService.complete(any(LlmChatRequest.class))).thenReturn(result(validJson, "stop", 30));
+        when(llmService.complete(any(LlmChatRequest.class), anyInt())).thenReturn(result(validJson, "stop", 30));
 
         StructuredTripPlanResult result = service.generate(
                 PlanningTestData.request(), "research", () -> false);
@@ -52,7 +53,7 @@ class StructuredTripPlanServiceTest {
         assertThat(result.review().pass()).isTrue();
         assertThat(result.repairAttempts()).isZero();
         ArgumentCaptor<LlmChatRequest> request = ArgumentCaptor.forClass(LlmChatRequest.class);
-        verify(llmService).complete(request.capture());
+        verify(llmService).complete(request.capture(), anyInt());
         assertThat(request.getValue().getResponseFormat()).containsEntry("type", "json_object");
         assertThat(request.getValue().getMessages().get(0).getContent()).contains("trip-plan-v3.schema.json");
     }
@@ -60,7 +61,7 @@ class StructuredTripPlanServiceTest {
     @Test
     void generate_repairsInvalidOutputUsingCompleteOriginalJson() throws Exception {
         String invalid = "{\"city\":\"北京\"}";
-        when(llmService.complete(any(LlmChatRequest.class)))
+        when(llmService.complete(any(LlmChatRequest.class), anyInt()))
                 .thenReturn(result(invalid, "stop", 5))
                 .thenReturn(result(validJson, "stop", 30));
 
@@ -69,7 +70,7 @@ class StructuredTripPlanServiceTest {
 
         assertThat(result.repairAttempts()).isEqualTo(1);
         ArgumentCaptor<LlmChatRequest> requests = ArgumentCaptor.forClass(LlmChatRequest.class);
-        verify(llmService, times(2)).complete(requests.capture());
+        verify(llmService, times(2)).complete(requests.capture(), anyInt());
         assertThat(requests.getAllValues().get(1).getMessages().get(1).getContent())
                 .contains(invalid)
                 .contains("required");
@@ -78,7 +79,7 @@ class StructuredTripPlanServiceTest {
     @Test
     void generate_blocksPlanAfterRepairBudgetIsExhausted() throws Exception {
         settings.getAgent().setStructuredRepairAttempts(0);
-        when(llmService.complete(any(LlmChatRequest.class))).thenReturn(result("{}", "stop", 5));
+        when(llmService.complete(any(LlmChatRequest.class), anyInt())).thenReturn(result("{}", "stop", 5));
 
         assertThatThrownBy(() -> service.generate(PlanningTestData.request(), "research", () -> false))
                 .isInstanceOf(StructuredPlanException.class)
