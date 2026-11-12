@@ -1,0 +1,148 @@
+/* ==========================================================================
+   后台生成中的全局指示器（左下角，避开右下角的 AI 助手）
+   ========================================================================== */
+
+.generation-pill {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 1100;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  max-width: min(380px, calc(100vw - 48px));
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-lg);
+  background: var(--hj-surface);
+  box-shadow: var(--hj-shadow-lg);
+  overflow: hidden;
+  animation: generationPillIn 0.22s ease;
+}
+
+@keyframes generationPillIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.generation-pill-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px 10px 14px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.generation-pill-main:disabled {
+  cursor: default;
+}
+
+.generation-pill-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--hj-primary-soft);
+  color: var(--hj-primary-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.generation-pill.is-done .generation-pill-icon {
+  background: var(--hj-ok-soft);
+  color: var(--hj-ok);
+}
+
+.generation-pill.is-failed .generation-pill-icon {
+  background: var(--hj-danger-soft);
+  color: var(--hj-danger);
+}
+
+.generation-spin {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--hj-primary-soft);
+  border-top-color: var(--hj-primary);
+  border-radius: 50%;
+  animation: generationSpin 0.8s linear infinite;
+}
+
+@keyframes generationSpin {
+  to { transform: rotate(360deg); }
+}
+
+.generation-pill-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.generation-pill-text strong {
+  color: var(--hj-text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.generation-pill-text small {
+  color: var(--hj-text-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.generation-pill-bar {
+  display: block;
+  flex: 0 0 54px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hj-surface-3);
+  overflow: hidden;
+}
+
+.generation-pill-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--hj-primary);
+  transition: width 0.4s ease;
+}
+
+.generation-pill-close {
+  flex: 0 0 auto;
+  width: 34px;
+  border: 0;
+  border-left: 1px solid var(--hj-border-soft);
+  background: none;
+  color: var(--hj-text-faint);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.generation-pill-close:hover {
+  background: var(--hj-surface-2);
+  color: var(--hj-text);
+}
+
+@media (max-width: 640px) {
+  .generation-pill {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+}

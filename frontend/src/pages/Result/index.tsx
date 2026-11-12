@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useRef, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -6,14 +6,15 @@ import {
   Button,
   Empty,
   Spin,
-  FloatButton,
-  Alert,
+  Popover,
   Image,
-  ConfigProvider,
-  theme,
+  Tag,
 } from 'antd'
 import {
   ArrowLeftOutlined,
+  CheckCircleFilled,
+  CloseCircleFilled,
+  WarningFilled,
 } from '@ant-design/icons'
 import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
 import { deriveWorkspaceBudget, workspacePlanSignature } from '../../features/trip-workspace/model/derivedPlan'
@@ -47,12 +48,12 @@ function getWeatherIconKind(weatherText: string): WeatherIconKind {
 
 function getWeatherGradient(text: string): string {
   const t = (text || '').toLowerCase()
-  if (/(雷|thunder)/.test(t)) return 'linear-gradient(140deg, #3a4a86 0%, #5b3b8a 100%)'
-  if (/(雪|snow|sleet|hail)/.test(t)) return 'linear-gradient(140deg, #8bc6ec 0%, #d9afd9 100%)'
-  if (/(雨|rain|shower|drizzle)/.test(t)) return 'linear-gradient(140deg, #4b6cb7 0%, #182848 100%)'
-  if (/(雾|霾|fog|mist|haze)/.test(t)) return 'linear-gradient(140deg, #7b8799 0%, #4a5568 100%)'
-  if (/(阴|cloud|overcast)/.test(t)) return 'linear-gradient(140deg, #6d7f92 0%, #3f4c6b 100%)'
-  return 'linear-gradient(140deg, #72edf2 0%, #5151e5 100%)'
+  if (/(雷|thunder)/.test(t)) return 'linear-gradient(150deg, #64748f 0%, #3b4563 100%)'
+  if (/(雪|snow|sleet|hail)/.test(t)) return 'linear-gradient(150deg, #a8c6dc 0%, #7f9cb8 100%)'
+  if (/(雨|rain|shower|drizzle)/.test(t)) return 'linear-gradient(150deg, #6a92b5 0%, #3f6484 100%)'
+  if (/(雾|霾|fog|mist|haze)/.test(t)) return 'linear-gradient(150deg, #b0ada1 0%, #87847a 100%)'
+  if (/(阴|cloud|overcast)/.test(t)) return 'linear-gradient(150deg, #9aa7ad 0%, #6a7a82 100%)'
+  return 'linear-gradient(150deg, #eaa45f 0%, #d2683f 100%)'
 }
 
 function parseWeatherDate(rawDate: string): Date | null {
@@ -207,6 +208,53 @@ function readStoredTripPlan(): TripPlan | null {
   try { return JSON.parse(raw) as TripPlan } catch { return null }
 }
 
+/** The plan payload carries no traveler count or limit, so the request is kept too. */
+function readStoredTripRequest(): { travelers?: number; budget_limit?: number } {
+  const raw = sessionStorage.getItem('tripRequest')
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as { travelers?: number; budget_limit?: number }
+    return {
+      travelers: Number.isFinite(Number(parsed.travelers)) ? Number(parsed.travelers) : undefined,
+      budget_limit: Number.isFinite(Number(parsed.budget_limit)) ? Number(parsed.budget_limit) : undefined,
+    }
+  } catch { return {} }
+}
+
+/** 同一句提示会重复几十次（例如「景点仍需地图服务确认」），先在数据层收敛。 */
+function summarizeNotices(messages: string[]): Array<{ message: string; count: number }> {
+  const counter = new Map<string, number>()
+  for (const raw of messages) {
+    const message = (raw || '').trim()
+    if (!message) continue
+    counter.set(message, (counter.get(message) ?? 0) + 1)
+  }
+  return [...counter.entries()]
+    .map(([message, count]) => ({ message, count }))
+    .sort((a, b) => b.count - a.count)
+}
+
+/** 限并发地跑异步任务，避免 20 张景点图串行请求把首屏拖成几十秒。 */
+async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
+  if (items.length === 0) return
+  let cursor = 0
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      await worker(items[index])
+    }
+  })
+  await Promise.all(runners)
+}
+
+/** 图标以「白天天气」为准；只有白天字段为空时才回落到夜间，避免「晴 / 多云」被判成阴天。 */
+function weatherIconSource(weather: WeatherInfo): string {
+  const day = (weather.day_weather || '').trim()
+  if (day) return day
+  return (weather.night_weather || '').trim()
+}
+
 function Result() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
@@ -230,40 +278,60 @@ function Result() {
     try { return JSON.parse(raw) } catch { return null }
   })
 
+  const [degradedWarnings, setDegradedWarnings] = useState<string[]>(() => {
+    const raw = sessionStorage.getItem('tripWarnings')
+    if (!raw) return []
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+    } catch { return [] }
+  })
+
   const [planId] = useState(urlPlanId || sessionStorage.getItem('planId') || '')
+  const [tripRequest] = useState(readStoredTripRequest)
   const [loading, setLoading] = useState(false)
   const [recoveryError, setRecoveryError] = useState('')
   const [activeSection, setActiveSection] = useState('overview')
   const [activeWeatherIndex, setActiveWeatherIndex] = useState(0)
-  const [activeOverviewCard, setActiveOverviewCard] = useState(0)
+  const [selectedOverviewName, setSelectedOverviewName] = useState('')
   const [selectedMapAttraction, setSelectedMapAttraction] = useState<{
     dayIndex: number
     attractionIndex: number
   } | null>(null)
-  const [attractionPhotos, setAttractionPhotos] = useState<Record<string, string>>({})
-  const overviewRef = useRef<HTMLDivElement>(null)
+  const [attractionPhotos, setAttractionPhotos] = useState<Record<string, { url: string; provider: string }>>({})
+  const [noticeDismissed, setNoticeDismissed] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!tripPlan) return
     let cancelled = false
 
     const loadPhotos = async () => {
-      const photos: Record<string, string> = {}
-      const resolvedKeys = new Set<string>()
+      const targets: Array<{ key: string; name: string; city: string; poiId?: string }> = []
+      const seen = new Set<string>()
       for (const day of tripPlan.days) {
         const city = day.city || tripPlan.city
         for (const attr of day.attractions) {
           const key = attractionImageCacheKey(city, attr.name)
-          if (resolvedKeys.has(key)) continue
-          resolvedKeys.add(key)
-          try {
-            const result = await resolveAttractionImage(attr.name, city, attr.poi_id)
-            if (result.verified && result.imageUrl) photos[key] = result.imageUrl
-          } catch {
-            // The card keeps a deterministic named placeholder when the provider is unavailable.
-          }
+          if (seen.has(key)) continue
+          seen.add(key)
+          targets.push({ key, name: attr.name, city, poiId: attr.poi_id })
         }
       }
-      if (!cancelled) setAttractionPhotos(photos)
+
+      const photos: Record<string, { url: string; provider: string }> = {}
+      await runWithConcurrency(targets, 6, async (target) => {
+        try {
+          const result = await resolveAttractionImage(target.name, target.city, target.poiId)
+          if (result.verified && result.imageUrl) {
+            photos[target.key] = { url: result.imageUrl, provider: result.provider }
+          }
+        } catch {
+          // The card keeps a deterministic named placeholder when the provider is unavailable.
+        }
+        // 每张图落地就增量渲染，用户不必等全部请求结束才看到第一张。
+        if (!cancelled) setAttractionPhotos((prev) => ({ ...prev, ...photos }))
+      })
     }
 
     void loadPhotos()
@@ -283,10 +351,13 @@ function Result() {
           const data: TripPlan = status.result.data || status.result
           const gData: KnowledgeGraphData | null = status.result.graph_data || null
           const review: TripReviewResult | null = status.result.review || null
+          const warnings = Array.isArray(status.result.warnings) ? status.result.warnings : []
           setSourcePlan(structuredClone(data))
           setTripPlan(data)
           setGraphData(gData)
           setTripReview(review)
+          setDegradedWarnings(warnings)
+          if (warnings.length > 0) sessionStorage.setItem('tripWarnings', JSON.stringify(warnings))
           sessionStorage.setItem('tripPlan', JSON.stringify(data))
           if (gData) sessionStorage.setItem('graphData', JSON.stringify(gData))
           if (review) sessionStorage.setItem('tripReview', JSON.stringify(review))
@@ -306,7 +377,7 @@ function Result() {
     void recoverPlan()
   }, [loading, t, tripPlan, urlPlanId])
 
-  const overviewAttractions: OverviewAttractionItem[] = tripPlan
+  const overviewAttractions: OverviewAttractionItem[] = useMemo(() => (tripPlan
     ? tripPlan.days.flatMap((day, dayIdx) =>
         day.attractions.map((attr, attractionIdx) => ({
           name: attr.name,
@@ -322,7 +393,7 @@ function Result() {
           reservation_tips: attr.reservation_tips,
         })),
       )
-    : []
+    : []), [tripPlan])
 
   const workspaceEdited = Boolean(
     tripPlan
@@ -351,17 +422,46 @@ function Result() {
       ? weatherList[Math.min(Math.max(activeWeatherIndex, 0), weatherList.length - 1)]
       : null
   const selectedIconKind: WeatherIconKind = selectedWeather
-    ? getWeatherIconKind(`${selectedWeather.day_weather || ''} ${selectedWeather.night_weather || ''}`)
+    ? getWeatherIconKind(weatherIconSource(selectedWeather))
     : 'sunny'
 
-  const scrollToSection = (key: string) => {
+  /* ---------- 校验结果：从大色块横幅收敛成顶栏一个可展开的小胶囊 ---------- */
+  const notices = useMemo(
+    () => summarizeNotices([
+      ...(tripReview?.warnings ?? []).map((issue) => issue.message),
+      ...degradedWarnings,
+    ]),
+    [degradedWarnings, tripReview],
+  )
+  const noticeCount = notices.length
+  const checkTone = !tripReview
+    ? 'neutral'
+    : !tripReview.pass
+      ? 'error'
+      : noticeCount > 0 ? 'warn' : 'ok'
+
+  const sectionItems = useMemo(() => [
+    { key: 'overview', label: t('result.tabOverview') },
+    ...(effectiveBudget ? [{ key: 'budget', label: t('result.tabBudget') }] : []),
+    { key: 'weather', label: t('result.tabWeather') },
+    { key: 'days', label: t('result.tabDays') },
+    { key: 'knowledge-graph', label: t('result.tabGraph') },
+    { key: 'assistant', label: t('result.tabAssistant') },
+  ], [effectiveBudget, t])
+
+  const switchSection = useCallback((key: string) => {
     setActiveSection(key)
-  }
+    const top = contentRef.current
+    if (top) {
+      const y = top.getBoundingClientRect().top + window.scrollY - 132
+      window.scrollTo({ top: Math.max(y, 0), behavior: 'smooth' })
+    }
+  }, [])
 
   if (loading) {
     return (
-      <div className="result-loading">
-        <div className="result-loading-box">
+      <div className="result-state">
+        <div className="result-state-box">
           <Spin size="large" />
           <p>{t('result.loadingPlan')}</p>
         </div>
@@ -371,7 +471,7 @@ function Result() {
 
   if (!tripPlan) {
     return (
-      <div className="result-empty">
+      <div className="result-state">
         <Empty description={recoveryError || t('result.noPlan')}>
           <Button type="primary" onClick={() => navigate('/')} icon={<ArrowLeftOutlined />}>
             {t('result.backGenerate')}
@@ -381,231 +481,283 @@ function Result() {
     )
   }
 
+  const noticeBody = (
+    <div className="check-popover">
+      <p className="check-popover-head">
+        {tripReview?.pass ? t('result.reviewPass') : t('result.reviewBlocked')}
+      </p>
+      {noticeCount === 0 ? (
+        <p className="check-popover-empty">{t('result.reviewSuccess')}</p>
+      ) : (
+        <ul className="check-popover-list">
+          {notices.map((notice) => (
+            <li key={notice.message}>
+              <span>{notice.message}</span>
+              {notice.count > 1 && <Tag>{`×${notice.count}`}</Tag>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+
   return (
-    <div className="result-container">
-      <div className="lower-shade" />
+    <div className="result-shell">
+      {/* ---------------- 顶栏 ---------------- */}
+      <header className="result-topbar">
+        <div className="result-topbar-inner">
+          <button type="button" className="result-back" onClick={() => navigate('/')}>
+            <ArrowLeftOutlined aria-hidden="true" />
+            <span className="result-back-text">{t('result.backHome')}</span>
+          </button>
 
-      <main className="result-main">
-        <div className="result-actions">
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/')}
-            style={{ color: '#ecf3fa' }}
-          >
-            {t('result.backHome')}
-          </Button>
-          <TripExportActions plan={effectiveTripPlan ?? tripPlan} planId={planId} />
-        </div>
-
-        <div className="content-wrapper">
-          {/* 所有景点照片共享一个预览组：点击放大后可左右切换 */}
-          <Image.PreviewGroup>
-          {/* Top Nav */}
-          <div className="top-switch-nav">
-            <div className="top-switch-menu-wrap">
-              <div className="top-switch-menu" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {[
-                  { key: 'overview', label: t('result.tabOverview') },
-                  ...(effectiveBudget ? [{ key: 'budget', label: t('result.tabBudget') }] : []),
-                  { key: 'weather', label: t('result.tabWeather') },
-                  { key: 'days', label: t('result.tabDays') },
-                  { key: 'knowledge-graph', label: t('result.tabGraph') },
-                  { key: 'assistant', label: t('result.tabAssistant') },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className={`nav-pill${activeSection === item.key ? ' active' : ''}`}
-                    onClick={() => scrollToSection(item.key)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="result-heading">
+            <h1>{tripPlan.city}</h1>
+            <p className="result-heading-meta" title={planId ? `#${planId}` : undefined}>
+              <span className="hj-num">{tripPlan.start_date} — {tripPlan.end_date}</span>
+              <span className="result-dot" aria-hidden="true">·</span>
+              <span>{t('common.daysCount', { count: tripPlan.days.length })}</span>
+            </p>
           </div>
 
-          {generatedPlanLocale && normalizeAppLocale(generatedPlanLocale) !== currentLocale && (
-            <Alert className="review-summary" type="info" showIcon title={t('result.regenerateHint')} />
+          <div className="result-topbar-actions">
+            {tripReview && (
+              <Popover
+                trigger="click"
+                placement="bottomRight"
+                content={noticeBody}
+                title={null}
+                arrow={false}
+              >
+                <button type="button" className={`check-chip check-chip--${checkTone}`}>
+                  {checkTone === 'error'
+                    ? <CloseCircleFilled aria-hidden="true" />
+                    : checkTone === 'warn'
+                      ? <WarningFilled aria-hidden="true" />
+                      : <CheckCircleFilled aria-hidden="true" />}
+                  <span>{tripReview.pass ? t('result.reviewPass') : t('result.reviewBlocked')}</span>
+                  {noticeCount > 0 && <em className="hj-num">{noticeCount}</em>}
+                </button>
+              </Popover>
+            )}
+            <TripExportActions plan={effectiveTripPlan ?? tripPlan} planId={planId} />
+          </div>
+        </div>
+
+        <nav className="result-tabs" aria-label={t('result.tabOverview')}>
+          {sectionItems.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`result-tab${activeSection === item.key ? ' is-active' : ''}`}
+              aria-current={activeSection === item.key ? 'page' : undefined}
+              onClick={() => switchSection(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main className="result-main" ref={contentRef}>
+        {generatedPlanLocale
+          && normalizeAppLocale(generatedPlanLocale) !== currentLocale
+          && !noticeDismissed
+          && (
+            <div className="result-inline-note">
+              <span>{t('result.regenerateHint')}</span>
+              <button type="button" onClick={() => setNoticeDismissed(true)} aria-label={t('common.none')}>✕</button>
+            </div>
           )}
 
-          {tripReview && (
-            <Alert
-              className="review-summary"
-              type={tripReview.pass ? (tripReview.warnings.length ? 'warning' : 'success') : 'error'}
-              showIcon
-              title={tripReview.pass ? t('result.reviewPass') : t('result.reviewBlocked')}
-              description={tripReview.warnings.length
-                ? t('result.reviewWarnings', { count: tripReview.warnings.length, messages: tripReview.warnings.slice(0, 2).map((issue) => issue.message).join('；') })
-                : t('result.reviewSuccess')}
-            />
-          )}
-
-          {/* Overview */}
+        <Image.PreviewGroup>
+          {/* ---------------- 概览 ---------------- */}
           <div
             className={`overview-export-host${activeSection === 'overview' ? '' : ' is-background'}`}
             aria-hidden={activeSection === 'overview' ? undefined : true}
           >
-            <Card id="overview" className="section-shellless overview-card" styles={{ body: { padding: 0 } }}>
-              <Suspense
-                fallback={(
-                  <div className="trip-map-lazy" role="status">
-                    <Spin />
-                    <span>{t('result.mapLoading')}</span>
+            <section className="result-section overview-section">
+              <div className="overview-head">
+                <div>
+                  <p className="hj-eyebrow">{t('result.tabOverview')}</p>
+                  {tripPlan.overall_suggestions && (
+                    <p className="overview-lead">{tripPlan.overall_suggestions}</p>
+                  )}
+                </div>
+                <div className="overview-stats">
+                  <div className="overview-stat">
+                    <em>{t('landing.fieldDays')}</em>
+                    <b className="hj-num">{tripPlan.days.length}</b>
                   </div>
-                )}
-              >
-                <TripMap plan={effectiveTripPlan ?? tripPlan} selectedAttraction={selectedMapAttraction} />
-              </Suspense>
+                  <div className="overview-stat">
+                    <em>{t('knowledgeGraph.categoryAttraction')}</em>
+                    <b className="hj-num">{overviewAttractions.length}</b>
+                  </div>
+                  {effectiveBudget && (
+                    <div className="overview-stat">
+                      <em>{t('budgetPanel.totalLabel')}</em>
+                      <b className="hj-num">¥{Math.round(Number(effectiveBudget.total) || 0).toLocaleString(currentLocale)}</b>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="overview-map-card">
+                <Suspense
+                  fallback={(
+                    <div className="trip-map-lazy" role="status">
+                      <Spin />
+                      <span>{t('result.mapLoading')}</span>
+                    </div>
+                  )}
+                >
+                  <TripMap plan={effectiveTripPlan ?? tripPlan} selectedAttraction={selectedMapAttraction} />
+                </Suspense>
+              </div>
+
               {overviewAttractions.length > 0 ? (
-                <div ref={overviewRef} className="overview-swiper">
-                  <div className="overview-swiper-track">
-                    {overviewAttractions.map((item, index) => (
+                <div className="overview-gallery">
+                  {overviewAttractions.map((item) => {
+                    const photo = attractionPhotos[attractionImageCacheKey(item.city, item.name)]
+                    return (
                       <OverviewAttractionCard
                         key={`${item.dayArrayIndex}-${item.name}`}
                         item={item}
-                        imageUrl={attractionPhotos[attractionImageCacheKey(item.city, item.name)]}
-                        active={activeOverviewCard === index}
-                        onHover={() => setActiveOverviewCard(index)}
+                        imageUrl={photo?.url}
+                        imageSource={photo?.provider}
+                        active={selectedOverviewName === `${item.dayArrayIndex}-${item.name}`}
                         onSelect={() => {
-                          setActiveOverviewCard(index)
+                          setSelectedOverviewName(`${item.dayArrayIndex}-${item.name}`)
                           setSelectedMapAttraction({
                             dayIndex: item.dayArrayIndex,
                             attractionIndex: item.attractionArrayIndex,
                           })
                         }}
                       />
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
               ) : (
-                <div style={{ padding: 40, textAlign: 'center' }}>
+                <div className="result-empty-block">
                   <Empty description={t('result.noAttractions')} />
                 </div>
               )}
-
-              <div className="overview-meta">
-                <span style={{ color: '#ffd5c6', fontWeight: 700 }}>
-                  {tripPlan.start_date} ~ {tripPlan.end_date}
-                </span>
-                {planId && <span>Plan ID: {planId}</span>}
-                {tripPlan.overall_suggestions && (
-                  <span>{tripPlan.overall_suggestions}</span>
-                )}
-              </div>
-            </Card>
+            </section>
           </div>
 
-          {/* Budget */}
+          {/* ---------------- 预算 ---------------- */}
           {activeSection === 'budget' && effectiveBudget && (
-            <BudgetPanel budget={effectiveBudget} />
+            <section className="result-section">
+              <BudgetPanel
+                budget={effectiveBudget}
+                budgetLimit={tripRequest.budget_limit}
+                travelers={tripRequest.travelers}
+                dayCount={(effectiveTripPlan ?? tripPlan)?.days.length}
+              />
+            </section>
           )}
 
-          {/* Weather */}
+          {/* ---------------- 天气 ---------------- */}
           {activeSection === 'weather' && selectedWeather && (
-            <Card id="weather" className="section-shellless weather-section-card" styles={{ body: { padding: 0 } }}>
-              <div className="weather-dashboard">
-                <section className="weather-side" style={{ background: getWeatherGradient(selectedWeather.day_weather) }}>
-                  <div className="weather-gradient" />
-                  <div className="date-container">
-                    <h2 className="date-dayname">{formatWeatherWeekday(selectedWeather.date, currentLocale)}</h2>
-                    <span className="date-day">{formatWeatherDate(selectedWeather.date, currentLocale)}</span>
-                    <span className="location">
-                      <span className="location-icon">
-                        <svg width="16" height="16" viewBox="-3 0 20 20" fill="currentColor">
-                          <path d="M9,0C4.6,0,1,3.6,1,8c0,5.1,8,12.5,8,12.5S17,13.1,17,8C17,3.6,13.4,0,9,0z M9,11c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S10.7,11,9,11z" />
-                        </svg>
+            <section className="result-section">
+              <Card id="weather" className="section-shellless weather-section-card" styles={{ body: { padding: 0 } }}>
+                <div className="weather-dashboard">
+                  <section className="weather-side" style={{ background: getWeatherGradient(selectedWeather.day_weather) }}>
+                    <div className="date-container">
+                      <h2 className="date-dayname">{formatWeatherWeekday(selectedWeather.date, currentLocale)}</h2>
+                      <span className="date-day">{formatWeatherDate(selectedWeather.date, currentLocale)}</span>
+                      <span className="location">
+                        <span className="location-icon">
+                          <svg width="15" height="15" viewBox="-3 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path d="M9,0C4.6,0,1,3.6,1,8c0,5.1,8,12.5,8,12.5S17,13.1,17,8C17,3.6,13.4,0,9,0z M9,11c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S10.7,11,9,11z" />
+                          </svg>
+                        </span>
+                        {tripPlan.city}
                       </span>
-                      {tripPlan.city}
-                    </span>
-                  </div>
-                  <div className="weather-container">
-                    <WeatherIcon kind={selectedIconKind} />
-                    <h1 className="weather-temp">{formatWeatherTemp(selectedWeather.day_temp)}</h1>
-                    <h3 className="weather-desc">{selectedWeather.day_weather}</h3>
-                  </div>
-                </section>
+                    </div>
+                    <div className="weather-container">
+                      <WeatherIcon kind={selectedIconKind} />
+                      <h1 className="weather-temp">{formatWeatherTemp(selectedWeather.day_temp)}</h1>
+                      <h3 className="weather-desc">{selectedWeather.day_weather}</h3>
+                    </div>
+                  </section>
 
-                <section className="weather-info-side">
-                  <div className="week-container week-container--top">
-                    <ul className="week-list">
-                      {weatherList.map((item, idx) => {
-                        const kind = getWeatherIconKind(`${item.day_weather || ''} ${item.night_weather || ''}`)
-                        return (
-                          <li
-                            key={`${item.date}-${idx}`}
-                            className={idx === activeWeatherIndex ? 'active' : ''}
-                            onMouseEnter={() => setActiveWeatherIndex(idx)}
-                            onClick={() => setActiveWeatherIndex(idx)}
-                          >
-                            <SmallWeatherIcon kind={kind} />
-                            <span className="day-name">{formatWeatherWeekday(item.date, currentLocale, true)}</span>
-                            <span className="day-temp">{formatWeatherTemp(item.day_temp)}</span>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
+                  <section className="weather-info-side">
+                    <div className="week-container week-container--top">
+                      <ul className="week-list">
+                        {weatherList.map((item, idx) => {
+                          const kind = getWeatherIconKind(weatherIconSource(item))
+                          return (
+                            <li
+                              key={`${item.date}-${idx}`}
+                              className={idx === activeWeatherIndex ? 'active' : ''}
+                              onMouseEnter={() => setActiveWeatherIndex(idx)}
+                              onClick={() => setActiveWeatherIndex(idx)}
+                            >
+                              <SmallWeatherIcon kind={kind} />
+                              <span className="day-name">{formatWeatherWeekday(item.date, currentLocale, true)}</span>
+                              <span className="day-temp hj-num">{formatWeatherTemp(item.day_temp)}</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
 
-                  <div className="today-info-container">
-                    <div className="today-info">
-                      <div className="today-info-item">
-                        <span className="wea-title">{t('result.daytime')}</span>
-                        <span className="value">{selectedWeather.day_weather} · {formatWeatherTemp(selectedWeather.day_temp)}</span>
-                      </div>
-                      <div className="today-info-item">
-                        <span className="wea-title">{t('result.nighttime')}</span>
-                        <span className="value">{selectedWeather.night_weather} · {formatWeatherTemp(selectedWeather.night_temp)}</span>
-                      </div>
-                      <div className="today-info-item">
-                        <span className="wea-title">{t('result.precipitation')}</span>
-                        <span className="value">{getPrecipitation(selectedWeather.day_weather)}</span>
-                      </div>
-                      <div className="today-info-item">
-                        <span className="wea-title">{t('result.humidity')}</span>
-                        <span className="value">{getHumidity(selectedWeather.day_weather)}</span>
-                      </div>
-                      <div className="today-info-item">
-                        <span className="wea-title">{t('result.wind')}</span>
-                        <span className="value">{getWind(selectedWeather, t('result.breeze'))}</span>
+                    <div className="today-info-container">
+                      <div className="today-info">
+                        <div className="today-info-item">
+                          <span className="wea-title">{t('result.daytime')}</span>
+                          <span className="value">{selectedWeather.day_weather} · {formatWeatherTemp(selectedWeather.day_temp)}</span>
+                        </div>
+                        <div className="today-info-item">
+                          <span className="wea-title">{t('result.nighttime')}</span>
+                          <span className="value">{selectedWeather.night_weather} · {formatWeatherTemp(selectedWeather.night_temp)}</span>
+                        </div>
+                        <div className="today-info-item">
+                          <span className="wea-title">{t('result.precipitation')}</span>
+                          <span className="value">{getPrecipitation(selectedWeather.day_weather)}</span>
+                        </div>
+                        <div className="today-info-item">
+                          <span className="wea-title">{t('result.humidity')}</span>
+                          <span className="value">{getHumidity(selectedWeather.day_weather)}</span>
+                        </div>
+                        <div className="today-info-item">
+                          <span className="wea-title">{t('result.wind')}</span>
+                          <span className="value">{getWind(selectedWeather, t('result.breeze'))}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </section>
-              </div>
-            </Card>
+                  </section>
+                </div>
+              </Card>
+            </section>
           )}
 
-          {/* Daily Trips（浅色主题：白色卡片） */}
+          {/* ---------------- 每日行程 ---------------- */}
           {activeSection === 'days' && (
-            <ConfigProvider
-              theme={{
-                algorithm: theme.defaultAlgorithm,
-                token: { colorPrimary: '#176b87', borderRadius: 12 },
-              }}
-            >
+            <section className="result-section">
               <EditableTripDays initialPlan={tripPlan} planId={planId} onPlanChange={setTripPlan} />
-            </ConfigProvider>
+            </section>
           )}
 
-          {/* Knowledge Graph */}
+          {/* ---------------- 知识图谱 ---------------- */}
           {activeSection === 'knowledge-graph' && (
-            <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 24 } }}>
-              <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>{t('result.graphLoading')}</span></div>}>
-                <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} tripPlan={effectiveTripPlan} />
-              </Suspense>
-            </Card>
+            <section className="result-section">
+              <Card id="knowledge-graph" className="section-shellless kg-card" styles={{ body: { padding: 0 } }}>
+                <div className="kg-card-body">
+                  <Suspense fallback={<div className="kg-loading-fallback"><Spin /><span>{t('result.graphLoading')}</span></div>}>
+                    <KnowledgeGraph graphData={effectiveGraphData} derived={graphDerived} tripPlan={effectiveTripPlan} />
+                  </Suspense>
+                </div>
+              </Card>
+            </section>
           )}
-          </Image.PreviewGroup>
-          <Suspense fallback={activeSection === 'assistant' ? <div className="kg-loading-fallback"><Spin /></div> : null}>
-            <AIChat mode={activeSection === 'assistant' ? 'embedded' : 'floating'} tripPlan={effectiveTripPlan} />
-          </Suspense>
-        </div>
+        </Image.PreviewGroup>
+
+        <Suspense fallback={activeSection === 'assistant' ? <div className="kg-loading-fallback"><Spin /></div> : null}>
+          <AIChat mode={activeSection === 'assistant' ? 'embedded' : 'floating'} tripPlan={effectiveTripPlan} />
+        </Suspense>
       </main>
-
-      <FloatButton.BackTop visibilityHeight={300} tooltip={t('result.backTop')} />
-
     </div>
   )
 }

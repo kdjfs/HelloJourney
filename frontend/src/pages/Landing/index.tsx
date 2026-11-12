@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
+import { useState, useEffect, useRef, useCallback, Fragment, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Form, Input, InputNumber, Select, DatePicker, Button, message, Progress } from 'antd'
+import type { FormInstance } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useTranslation } from 'react-i18next'
-import { generateTripPlan, getTripHistory } from '../../services/tripApi'
-import { isMockEnabled } from '../../utils/env'
+import { getTripHistory } from '../../services/tripApi'
+import { useGeneration } from '../../features/generation/model/generationContext'
 import NavBar from '../../components/NavBar'
-import type { TripFormData, TripHistoryItem, TripTaskEvent } from '../../types/api'
-import heroImage from '../../assets/hero.png'
+import type { TripFormData, TripHistoryItem } from '../../types/api'
 import { normalizeAppLocale } from '../../i18n'
 import './index.css'
 
@@ -43,6 +43,41 @@ const STAGE_LABEL_KEYS: Record<string, string> = {
   cancelled: 'landing.stageCancelled',
 }
 
+/**
+ * 途经城市路线回显。
+ * 单独成组件是刻意的性能修复：Form.useWatch 会让「调用它的组件」在每次按键时重渲染，
+ * 之前它就在 Landing 顶层，导致输入目的地时整个页面（Hero、表单、历史列表）全部重绘。
+ */
+const RoutePreview = memo(function RoutePreview({
+  form,
+  additionalCities,
+  travelDays,
+}: {
+  form: FormInstance<TripFormData>
+  additionalCities: string[]
+  travelDays: number
+}) {
+  const { t } = useTranslation()
+  const watchedCity = Form.useWatch('city', form)
+  const routePreview = [watchedCity, ...additionalCities]
+    .map((item) => (item || '').trim())
+    .filter(Boolean)
+
+  if (routePreview.length === 0) return null
+
+  return (
+    <div className="route-preview" aria-label={t('landing.routePreview')}>
+      {routePreview.map((cityName, index) => (
+        <Fragment key={`${cityName}-${index}`}>
+          {index > 0 && <span className="route-arrow" aria-hidden="true">→</span>}
+          <span className={`route-chip${index === 0 ? ' route-chip-main' : ''}`}>{cityName}</span>
+        </Fragment>
+      ))}
+      <span className="route-total">{t('common.daysCount', { count: travelDays })}</span>
+    </div>
+  )
+})
+
 function Landing() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
@@ -52,14 +87,21 @@ function Landing() {
     Object.entries(STAGE_LABEL_KEYS).map(([stage, key]) => [stage, t(key)]),
   )
 
-  /* 表单状态 */
-  const [loading, setLoading] = useState(false)
-  const [loadingProgress, setLoadingProgress] = useState(0)
-  const [loadingStatus, setLoadingStatus] = useState('')
-  const [planCode, setPlanCode] = useState('')
-  const [generationError, setGenerationError] = useState('')
-  const [activityEvents, setActivityEvents] = useState<TripTaskEvent[]>([])
-  const generationController = useRef<AbortController | null>(null)
+  /* 生成任务由全局 Provider 持有：切页/刷新都不会丢 */
+  const {
+    snapshot: generation,
+    events: activityEvents,
+    isRunning: loading,
+    start: startGeneration,
+    cancel: cancelGeneration,
+    dismiss: dismissGeneration,
+  } = useGeneration()
+  const loadingProgress = generation?.status === 'completed' ? 100 : (generation?.progress ?? 0)
+  const loadingStatus = generation?.message ?? ''
+  const planCode = generation?.planId ?? ''
+  const generationError = generation?.status === 'failed' || generation?.status === 'cancelled'
+    ? (generation.error ?? '')
+    : ''
 
   /* 偏好选择（自定义 pill 按钮需要单独管理） */
   const [preferences, setPreferences] = useState<string[]>(['历史文化', '美食'])
@@ -71,21 +113,17 @@ function Landing() {
   const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().add(1, 'day').startOf('day'))
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs().add(3, 'day').startOf('day'))
 
-  /* 滚动 */
-  const [scrollY, setScrollY] = useState(window.scrollY || 0)
+  /* 滚动 —— 直接用 ref 写样式，避免每帧 setState 触发整页重渲染 */
   const formRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [panelHeight, setPanelHeight] = useState<number | 'auto'>('auto')
+  const heroContentRef = useRef<HTMLDivElement>(null)
+  const [navSolid, setNavSolid] = useState(false)
+  /* 生成中锁住表单卡高度，避免切换到进度态时页面整体上跳 */
+  const [panelMinHeight, setPanelMinHeight] = useState<number | null>(null)
 
   /* 历史记录 */
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyPlans, setHistoryPlans] = useState<TripHistoryItem[]>([])
-
-  /* 计算样式属性 - hero 滚动渐变 */
-  const heroProgress = Math.min(scrollY / 320, 1)
-  const heroContentOpacity = 1 - heroProgress * 0.95
-  const heroContentTranslate = -heroProgress * 46
-  const lowerShadeOpacity = Math.min(Math.max((scrollY - 20) / 360, 0), 1) * 0.7
 
   /* 日期变化自动计算天数，并自动修正非法区间 */
   const handleStartDateChange = useCallback((date: Dayjs | null) => {
@@ -121,32 +159,45 @@ function Landing() {
     }
   }, [startDate, t])
 
-  /* 途经城市：实时路线回显 */
-  const watchedCity = Form.useWatch('city', form)
-  const routePreview = [watchedCity, ...additionalCities]
-    .map((item) => (item || '').trim())
-    .filter(Boolean)
-
-  /* 滚动监听 - 使用内联 handler，避免 setState-in-effect */
-
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
   const scrollToForm = useCallback(() => {
     if (formRef.current) {
-      const y = formRef.current.getBoundingClientRect().top + window.scrollY - 65
+      const y = formRef.current.getBoundingClientRect().top + window.scrollY - 76
       window.scrollTo({ top: y, behavior: 'smooth' })
     }
   }, [])
 
+  /* 头图视差 + 导航实心化：全部走 rAF，只在跨过阈值时 setState 一次 */
   useEffect(() => {
-    const handler = () => setScrollY(window.scrollY || 0)
-    window.addEventListener('scroll', handler, { passive: true })
-    return () => window.removeEventListener('scroll', handler)
+    let frame = 0
+    let solid = false
+    const applyScrollStyles = () => {
+      frame = 0
+      const y = window.scrollY || 0
+      const progress = Math.min(y / 380, 1)
+      if (heroContentRef.current) {
+        heroContentRef.current.style.opacity = String(1 - progress * 0.9)
+        heroContentRef.current.style.transform = `translate3d(0, ${-progress * 40}px, 0)`
+      }
+      const nextSolid = y > 24
+      if (nextSolid !== solid) {
+        solid = nextSolid
+        setNavSolid(nextSolid)
+      }
+    }
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(applyScrollStyles)
+    }
+    applyScrollStyles()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (frame) window.cancelAnimationFrame(frame)
+    }
   }, [])
-
-  /* 加载历史记录 - 在 useEffect 内直接 fetch */
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -177,7 +228,9 @@ function Landing() {
     sessionStorage.removeItem('tripPlan')
     sessionStorage.removeItem('graphData')
     sessionStorage.removeItem('tripReview')
+    sessionStorage.removeItem('tripWarnings')
     sessionStorage.removeItem('tripPlanLocale')
+    sessionStorage.removeItem('tripRequest')
     sessionStorage.setItem('planId', planId)
     navigate(`/result?plan_id=${planId}`)
   }
@@ -189,8 +242,9 @@ function Landing() {
     return date.toLocaleString(currentLocale)
   }
 
-  /* 提交表单 */
-  const handleSubmit = async () => {
+  /* 提交表单：校验与请求组装留在页面，任务本身交给全局 Provider */
+  const handleSubmit = () => {
+    if (loading) return
     if (!startDate || !endDate) {
       message.error(t('landing.dateRequired'))
       return
@@ -202,35 +256,16 @@ function Landing() {
       return
     }
 
-    const transportation = form.getFieldValue('transportation') || '公共交通'
-    const accommodation = form.getFieldValue('accommodation') || '经济型酒店'
-    const travelers = form.getFieldValue('travelers') || 1
-    const budgetLimit = form.getFieldValue('budget_limit')
-
-    // 保存面板高度以保持布局稳定
-    if (panelRef.current) {
-      setPanelHeight(panelRef.current.offsetHeight)
-    }
-
-    setLoading(true)
-    setLoadingProgress(5)
-    setLoadingStatus(t('landing.stageSubmitted'))
-    setPlanCode('')
-    setGenerationError('')
-    setActivityEvents([])
-
     const allCities = [city, ...additionalCities]
       .map((item) => item.trim())
       .filter((item, index, items) => item && items.indexOf(item) === index)
     if (allCities.length > travelDays) {
       message.error(t('landing.daysLessThanCities'))
-      setLoading(false)
       return
     }
+
     const baseDays = Math.floor(travelDays / allCities.length)
     const remainder = travelDays % allCities.length
-    const controller = new AbortController()
-    generationController.current = controller
 
     const requestData: TripFormData = {
       city,
@@ -238,101 +273,22 @@ function Landing() {
       start_date: startDate.format('YYYY-MM-DD'),
       end_date: endDate.format('YYYY-MM-DD'),
       travel_days: travelDays,
-      transportation,
-      accommodation,
-      travelers,
-      budget_limit: budgetLimit,
+      transportation: form.getFieldValue('transportation') || '公共交通',
+      accommodation: form.getFieldValue('accommodation') || '经济型酒店',
+      travelers: form.getFieldValue('travelers') || 1,
+      budget_limit: form.getFieldValue('budget_limit'),
       preferences,
       free_text_input: freeTextInput,
       language: currentLocale,
     }
 
-    try {
-      const useMock = isMockEnabled()
-
-      if (useMock) {
-        // Mock 模式：模拟4个阶段的进度动画
-        const mockStages = [
-          { progress: 30, label: 'attraction_search' },
-          { progress: 50, label: 'weather_search' },
-          { progress: 70, label: 'hotel_search' },
-          { progress: 90, label: 'planning' },
-        ]
-
-        for (const stage of mockStages) {
-          if (controller.signal.aborted) throw new DOMException(t('landing.taskCancelled'), 'AbortError')
-          setLoadingProgress(stage.progress)
-          setLoadingStatus(stageLabels[stage.label])
-          setActivityEvents((events) => [...events, {
-            task_id: 'mock1234', plan_id: 'mock1234', status: 'processing',
-            stage: stage.label as TripTaskEvent['stage'], progress: stage.progress, message: stageLabels[stage.label],
-          }])
-          await new Promise((resolve) => setTimeout(resolve, 800))
-        }
-      }
-
-      const response = await generateTripPlan(
-        requestData,
-        useMock
-          ? undefined
-            : (event) => {
-              if (event.plan_id) setPlanCode(event.plan_id)
-              if (typeof event.progress === 'number') {
-                setLoadingProgress(Math.max(0, Math.min(100, event.progress)))
-              }
-              setLoadingStatus(event.message || stageLabels[event.stage] || t('common.processing'))
-              setActivityEvents((events) => [...events.slice(-5), event])
-            },
-        {
-          mockByPolling: useMock,
-          signal: controller.signal,
-          onTaskSubmitted: (task) => {
-            setPlanCode(task.plan_id)
-            setActivityEvents((events) => [...events, {
-              task_id: task.task_id, plan_id: task.plan_id, status: 'processing', stage: 'submitted', progress: 5, message: task.message,
-            }])
-          },
-        },
-      )
-
-      setLoadingProgress(100)
-      setLoadingStatus(t('landing.stageCompleted'))
-
-      if (response.success && response.data) {
-        const planId = response.plan_id || planCode || 'mock1234'
-        sessionStorage.setItem('tripPlan', JSON.stringify(response.data))
-        if (response.graph_data) {
-          sessionStorage.setItem('graphData', JSON.stringify(response.graph_data))
-        }
-        if (response.review) {
-          sessionStorage.setItem('tripReview', JSON.stringify(response.review))
-        }
-        sessionStorage.setItem('planId', planId)
-        sessionStorage.setItem('tripPlanLocale', requestData.language || currentLocale)
-        message.success(t('landing.generationSuccess'))
-
-        setTimeout(() => {
-          navigate(`/result?plan_id=${planId}`)
-        }, 600)
-      } else {
-        message.error(response.message || t('landing.generationFailed'))
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : t('common.unknownError')
-      const cancelled = error instanceof DOMException && error.name === 'AbortError'
-      setGenerationError(cancelled ? t('landing.generationCancelledDetail') : errorMessage)
-      if (cancelled) message.info(t('landing.generationCancelled'))
-      else message.error(t('landing.generationFailedWithReason', { error: errorMessage }))
-    } finally {
-      generationController.current = null
-      setTimeout(() => {
-        setLoading(false)
-        setLoadingProgress(0)
-        setLoadingStatus('')
-        setPanelHeight('auto')
-      }, 1000)
-    }
+    // 生成中锁住表单卡高度，避免切到进度态时整页上跳
+    if (panelRef.current) setPanelMinHeight(panelRef.current.offsetHeight)
+    startGeneration(requestData)
   }
+
+  /* 任务结束后放开高度锁：只要不在生成中，就不再把旧高度写回样式 */
+  const panelStyle = loading && panelMinHeight ? { minHeight: panelMinHeight } : undefined
 
   /* 加载阶段节点的状态判断 */
   const getNodeClass = (minProgress: number, maxProgress: number) => {
@@ -351,53 +307,47 @@ function Landing() {
 
   return (
     <div className="landing-page">
-      <div className="lower-shade" style={{ opacity: lowerShadeOpacity || 0.7 }} />
+      <NavBar transparent={!navSolid} onBrandClick={scrollToTop} onCtaClick={scrollToForm} />
 
-      <NavBar onBrandClick={scrollToTop} onCtaClick={scrollToForm} />
-
-      <div className="wrapper">
-        {/* Hero 区 */}
-        <div
-          className="page-header section-dark landing-header"
-          style={{
-            backgroundImage: `url(${heroImage})`,
-            backgroundPosition: `center ${Math.max(-scrollY * 0.08, -120)}px`,
-            backgroundSize: 'cover',
-            backgroundRepeat: 'no-repeat',
-          }}
-        >
-          <div className="filter" />
-          <div
-            className="content-center"
-            style={{
-              opacity: heroContentOpacity,
-              transform: `translate3d(0, ${heroContentTranslate}px, 0)`,
-            }}
-          >
-            <div className="container">
-              <div className="title-brand">
-                <h1 className="presentation-title">HelloJourney</h1>
-              </div>
-              <h2 className="presentation-subtitle text-center">
-                {t('landing.heroSubtitle')}
-              </h2>
-            </div>
-          </div>
-
-          <div className="hero-bottom-shade" />
+      {/* ---------------- Hero ---------------- */}
+      <header className="landing-hero">
+        <div className="landing-hero-bg" aria-hidden="true">
+          <span className="hero-glow hero-glow--jade" />
+          <span className="hero-glow hero-glow--clay" />
+          <span className="hero-grid" />
+          <svg className="hero-route" viewBox="0 0 1200 620" preserveAspectRatio="none">
+            <path
+              className="hero-route-line"
+              d="M-60 470C170 350 300 520 520 372S880 196 1260 286"
+            />
+            <circle className="hero-route-pin" cx="520" cy="372" r="7" />
+            <circle className="hero-route-pin" cx="880" cy="243" r="7" />
+          </svg>
         </div>
-      </div>
 
-      {/* 表单区 */}
-      <section ref={formRef} className="form-section">
+        <div className="landing-hero-inner" ref={heroContentRef}>
+          <p className="hero-eyebrow">HelloJourney</p>
+          <h1 className="hero-title">{t('landing.heroSubtitle')}</h1>
+          <p className="hero-sub">{t('landing.progressSubtitle')}</p>
+          <div className="hero-actions">
+            <button type="button" className="btn hero-cta" onClick={scrollToForm}>
+              {t('landing.generate')}
+            </button>
+          </div>
+        </div>
+
+        <button type="button" className="hero-scroll-hint" onClick={scrollToForm} aria-hidden="true" tabIndex={-1}>
+          <span />
+        </button>
+      </header>
+
+      {/* ---------------- 表单 ---------------- */}
+      <section ref={formRef} className="form-section" aria-label={t('landing.stepDestination')}>
         <div
           ref={panelRef}
           className="form-panel"
-          style={{
-            minHeight: panelHeight === 'auto' ? 'auto' : `${panelHeight}px`,
-          }}
+          style={panelStyle}
         >
-          {/* 表单内容 - 加载中隐藏 */}
           {!loading && (
             <Form form={form} layout="vertical" initialValues={{
               city: '北京',
@@ -406,17 +356,27 @@ function Landing() {
               travelers: 2,
             }}>
               {generationError && (
-                <Alert className="generation-alert" type="error" showIcon title={t('landing.previousFailed')} description={generationError} closable onClose={() => setGenerationError('')} />
+                <Alert
+                  className="generation-alert"
+                  type="error"
+                  showIcon
+                  title={t('landing.previousFailed')}
+                  description={generationError}
+                  closable
+                  onClose={() => dismissGeneration()}
+                />
               )}
+
               {/* Step 01: 目的地与日期 */}
               <div className="step">
                 <div className="step-head">
-                  <span>01</span>
+                  <span className="step-index">01</span>
                   <h3>{t('landing.stepDestination')}</h3>
                 </div>
                 <div className="grid grid4">
                   <Form.Item
                     name="city"
+                    label={t('landing.fieldCity')}
                     rules={[{ required: true, message: t('landing.cityRequired') }]}
                   >
                     <Input
@@ -426,33 +386,40 @@ function Landing() {
                     />
                   </Form.Item>
 
-                  <DatePicker
-                    value={startDate}
-                    onChange={handleStartDateChange}
-                    placeholder={t('landing.startDate')}
-                    size="large"
-                    allowClear={false}
-                    className="field-input"
-                    style={{ width: '100%' }}
-                    disabledDate={(current) => current && current < dayjs().startOf('day')}
-                  />
+                  <Form.Item label={t('landing.startDate')}>
+                    <DatePicker
+                      value={startDate}
+                      onChange={handleStartDateChange}
+                      placeholder={t('landing.startDate')}
+                      size="large"
+                      allowClear={false}
+                      className="field-input"
+                      style={{ width: '100%' }}
+                      disabledDate={(current) => current && current < dayjs().startOf('day')}
+                    />
+                  </Form.Item>
 
-                  <DatePicker
-                    value={endDate}
-                    onChange={handleEndDateChange}
-                    placeholder={t('landing.endDate')}
-                    size="large"
-                    allowClear={false}
-                    className="field-input"
-                    style={{ width: '100%' }}
-                    disabledDate={(current) => current && (current < dayjs().startOf('day') || (startDate !== null && current < startDate.startOf('day')))}
-                  />
+                  <Form.Item label={t('landing.endDate')}>
+                    <DatePicker
+                      value={endDate}
+                      onChange={handleEndDateChange}
+                      placeholder={t('landing.endDate')}
+                      size="large"
+                      allowClear={false}
+                      className="field-input"
+                      style={{ width: '100%' }}
+                      disabledDate={(current) => current && (current < dayjs().startOf('day') || (startDate !== null && current < startDate.startOf('day')))}
+                    />
+                  </Form.Item>
 
-                  <div className="days-chip">
-                    <span className="days-number">{travelDays}</span>
-                    <span className="days-unit">{t('landing.dayUnit')}</span>
-                  </div>
+                  <Form.Item label={t('landing.fieldDays')}>
+                    <div className="days-chip" aria-live="polite">
+                      <span className="days-number">{travelDays}</span>
+                      <span className="days-unit">{t('landing.dayUnit')}</span>
+                    </div>
+                  </Form.Item>
                 </div>
+
                 <div className="city-route-field">
                   <label className="field-label" htmlFor="additional-cities">{t('landing.transitCities')}</label>
                   <Select
@@ -468,28 +435,19 @@ function Landing() {
                     options={CITY_OPTIONS}
                     aria-label={t('landing.transitAria')}
                   />
-                  {routePreview.length > 0 && (
-                    <div className="route-preview" aria-label={t('landing.routePreview')}>
-                      {routePreview.map((cityName, index) => (
-                        <Fragment key={`${cityName}-${index}`}>
-                          {index > 0 && <span className="route-arrow">→</span>}
-                          <span className={`route-chip${index === 0 ? ' route-chip-main' : ''}`}>{cityName}</span>
-                        </Fragment>
-                      ))}
-                      <span className="route-total">{t('common.daysCount', { count: travelDays })}</span>
-                    </div>
-                  )}
+                  <RoutePreview form={form} additionalCities={additionalCities} travelDays={travelDays} />
                 </div>
               </div>
 
               {/* Step 02: 偏好设置 */}
               <div className="step">
                 <div className="step-head">
-                  <span>02</span>
+                  <span className="step-index">02</span>
                   <h3>{t('landing.stepPreferences')}</h3>
                 </div>
-                <div className="grid grid2">
-                  <Form.Item name="transportation">
+
+                <div className="grid grid4">
+                  <Form.Item name="transportation" label={t('landing.fieldTransport')}>
                     <Select
                       size="large"
                       className="field-select"
@@ -502,7 +460,7 @@ function Landing() {
                     />
                   </Form.Item>
 
-                  <Form.Item name="accommodation">
+                  <Form.Item name="accommodation" label={t('landing.fieldHotel')}>
                     <Select
                       size="large"
                       className="field-select"
@@ -514,14 +472,31 @@ function Landing() {
                       ]}
                     />
                   </Form.Item>
-                </div>
 
-                <div className="grid grid2">
                   <Form.Item name="travelers" label={t('landing.travelers')} rules={[{ required: true, message: t('landing.travelersRequired') }]}>
-                    <InputNumber min={1} max={20} precision={0} size="large" className="field-number" addonAfter={t('landing.peopleUnit')} aria-label={t('landing.travelers')} />
+                    <InputNumber
+                      min={1}
+                      max={20}
+                      precision={0}
+                      size="large"
+                      className="field-number"
+                      suffix={<span className="field-unit">{t('landing.peopleUnit')}</span>}
+                      aria-label={t('landing.travelers')}
+                    />
                   </Form.Item>
+
                   <Form.Item name="budget_limit" label={t('landing.budget')}>
-                    <InputNumber min={0} max={10000000} precision={0} step={500} size="large" className="field-number" addonBefore="¥" placeholder={t('landing.budgetPlaceholder')} aria-label={t('landing.budgetAria')} />
+                    <InputNumber
+                      min={0}
+                      max={10000000}
+                      precision={0}
+                      step={500}
+                      size="large"
+                      className="field-number"
+                      prefix={<span className="field-unit">¥</span>}
+                      placeholder={t('landing.budgetPlaceholder')}
+                      aria-label={t('landing.budgetAria')}
+                    />
                   </Form.Item>
                 </div>
 
@@ -546,36 +521,34 @@ function Landing() {
               {/* Step 03: 额外要求 */}
               <div className="step">
                 <div className="step-head">
-                  <span>03</span>
+                  <span className="step-index">03</span>
                   <h3>{t('landing.stepNotes')}</h3>
                 </div>
-                <div className="field-textarea">
-                  <Input.TextArea
-                    value={freeTextInput}
-                    onChange={(e) => setFreeTextInput(e.target.value)}
-                    placeholder={t('landing.notesPlaceholder')}
-                    rows={4}
-                    size="large"
-                    className="special-textarea"
-                  />
-                </div>
+                <Input.TextArea
+                  value={freeTextInput}
+                  onChange={(e) => setFreeTextInput(e.target.value)}
+                  placeholder={t('landing.notesPlaceholder')}
+                  rows={3}
+                  size="large"
+                  className="special-textarea field-textarea"
+                />
               </div>
 
               <div className="submit-wrapper">
                 <button
                   type="button"
-                  className={`btn btn-danger btn-round submit-btn${loading ? ' loading' : ''}`}
+                  className={`btn submit-btn${loading ? ' loading' : ''}`}
                   disabled={loading}
-                  onClick={handleSubmit}
+                  onClick={() => void handleSubmit()}
                 >
-                  {!loading ? (
-                    t('landing.generate')
-                  ) : (
-                    <span className="loading-row">
-                      <i className="spinner" />
-                      {t('landing.generating')}
-                    </span>
-                  )}
+                  {!loading
+                    ? t('landing.generate')
+                    : (
+                      <span className="loading-row">
+                        <i className="spinner" />
+                        {t('landing.generating')}
+                      </span>
+                    )}
                 </button>
               </div>
             </Form>
@@ -585,23 +558,28 @@ function Landing() {
           {loading && (
             <div className="stepper-wrapper">
               <div className="stepper-header">
-                <h2 className="stepper-title">
-                  {planCode ? `Plan #${planCode}` : t('landing.progressPlan')}
-                </h2>
-                <p className="stepper-subtitle">{t('landing.progressSubtitle')}</p>
+                <p className="hj-eyebrow">{planCode ? `Plan #${planCode}` : t('landing.progressPlan')}</p>
+                <h2 className="stepper-title">{loadingStatus || t('landing.progressPlan')}</h2>
+                <p className="stepper-subtitle">
+                  {loadingProgress < 100 ? t('landing.waiting') : t('landing.redirecting')}
+                </p>
               </div>
+
+              <Progress
+                percent={loadingProgress}
+                status={loadingProgress >= 100 ? 'success' : 'active'}
+                showInfo={false}
+                strokeColor="#12695c"
+                trailColor="var(--hj-surface-3)"
+                style={{ width: '100%', maxWidth: 560, margin: '0 auto 34px' }}
+              />
 
               <div className="stepper-container">
                 <div className={`step-node ${getNodeClass(0, 30)}`}>
                   <div className="node-icon">
-                    {loadingProgress >= 0 && loadingProgress <= 30 ? (
-                      <i className="spinner-small" />
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                        <circle cx="12" cy="10" r="3" />
-                      </svg>
-                    )}
+                    {loadingProgress >= 0 && loadingProgress <= 30
+                      ? <i className="spinner-small" />
+                      : <span aria-hidden="true">1</span>}
                   </div>
                   <p className="node-text">
                     {getNodeLabel(30, t('landing.attractionsDone'), t('landing.attractionsActive'))}
@@ -611,13 +589,9 @@ function Landing() {
 
                 <div className={`step-node ${getNodeClass(30, 50)}`}>
                   <div className="node-icon">
-                    {loadingProgress > 30 && loadingProgress <= 50 ? (
-                      <i className="spinner-small" />
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M10.5 1.5V3.1M3.6 10H2M5.4512 4.95137L4.31982 3.82M15.5498 4.95137L16.6812 3.82M19 10H17.4M6.50007 10.0001C6.50007 7.79093 8.29093 6.00007 10.5001 6.00007C12.0061 6.00007 13.3177 6.83235 14.0001 8.06206M6 22C3.79086 22 2 20.2091 2 18C2 15.7909 3.79086 14 6 14C6.46419 14 6.90991 14.0791 7.32442 14.2245C8.04061 12.3396 9.86387 11 12 11C14.1361 11 15.9594 12.3396 16.6756 14.2245C17.0901 14.0791 17.5358 14 18 14C20.2091 14 22 15.7909 22 18C22 20.2091 20.2091 22 18 22C13.3597 22 9.87921 22 6 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
+                    {loadingProgress > 30 && loadingProgress <= 50
+                      ? <i className="spinner-small" />
+                      : <span aria-hidden="true">2</span>}
                   </div>
                   <p className="node-text">
                     {getNodeLabel(50, t('landing.weatherDone'), t('landing.weatherActive'))}
@@ -627,13 +601,9 @@ function Landing() {
 
                 <div className={`step-node ${getNodeClass(50, 70)}`}>
                   <div className="node-icon">
-                    {loadingProgress > 50 && loadingProgress <= 70 ? (
-                      <i className="spinner-small" />
-                    ) : (
-                      <svg fill="currentColor" width="25" height="25" viewBox="0 0 24 24">
-                        <path d="M21,8c0-2.2-1.8-4-4-4H7C4.8,4,3,5.8,3,8v3.8c-0.6,0.5-1,1.3-1,2.2v2.7V17v2c0,0.6,0.4,1,1,1s1-0.4,1-1v-1h16v1 c0,0.6,0.4,1,1,1s1-0.4,1-1v-2v-0.3V14c0-0.9-0.4-1.7-1-2.2V8z M5,8c0-1.1,0.9-2,2-2h10c1.1,0,2,0.9,2,2v3h-1v-1c0-1.7-1.3-3-3-3 h-1c-0.8,0-1.5,0.3-2,0.8C11.5,7.3,10.8,7,10,7H9c-1.7,0-3,1.3-3,3v1H5V8z M16,10v1h-3v-1c0-0.6,0.4-1,1-1h1C15.6,9,16,9.4,16,10z M11,10v1H8v-1c0-0.6,0.4-1,1-1h1C10.6,9,11,9.4,11,10z M20,16H4v-2c0-0.6,0.4-1,1-1h3h3h2h3h3c0.6,0,1,0.4,1,1V16z" />
-                      </svg>
-                    )}
+                    {loadingProgress > 50 && loadingProgress <= 70
+                      ? <i className="spinner-small" />
+                      : <span aria-hidden="true">3</span>}
                   </div>
                   <p className="node-text">
                     {getNodeLabel(70, t('landing.hotelsDone'), t('landing.hotelsActive'))}
@@ -643,14 +613,9 @@ function Landing() {
 
                 <div className={`step-node ${getNodeClass(70, 99)}`}>
                   <div className="node-icon">
-                    {loadingProgress > 70 && loadingProgress < 100 ? (
-                      <i className="spinner-small" />
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="9 11 12 14 22 4" />
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                      </svg>
-                    )}
+                    {loadingProgress > 70 && loadingProgress < 100
+                      ? <i className="spinner-small" />
+                      : <span aria-hidden="true">4</span>}
                   </div>
                   <p className="node-text">
                     {loadingProgress >= 100 ? t('landing.complete') : t('landing.planningActive')}
@@ -658,37 +623,23 @@ function Landing() {
                 </div>
               </div>
 
-              <div className="stepper-footer">
-                <h3>{loadingStatus}</h3>
-                {loadingProgress < 100 ? (
-                  <p>{t('landing.waiting')}</p>
-                ) : (
-                  <p>{t('landing.redirecting')}</p>
-                )}
-              </div>
-
               {activityEvents.length > 0 && (
                 <ol className="agent-activity" aria-label={t('landing.agentActivity')} aria-live="polite">
-                  {activityEvents.slice(-4).map((event, index) => (
-                    <li key={`${event.stage}-${event.progress}-${index}`}>
-                      <span>{event.progress}%</span>
-                      <strong>{stageLabels[event.stage] || event.stage}</strong>
-                      <small>{event.message}</small>
-                    </li>
-                  ))}
+                  {activityEvents.slice(-4).map((event, index) => {
+                    const stageLabel = stageLabels[event.stage] || event.stage
+                    return (
+                      <li key={`${event.stage}-${event.progress}-${index}`}>
+                        <span>{event.progress}%</span>
+                        <strong>{stageLabel}</strong>
+                        {event.message && event.message !== stageLabel && <small>{event.message}</small>}
+                      </li>
+                    )
+                  })}
                 </ol>
               )}
 
-              <Progress
-                percent={loadingProgress}
-                status={loadingProgress >= 100 ? 'success' : 'active'}
-                showInfo={false}
-                strokeColor="#d76e42"
-                railColor="rgba(236,243,250,0.08)"
-                style={{ marginTop: 24, maxWidth: 480, width: '100%' }}
-              />
               {loadingProgress < 100 && (
-                <Button danger ghost className="cancel-generation" onClick={() => generationController.current?.abort()}>
+                <Button className="cancel-generation" onClick={() => cancelGeneration()}>
                   {t('landing.cancel')}
                 </Button>
               )}
@@ -697,13 +648,13 @@ function Landing() {
         </div>
       </section>
 
-      {/* 历史计划区 */}
+      {/* ---------------- 历史计划 ---------------- */}
       <section className="history-section">
         <div className="history-panel">
           <div className="history-head">
             <div>
-              <p className="history-eyebrow">{t('landing.historyEyebrow')}</p>
-              <h3 className="history-title">{t('landing.historyTitle')}</h3>
+              <p className="hj-eyebrow">{t('landing.historyEyebrow')}</p>
+              <h2 className="history-title">{t('landing.historyTitle')}</h2>
             </div>
             <Button
               type="link"
@@ -729,9 +680,7 @@ function Landing() {
           )}
 
           {!historyLoading && historyPlans.length === 0 && (
-            <div style={{ padding: '32px 0', textAlign: 'center', color: 'rgba(236,243,250,0.54)' }}>
-              {t('landing.historyEmpty')}
-            </div>
+            <div className="history-empty">{t('landing.historyEmpty')}</div>
           )}
 
           {!historyLoading && historyPlans.length > 0 && (
@@ -747,11 +696,10 @@ function Landing() {
                     <div className="history-route">
                       <span className="history-city">{item.city}</span>
                       <span className="history-date">
-                        {item.start_date} ~ {item.end_date}
+                        {item.start_date} — {item.end_date}
                       </span>
                     </div>
                     <p className="history-meta">
-                      <span>Plan ID: {item.plan_id}</span>
                       <span>{t('common.daysCount', { count: item.travel_days })}</span>
                       <span>{t('landing.updatedAt', { time: formatHistoryTime(item.updated_at) })}</span>
                     </p>
@@ -759,7 +707,7 @@ function Landing() {
                       <p className="history-summary">{item.overall_suggestions}</p>
                     )}
                   </div>
-                  <span className="history-open">{t('landing.open')}</span>
+                  <span className="history-open" aria-hidden="true">→</span>
                 </button>
               ))}
             </div>
