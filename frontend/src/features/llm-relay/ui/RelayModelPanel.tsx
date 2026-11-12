@@ -4,7 +4,7 @@ import { ApiOutlined, CloudServerOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { listLlmModels, saveRelayProvider } from '@/services/settingsApi'
 import { normalizeRelayBaseUrl } from '../model/relayUrl'
-import { filterChatModels } from '../model/modelCatalog'
+import { filterChatModels, pickPreferredModel } from '../model/modelCatalog'
 
 interface RelayModelPanelProps {
   /** 后端是否已保存过中转站供应商 */
@@ -115,8 +115,8 @@ export default function RelayModelPanel({
         type: 'success',
         text: t('settings.relayFetched', { count: list.length, chat: chatOnly.length }),
       })
-      // 默认选中第一个「能对话」的模型，避免落到 embedding 上
-      const preferred = chatOnly[0] ?? list[0]
+      // 默认选中"能一次跑通规划"的模型，而不是列表里第一个
+      const preferred = pickPreferredModel(chatOnly) ?? chatOnly[0] ?? list[0]
       if (!chatOnly.includes(model)) setModel(preferred)
     } catch (error) {
       setFeedback({

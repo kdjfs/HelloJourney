@@ -20,3 +20,30 @@ export function isChatCapableModel(modelId: string): boolean {
 export function filterChatModels(modelIds: string[]): string[] {
   return modelIds.filter(isChatCapableModel)
 }
+
+/**
+ * 默认推荐模型。
+ *
+ * 计划生成要求「一次输出整份 JSON 并通过 schema 校验」，小模型（4B/7B）几乎每次都要
+ * 修三轮以上、单次上百秒，最终仍然超时。这里按"指令遵循 + JSON 稳定性 + 速度"排序，
+ * 优先选中真正能一次跑通规划的模型；用户仍然可以自己改。
+ */
+const PREFERRED_MODEL_PATTERNS: RegExp[] = [
+  /deepseek-ai\/deepseek-v3/i,
+  /deepseek-ai\/deepseek-v3\.2/i,
+  /Qwen\/Qwen3\.5-(235B|122B|35B)/i,
+  /Qwen\/Qwen3-(235B|32B)/i,
+  /Qwen\/Qwen2\.5-72B/i,
+  /deepseek-ai\/deepseek-v4/i,
+  /glm-4/i,
+  /moonshotai\/kimi/i,
+  /deepseek-ai\/deepseek-r1/i,
+]
+
+export function pickPreferredModel(modelIds: string[]): string | undefined {
+  for (const pattern of PREFERRED_MODEL_PATTERNS) {
+    const match = modelIds.find((id) => pattern.test(id))
+    if (match) return match
+  }
+  return modelIds[0]
+}

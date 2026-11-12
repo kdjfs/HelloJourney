@@ -176,15 +176,29 @@ public class RuntimeSettingsManager {
             if ("llm_providers".equals(key)) {
                 if (entry.getValue() instanceof List) {
                     List<Object> providersList = (List<Object>) entry.getValue();
+                    // 与已有条目合并：设置页只改模型的场景不会重填密钥，
+                    // 若整表覆盖，api_key 会从持久化文件里消失，重启后 provider 变未配置。
                     Map<String, Object> providersMap = new LinkedHashMap<>();
+                    Object existingRaw = overrides.get("llm_providers");
+                    if (existingRaw instanceof Map) {
+                        providersMap.putAll((Map<String, Object>) existingRaw);
+                    }
                     for (Object item : providersList) {
                         if (item instanceof Map) {
                             Map<String, Object> p = (Map<String, Object>) item;
                             String providerKey = String.valueOf(p.getOrDefault("key", ""));
                             if (providerKey.isEmpty()) continue;
                             Map<String, Object> providerData = new LinkedHashMap<>();
+                            Object previous = providersMap.get(providerKey);
+                            if (previous instanceof Map) {
+                                providerData.putAll((Map<String, Object>) previous);
+                            }
                             if (p.containsKey("name")) providerData.put("name", String.valueOf(p.get("name")));
-                            if (p.containsKey("api_key")) providerData.put("api_key", String.valueOf(p.get("api_key")));
+                            // 空字符串视为"不修改"，避免把已保存的密钥清空
+                            if (p.containsKey("api_key")) {
+                                String apiKey = String.valueOf(p.get("api_key"));
+                                if (!apiKey.isBlank()) providerData.put("api_key", apiKey);
+                            }
                             if (p.containsKey("base_url")) providerData.put("base_url", String.valueOf(p.get("base_url")));
                             if (p.containsKey("model")) providerData.put("model", String.valueOf(p.get("model")));
                             providersMap.put(providerKey, providerData);

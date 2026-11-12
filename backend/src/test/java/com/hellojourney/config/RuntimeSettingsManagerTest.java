@@ -152,6 +152,34 @@ class RuntimeSettingsManagerTest {
         }
 
         @Test
+        @DisplayName("Saving a provider without api_key keeps the stored key")
+        void updateRuntimeSettings_providerWithoutKey_keepsExistingKey() {
+            Map<String, Object> first = new LinkedHashMap<>();
+            first.put("key", "relay");
+            first.put("api_key", "sk-keep-me");
+            first.put("base_url", "https://api.siliconflow.cn/v1");
+            first.put("model", "deepseek-ai/DeepSeek-V3");
+            runtimeSettingsManager.updateRuntimeSettings(Map.of("llm_providers", List.of(first)));
+
+            // 设置页只换模型、不重填密钥（第二次保存）
+            Map<String, Object> second = new LinkedHashMap<>();
+            second.put("key", "relay");
+            second.put("base_url", "https://api.siliconflow.cn/v1");
+            second.put("model", "deepseek-ai/DeepSeek-R1");
+            runtimeSettingsManager.updateRuntimeSettings(Map.of("llm_providers", List.of(second)));
+
+            Map<String, Object> result = runtimeSettingsManager.getRuntimeSettings();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> providers = (List<Map<String, Object>>) result.get("llm_providers");
+            Map<String, Object> relay = providers.stream()
+                    .filter(p -> "relay".equals(p.get("key")))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(relay.get("model")).isEqualTo("deepseek-ai/DeepSeek-R1");
+            assertThat(relay.get("configured")).isEqualTo(true);
+        }
+
+        @Test
         @DisplayName("Unknown key ignored")
         void updateRuntimeSettings_unknownKey_ignored() {
             Map<String, Object> updates = Map.of("unknown_key", "value");
