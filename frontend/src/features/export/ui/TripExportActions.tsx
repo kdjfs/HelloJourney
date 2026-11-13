@@ -1,4 +1,4 @@
-import { DownloadOutlined, FileImageOutlined, PrinterOutlined, ShareAltOutlined } from '@ant-design/icons'
+import { DownloadOutlined, FileImageOutlined, MobileOutlined, PrinterOutlined } from '@ant-design/icons'
 import { Button, Modal, Space, message } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,7 @@ import {
   tripExportFilename,
   type TripImageArtifact,
 } from '../model/tripExport'
+import MobileImportDialog from './MobileImportDialog'
 import './index.css'
 
 interface Props {
@@ -24,6 +25,18 @@ export default function TripExportActions({ plan, planId }: Props) {
   const [sharing, setSharing] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [preview, setPreview] = useState<TripImageArtifact | null>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  /** 手机要打开的地址：带 plan_id，手机端能自己拉回这份行程 */
+  const mobileUrl = (() => {
+    if (typeof window === 'undefined') return ''
+    const url = new URL(window.location.href)
+    if (planId) url.searchParams.set('plan_id', planId)
+    return url.toString()
+  })()
+  const canSystemShare = typeof navigator !== 'undefined'
+    && typeof navigator.canShare === 'function'
+    && typeof navigator.share === 'function'
 
   const closePreview = useCallback(() => {
     setPreview((current) => {
@@ -105,13 +118,24 @@ export default function TripExportActions({ plan, planId }: Props) {
         <Button icon={<FileImageOutlined />} loading={imageExporting} onClick={() => void downloadImage()}>
           {t('export.image')}
         </Button>
-        <Button icon={<ShareAltOutlined />} loading={sharing} onClick={() => void shareImage()}>
-          {t('export.share')}
+        <Button icon={<MobileOutlined />} onClick={() => setMobileOpen(true)}>
+          {t('export.importPhone')}
         </Button>
         <Button icon={<PrinterOutlined />} loading={printing} onClick={() => void printPlan()}>
           {t('export.print')}
         </Button>
       </Space>
+
+      <MobileImportDialog
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        url={mobileUrl}
+        onSaveImage={() => void downloadImage()}
+        savingImage={imageExporting}
+        onSystemShare={() => void shareImage()}
+        sharing={sharing}
+        canSystemShare={canSystemShare}
+      />
 
       <Modal
         open={Boolean(preview)}

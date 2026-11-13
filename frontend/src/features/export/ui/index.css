@@ -24,3 +24,58 @@
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* ---------- 导入手机 ---------- */
+.mobile-import {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 4px 0 2px;
+  text-align: center;
+}
+
+.mobile-import-qr {
+  display: grid;
+  place-items: center;
+  width: 260px;
+  height: 260px;
+  padding: 10px;
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-md);
+  background: #fff;
+}
+
+.mobile-import-qr img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mobile-import-fallback {
+  margin: 0;
+  padding: 0 16px;
+  color: var(--hj-danger);
+  font-size: 13px;
+}
+
+.mobile-import-hint {
+  margin: 0;
+  max-width: 320px;
+  color: var(--hj-text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.mobile-import-url {
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--hj-r-xs);
+  background: var(--hj-surface-2);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.mobile-import-actions {
+  justify-content: center;
+  margin-top: 4px;
+}
