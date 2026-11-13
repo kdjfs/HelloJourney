@@ -320,7 +320,9 @@ function Result() {
       }
 
       const photos: Record<string, { url: string; provider: string }> = {}
-      await runWithConcurrency(targets, 6, async (target) => {
+      // 高德对并发 QPS 有限制（infoCode 10021），6 个并发会把后面的请求打成"无图"，
+      // 3 个并发 + 后端重试足够快，也不会触发限流。
+      await runWithConcurrency(targets, 3, async (target) => {
         try {
           const result = await resolveAttractionImage(target.name, target.city, target.poiId)
           if (result.verified && result.imageUrl) {

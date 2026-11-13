@@ -99,6 +99,32 @@ class AmapAttractionImageProviderTest {
     }
 
     @Test
+    void resolveImage_requestWithoutSuffixMatchesOfficialMuseumName() {
+        // 行程里常写"故宫"，官方 POI 叫"故宫博物院"：旧实现只请求名带后缀才匹配，故宫永远没图
+        enqueuePoi("故宫博物院", "北京市", "B000A8UIN8", "",
+                "https://store.is.autonavi.com/showpic/gugong.jpg");
+
+        AttractionImageResult result = provider.resolveImage("故宫", "北京", null);
+
+        assertThat(result.isVerified()).as(result.toString()).isTrue();
+        assertThat(result.getMatchedName()).isEqualTo("故宫博物院");
+        assertThat(result.getConfidence()).isEqualTo(0.95);
+    }
+
+    @Test
+    void resolveImage_officialNameWithCityPrefix_returnsVerified() {
+        // 官方名带城市前缀：北京奥林匹克公园 vs 奥林匹克公园
+        enqueuePoi("北京奥林匹克公园", "北京市", "B000A8UK6D", "",
+                "https://store.is.autonavi.com/showpic/aolinpike.jpg");
+
+        AttractionImageResult result = provider.resolveImage("奥林匹克公园", "北京", null);
+
+        assertThat(result.isVerified()).as(result.toString()).isTrue();
+        assertThat(result.getMatchedName()).isEqualTo("北京奥林匹克公园");
+        assertThat(result.getConfidence()).isEqualTo(0.92);
+    }
+
+    @Test
     void resolveImage_similarNameButNotExact_returnsNotFound() {
         enqueuePoi("广州塔蜡像馆", "广州市", "nearby", "", "https://aos-cdn-image.amap.com/wrong.jpg");
 
