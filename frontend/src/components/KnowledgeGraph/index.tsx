@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { Typography, Empty, Alert, Tag, Input, Button } from 'antd'
@@ -6,9 +6,18 @@ import * as echarts from 'echarts/core'
 import type { EChartsCoreOption } from 'echarts/core'
 import { GraphChart } from 'echarts/charts'
 import { TooltipComponent } from 'echarts/components'
+import { LabelLayout } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
 import { apiClient } from '../../services/apiClient'
 import { AILogo } from '../AILogo'
+import {
+  buildInitialPositions,
+  layoutStorageKey,
+  mergePositions,
+  readStoredPositions,
+  storePositions,
+  type NodePosition,
+} from './graphLayout'
 import type {
   GraphCategory,
   GraphEdge,
@@ -22,7 +31,9 @@ const { Text } = Typography
 
 const GRAPH_HEIGHT = 560
 
-echarts.use([GraphChart, TooltipComponent, CanvasRenderer])
+// LabelLayout 是 labelLayout.hideOverlap 生效的前提：不注册它，节点名会互相压字。
+// 只有在按需引入 echarts 时才需要手动 use，全量引入时自带。
+echarts.use([GraphChart, TooltipComponent, LabelLayout, CanvasRenderer])
 
 interface KnowledgeGraphProps {
   graphData: KnowledgeGraphData | null
@@ -43,6 +54,8 @@ interface GraphCanvasProps {
   onSelectNode: (node: SelectedNode | null) => void
   onError: () => void
   onReady: () => void
+  /** 拖动节点后回报位移（布局坐标，已按缩放换算） */
+  onNodeMoved?: (id: string, dx: number, dy: number) => void
 }
 
 /**
@@ -54,16 +67,17 @@ interface GraphCanvasProps {
  * replaces. Resize and disposal live here too, so no observer or chart instance can
  * outlive the component.
  */
-function GraphCanvas({ option, onSelectNode, onError, onReady }: GraphCanvasProps) {
+function GraphCanvas({ option, onSelectNode, onError, onReady, onNodeMoved }: GraphCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<echarts.ECharts | null>(null)
-  const handlersRef = useRef({ onSelectNode, onError, onReady })
+  const handlersRef = useRef({ onSelectNode, onError, onReady, onNodeMoved })
+  const dragRef = useRef<{ id: string; x: number; y: number } | null>(null)
 
   // Kept current through an effect rather than during render: the chart is created
   // once, but its callbacks must always see the latest props.
   useEffect(() => {
-    handlersRef.current = { onSelectNode, onError, onReady }
-  }, [onError, onReady, onSelectNode])
+    handlersRef.current = { onSelectNode, onError, onReady, onNodeMoved }
+  }, [onError, onNodeMoved, onReady, onSelectNode])
 
   useEffect(() => {
     const host = hostRef.current
@@ -79,6 +93,29 @@ function GraphCanvas({ option, onSelectNode, onError, onReady }: GraphCanvasProp
     }
 
     chartRef.current = chart
+    // 拖动节点：ECharts 只挪像素，不认识"这是不是用户想要的最终位置"，
+    // 所以在 mouseup 里把位移记下来写回数据坐标，节点就不会弹回原处。
+    chart.on('mousedown', (params) => {
+      const event = params as { dataType?: string; data?: { id?: string }; event?: { offsetX: number; offsetY: number } }
+      if (event.dataType === 'node' && event.data?.id && event.event) {
+        dragRef.current = { id: String(event.data.id), x: event.event.offsetX, y: event.event.offsetY }
+      } else {
+        dragRef.current = null
+      }
+    })
+    chart.on('mouseup', (params) => {
+      const dragged = dragRef.current
+      dragRef.current = null
+      const event = params as { event?: { offsetX: number; offsetY: number } }
+      if (!dragged || !event.event || !handlersRef.current.onNodeMoved) return
+      const dx = event.event.offsetX - dragged.x
+      const dy = event.event.offsetY - dragged.y
+      // 小于 4px 视为点击（点选中不该把节点钉住）
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return
+      const series = (chart.getOption() as { series?: Array<{ zoom?: number }> }).series?.[0]
+      const zoom = series?.zoom && series.zoom > 0 ? series.zoom : 1
+      handlersRef.current.onNodeMoved(dragged.id, dx / zoom, dy / zoom)
+    })
     chart.on('click', (params) => {
       const event = params as { dataType?: string; data?: { name?: string; category?: number; value?: string } }
       if (event.dataType === 'node' && event.data) {
@@ -186,6 +223,7 @@ function buildGraphOption(
   edges: GraphEdge[],
   categoriesRaw: GraphCategory[],
   t: TFunction,
+  positions: Record<string, NodePosition>,
 ): EChartsCoreOption {
   const categories = categoriesRaw.map((cat: GraphCategory, idx: number) => ({
     name: cat.name,
@@ -202,6 +240,16 @@ function buildGraphOption(
     (edge) => (nodeIds.has(edge.source) || nodeNames.has(edge.source))
       && (nodeIds.has(edge.target) || nodeNames.has(edge.target)),
   )
+
+  // 餐厅/酒店/预算这类节点名称很长，全部显示标签会互相压字；只给主干节点常显标签，
+  // 其余节点悬停时再显示（详情面板里也有完整信息）。
+  const primaryCategories = new Set<number>()
+  categoriesRaw.forEach((category, index) => {
+    const name = (category.name ?? '').toLowerCase()
+    if (/city|城市|day|schedule|日程|行程|attraction|景点/.test(name)) {
+      primaryCategories.add(index)
+    }
+  })
 
   return {
     tooltip: {
@@ -224,8 +272,7 @@ function buildGraphOption(
     series: [
       {
         type: 'graph',
-        layout: 'force',
-        force: { repulsion: 380, edgeLength: [110, 300], gravity: 0.1 },
+        layout: 'none',
         roam: true,
         draggable: true,
         data: nodes.map((node) => ({
@@ -235,6 +282,9 @@ function buildGraphOption(
           symbolSize: node.symbolSize || 30,
           itemStyle: node.itemStyle,
           value: node.value,
+          x: positions[node.id]?.x,
+          y: positions[node.id]?.y,
+          label: { show: primaryCategories.size === 0 || primaryCategories.has(node.category) },
         })),
         links: resolvedEdges.map((edge) => ({
           source: edge.source,
@@ -262,6 +312,7 @@ function buildGraphOption(
         emphasis: {
           focus: 'adjacency',
           lineStyle: { width: 3 },
+          label: { show: true },
         },
       },
     ],
@@ -287,9 +338,48 @@ function KnowledgeGraph({ graphData, derived = false, tripPlan }: KnowledgeGraph
   const edges = useMemo(() => graphData?.edges ?? [], [graphData])
   const categoriesRaw = useMemo(() => graphData?.categories ?? [], [graphData])
 
+  const storageKey = useMemo(() => layoutStorageKey(nodes, tripPlan), [nodes, tripPlan])
+  // 用户拖动过的位置（按当前计划维度做键，换城市/换天数就重新开始）
+  const [dragPositions, setDragPositions] = useState<Record<string, NodePosition>>(
+    () => readStoredPositions(layoutStorageKey(graphData?.nodes ?? [], tripPlan)),
+  )
+
+  const basePositions = useMemo(() => buildInitialPositions(nodes), [nodes])
+
+  const positions = useMemo(
+    () => mergePositions(basePositions, dragPositions),
+    [basePositions, dragPositions],
+  )
+
+  const positionsRef = useRef(positions)
+  useEffect(() => {
+    positionsRef.current = positions
+  }, [positions])
+
+  const handleNodeMoved = useCallback((id: string, dx: number, dy: number) => {
+    const current = positionsRef.current[id]
+    if (!current) return
+    setDragPositions((previous) => {
+      const next = { ...previous, [id]: { x: current.x + dx, y: current.y + dy } }
+      storePositions(storageKey, next)
+      return next
+    })
+  }, [storageKey])
+
+  const resetLayout = useCallback(() => {
+    setDragPositions({})
+    try {
+      localStorage.removeItem(storageKey)
+    } catch {
+      // 忽略
+    }
+  }, [storageKey])
+
+  const hasCustomLayout = Object.keys(dragPositions).length > 0
+
   const option = useMemo(
-    () => (nodes.length === 0 ? null : buildGraphOption(nodes, edges, categoriesRaw, t)),
-    [categoriesRaw, edges, nodes, t],
+    () => (nodes.length === 0 ? null : buildGraphOption(nodes, edges, categoriesRaw, t, positions)),
+    [categoriesRaw, edges, nodes, positions, t],
   )
 
   const nodeCategoryColors = useMemo(
@@ -346,11 +436,18 @@ function KnowledgeGraph({ graphData, derived = false, tripPlan }: KnowledgeGraph
 
   return (
     <div>
+      <div className="kg-toolbar">
+        <span className="kg-toolbar-hint">{t('knowledgeGraph.dragHint')}</span>
+        {hasCustomLayout && (
+          <Button size="small" onClick={resetLayout}>{t('knowledgeGraph.resetLayout')}</Button>
+        )}
+      </div>
       <GraphCanvas
         option={option}
         onSelectNode={setSelectedNode}
         onError={() => setRenderError(true)}
         onReady={() => setRenderError(false)}
+        onNodeMoved={handleNodeMoved}
       />
 
       {/* 节点详情面板 */}
