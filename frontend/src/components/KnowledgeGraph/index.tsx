@@ -11,10 +11,11 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { apiClient } from '../../services/apiClient'
 import { AILogo } from '../AILogo'
 import {
-  buildInitialPositions,
+  filterPositions,
   layoutStorageKey,
   mergePositions,
   readStoredPositions,
+  simulateLayout,
   storePositions,
   type NodePosition,
 } from './graphLayout'
@@ -54,7 +55,7 @@ interface GraphCanvasProps {
   onSelectNode: (node: SelectedNode | null) => void
   onError: () => void
   onReady: () => void
-  /** 拖动节点后回报位移（布局坐标，已按缩放换算） */
+  /** 拖动节点后回报位移（屏幕像素，除以缩放后即布局坐标） */
   onNodeMoved?: (id: string, dx: number, dy: number) => void
 }
 
@@ -110,8 +111,10 @@ function GraphCanvas({ option, onSelectNode, onError, onReady, onNodeMoved }: Gr
       if (!dragged || !event.event || !handlersRef.current.onNodeMoved) return
       const dx = event.event.offsetX - dragged.x
       const dy = event.event.offsetY - dragged.y
-      // 小于 4px 视为点击（点选中不该把节点钉住）
+      // 小于 4px 视为点击（点选中不该让节点位移）
       if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return
+      // 布局坐标由我们自己维护（layout: 'none'），把屏幕位移换算回去即可，
+      // 不依赖 ECharts 内部 API，换版本也不会失灵。
       const series = (chart.getOption() as { series?: Array<{ zoom?: number }> }).series?.[0]
       const zoom = series?.zoom && series.zoom > 0 ? series.zoom : 1
       handlersRef.current.onNodeMoved(dragged.id, dx / zoom, dy / zoom)
@@ -241,15 +244,8 @@ function buildGraphOption(
       && (nodeIds.has(edge.target) || nodeNames.has(edge.target)),
   )
 
-  // 餐厅/酒店/预算这类节点名称很长，全部显示标签会互相压字；只给主干节点常显标签，
-  // 其余节点悬停时再显示（详情面板里也有完整信息）。
-  const primaryCategories = new Set<number>()
-  categoriesRaw.forEach((category, index) => {
-    const name = (category.name ?? '').toLowerCase()
-    if (/city|城市|day|schedule|日程|行程|attraction|景点/.test(name)) {
-      primaryCategories.add(index)
-    }
-  })
+  // 餐厅/酒店/预算这类节点名称很长，但用户明确要求"每颗球都要有名字"，
+  // 所以全部显示标签，重名问题交给 textBorder 描边压住背景。
 
   return {
     tooltip: {
@@ -284,7 +280,6 @@ function buildGraphOption(
           value: node.value,
           x: positions[node.id]?.x,
           y: positions[node.id]?.y,
-          label: { show: primaryCategories.size === 0 || primaryCategories.has(node.category) },
         })),
         links: resolvedEdges.map((edge) => ({
           source: edge.source,
@@ -299,8 +294,9 @@ function buildGraphOption(
           textBorderColor: 'rgba(20, 30, 25, 0.45)',
           textBorderWidth: 2.5,
         },
-        // 力导向布局下节点名极易互相压字，交给 ECharts 隐藏重叠标签
-        labelLayout: { hideOverlap: true },
+        // 力导向布局下节点名容易互相压字。用户要求"不要空白的球"，所以不隐藏标签，
+        // 而是让重叠的标签纵向错开（moveOverlap 需要注册 LabelLayout 特性）。
+        labelLayout: { hideOverlap: false, moveOverlap: 'shiftY' },
         edgeLabel: {
           color: '#8c8a80',
           fontSize: 10,
@@ -344,27 +340,24 @@ function KnowledgeGraph({ graphData, derived = false, tripPlan }: KnowledgeGraph
     () => readStoredPositions(layoutStorageKey(graphData?.nodes ?? [], tripPlan)),
   )
 
-  const basePositions = useMemo(() => buildInitialPositions(nodes), [nodes])
+  // 自己跑的力导向：坐标可控，拖动才能记住（ECharts 内部坐标取不出来）
+  const basePositions = useMemo(() => simulateLayout(nodes, edges), [edges, nodes])
 
   const positions = useMemo(
-    () => mergePositions(basePositions, dragPositions),
-    [basePositions, dragPositions],
+    () => mergePositions(basePositions, filterPositions(dragPositions, nodes)),
+    [basePositions, dragPositions, nodes],
   )
 
-  const positionsRef = useRef(positions)
-  useEffect(() => {
-    positionsRef.current = positions
-  }, [positions])
-
   const handleNodeMoved = useCallback((id: string, dx: number, dy: number) => {
-    const current = positionsRef.current[id]
+    const current = positions[id]
     if (!current) return
+    const next = { x: current.x + dx, y: current.y + dy }
     setDragPositions((previous) => {
-      const next = { ...previous, [id]: { x: current.x + dx, y: current.y + dy } }
-      storePositions(storageKey, next)
-      return next
+      const merged = { ...previous, [id]: next }
+      storePositions(storageKey, merged)
+      return merged
     })
-  }, [storageKey])
+  }, [positions, storageKey])
 
   const resetLayout = useCallback(() => {
     setDragPositions({})
