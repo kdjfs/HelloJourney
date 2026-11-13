@@ -422,6 +422,8 @@
     "draftSaved": "草稿已保存 {{time}}",
     "draftSaving": "正在保存草稿",
     "addAttraction": "添加景点",
+    "dragHint": "拖动调整顺序",
+    "addConfirm": "添加",
     "transfer": "城际转移 · {{info}}",
     "stay": "住宿：",
     "editHotel": "编辑酒店",

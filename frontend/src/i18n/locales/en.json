@@ -422,6 +422,8 @@
     "draftSaved": "Draft saved {{time}}",
     "draftSaving": "Saving draft",
     "addAttraction": "Add attraction",
+    "dragHint": "Drag to reorder",
+    "addConfirm": "Add",
     "transfer": "Intercity transfer · {{info}}",
     "stay": "Stay:",
     "editHotel": "Edit hotel",

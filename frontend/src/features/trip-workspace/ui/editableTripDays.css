@@ -142,14 +142,41 @@
 
 .attraction-row {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr) auto;
+  grid-template-columns: 18px 88px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 13px 15px;
   border: 1px solid var(--hj-border);
   border-radius: var(--hj-r-md);
   background: var(--hj-surface);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  cursor: grab;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.attraction-row:active {
+  cursor: grabbing;
+}
+
+.attraction-row.is-dragging {
+  opacity: 0.45;
+}
+
+.attraction-row.is-drop-target {
+  border-color: var(--hj-primary);
+  box-shadow: 0 0 0 2px var(--hj-primary-ring);
+}
+
+.attraction-drag {
+  display: grid;
+  place-items: center;
+  color: var(--hj-text-faint);
+  font-size: 13px;
+  cursor: grab;
+}
+
+.attraction-row:hover .attraction-drag {
+  color: var(--hj-primary);
 }
 
 .attraction-row:hover {

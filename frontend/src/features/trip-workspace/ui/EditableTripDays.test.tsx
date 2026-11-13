@@ -12,16 +12,27 @@ const plan: TripPlan = {
 }
 
 describe('EditableTripDays', () => {
-  it('adds an attraction and can undo the change', async () => {
+  it('adds an attraction after filling the form, and can undo the change', async () => {
     const onPlanChange = vi.fn()
     render(<EditableTripDays initialPlan={plan} planId="test-plan" onPlanChange={onPlanChange} />)
 
     expect(screen.getByText('故宫')).toBeInTheDocument()
+
+    // 新流程：先填表再添加，而不是直接插入空白景点
     fireEvent.click(screen.getByRole('button', { name: '添加景点' }))
-    expect(screen.getByText('新景点')).toBeInTheDocument()
+    const nameInput = await screen.findByLabelText('景点名称')
+    expect(screen.queryByText('新景点')).not.toBeInTheDocument()
+    fireEvent.change(nameInput, { target: { value: '新景点' } })
+    // antd 会在两个汉字的按钮文案之间插空格，所以用正则匹配
+    fireEvent.click(screen.getByRole('button', { name: /^添\s?加$/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('新景点')).toBeInTheDocument()
+    })
     await waitFor(() => {
       expect(onPlanChange.mock.calls.some(([nextPlan]) => nextPlan.days[0].attractions.length === 2)).toBe(true)
     })
+
     fireEvent.click(screen.getByRole('button', { name: '撤销' }))
     expect(screen.queryByText('新景点')).not.toBeInTheDocument()
     await waitFor(() => {

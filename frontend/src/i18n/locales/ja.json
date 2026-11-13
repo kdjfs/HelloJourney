@@ -422,6 +422,8 @@
     "draftSaved": "下書きを {{time}} に保存",
     "draftSaving": "下書きを保存中",
     "addAttraction": "観光地を追加",
+    "dragHint": "ドラッグで並べ替え",
+    "addConfirm": "追加",
     "transfer": "都市間移動 · {{info}}",
     "stay": "宿泊：",
     "editHotel": "ホテルを編集",

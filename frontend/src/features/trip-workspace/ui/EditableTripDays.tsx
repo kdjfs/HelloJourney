@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowDownOutlined,
   ArrowLeftOutlined,
   ArrowRightOutlined,
-  ArrowUpOutlined,
   DeleteOutlined,
   EditOutlined,
   EnvironmentOutlined,
+  HolderOutlined,
   PlusOutlined,
   RedoOutlined,
   RobotOutlined,
@@ -48,6 +47,11 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
   const { t, i18n } = useTranslation()
   const { state, dispatch, canUndo, canRedo } = useTripWorkspace(initialPlan, planId)
   const [editTarget, setEditTarget] = useState<EditTarget>()
+  /** 非 undefined 表示"新建景点"弹窗，值是要加到哪一天 */
+  const [createDay, setCreateDay] = useState<number>()
+  /** 拖拽排序：当前拖起的行 + 悬停的目标行 */
+  const [dragRow, setDragRow] = useState<{ dayIndex: number; attractionIndex: number }>()
+  const [dropTarget, setDropTarget] = useState<string>()
   const [hotelDayIndex, setHotelDayIndex] = useState<number>()
   const [replanOpen, setReplanOpen] = useState(false)
   const [replanSubmitting, setReplanSubmitting] = useState(false)
@@ -70,6 +74,41 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
     const values = await form.validateFields()
     dispatch({ type: 'attraction.update', ...editTarget, patch: values })
     setEditTarget(undefined)
+  }
+
+  /** 新增景点：先填好再添加，而不是插一个空白"新景点" */
+  const openCreateAttraction = (dayIndex: number) => {
+    form.resetFields()
+    form.setFieldsValue({ visit_duration: 90, start_time: '', end_time: '', address: '', description: '', name: '' })
+    setCreateDay(dayIndex)
+  }
+
+  const saveNewAttraction = async () => {
+    if (createDay === undefined) return
+    const values = await form.validateFields()
+    const attraction: Attraction = {
+      ...emptyAttraction(values.name?.trim() || t('workspace.newAttraction')),
+      ...values,
+      name: values.name?.trim() || t('workspace.newAttraction'),
+    }
+    dispatch({ type: 'attraction.add', dayIndex: createDay, attraction })
+    setCreateDay(undefined)
+  }
+
+  /** 同一天内拖拽排序：先移除再插入到目标位置 */
+  const handleDrop = (dayIndex: number, targetIndex: number) => {
+    if (!dragRow || dragRow.dayIndex !== dayIndex) return
+    if (dragRow.attractionIndex !== targetIndex) {
+      dispatch({
+        type: 'attraction.move',
+        fromDayIndex: dayIndex,
+        attractionIndex: dragRow.attractionIndex,
+        toDayIndex: dayIndex,
+        at: targetIndex,
+      })
+    }
+    setDragRow(undefined)
+    setDropTarget(undefined)
   }
 
   const openHotelEditor = (dayIndex: number) => {
@@ -189,7 +228,7 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
               <Button
                 aria-label={t('workspace.addAttraction')}
                 icon={<PlusOutlined />}
-                onClick={() => dispatch({ type: 'attraction.add', dayIndex, attraction: emptyAttraction(t('workspace.newAttraction')) })}
+                onClick={() => openCreateAttraction(dayIndex)}
               >
                 {t('workspace.addAttraction')}
               </Button>
@@ -210,8 +249,36 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('workspace.emptyDay')} />
             ) : (
               <ol className="attraction-list">
-                {day.attractions.map((item, attractionIndex) => (
-                  <li key={`${item.poi_id ?? item.name}-${attractionIndex}`} className="attraction-row">
+                {day.attractions.map((item, attractionIndex) => {
+                  const rowKey = `${dayIndex}-${attractionIndex}`
+                  const dragging = dragRow?.dayIndex === dayIndex && dragRow.attractionIndex === attractionIndex
+                  return (
+                  <li
+                    key={`${item.poi_id ?? item.name}-${attractionIndex}`}
+                    className={`attraction-row${dragging ? ' is-dragging' : ''}${dropTarget === rowKey ? ' is-drop-target' : ''}`}
+                    draggable
+                    onDragStart={(event) => {
+                      setDragRow({ dayIndex, attractionIndex })
+                      event.dataTransfer.effectAllowed = 'move'
+                      // Firefox 需要设置数据才会触发拖拽
+                      event.dataTransfer.setData('text/plain', rowKey)
+                    }}
+                    onDragEnd={() => { setDragRow(undefined); setDropTarget(undefined) }}
+                    onDragOver={(event) => {
+                      if (!dragRow || dragRow.dayIndex !== dayIndex) return
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'move'
+                      setDropTarget(rowKey)
+                    }}
+                    onDragLeave={() => setDropTarget((current) => (current === rowKey ? undefined : current))}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      handleDrop(dayIndex, attractionIndex)
+                    }}
+                  >
+                    <span className="attraction-drag" aria-hidden="true" title={t('workspace.dragHint')}>
+                      <HolderOutlined />
+                    </span>
                     <div className="attraction-time">
                       <span>{item.start_time || '--:--'}</span>
                       <small>{t('common.minutes', { count: item.visit_duration })}</small>
@@ -225,8 +292,6 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
                       {item.description && <p>{item.description}</p>}
                     </div>
                     <Space className="attraction-actions" size={4} wrap>
-                      <Tooltip title={t('workspace.moveUp')}><Button aria-label={`${t('workspace.moveUp')} ${item.name}`} size="small" icon={<ArrowUpOutlined />} disabled={attractionIndex === 0} onClick={() => dispatch({ type: 'attraction.move', fromDayIndex: dayIndex, attractionIndex, toDayIndex: dayIndex, at: attractionIndex - 1 })} /></Tooltip>
-                      <Tooltip title={t('workspace.moveDown')}><Button aria-label={`${t('workspace.moveDown')} ${item.name}`} size="small" icon={<ArrowDownOutlined />} disabled={attractionIndex === day.attractions.length - 1} onClick={() => dispatch({ type: 'attraction.move', fromDayIndex: dayIndex, attractionIndex, toDayIndex: dayIndex, at: attractionIndex + 1 })} /></Tooltip>
                       <Tooltip title={t('workspace.movePreviousDay')}><Button aria-label={`${t('workspace.movePreviousDay')} ${item.name}`} size="small" icon={<ArrowLeftOutlined />} disabled={dayIndex === 0} onClick={() => dispatch({ type: 'attraction.move', fromDayIndex: dayIndex, attractionIndex, toDayIndex: dayIndex - 1 })} /></Tooltip>
                       <Tooltip title={t('workspace.moveNextDay')}><Button aria-label={`${t('workspace.moveNextDay')} ${item.name}`} size="small" icon={<ArrowRightOutlined />} disabled={dayIndex === state.present.days.length - 1} onClick={() => dispatch({ type: 'attraction.move', fromDayIndex: dayIndex, attractionIndex, toDayIndex: dayIndex + 1 })} /></Tooltip>
                       <Tooltip title={t('workspace.edit')}><Button aria-label={`${t('workspace.edit')} ${item.name}`} size="small" icon={<EditOutlined />} onClick={() => openEditor(dayIndex, attractionIndex)} /></Tooltip>
@@ -235,14 +300,23 @@ export default function EditableTripDays({ initialPlan, planId, onPlanChange }: 
                       </Popconfirm>
                     </Space>
                   </li>
-                ))}
+                  )
+                })}
               </ol>
             )}
           </Card>
         ))}
       </div>
 
-      <Modal title={t('workspace.editAttraction')} open={Boolean(editTarget)} onCancel={() => setEditTarget(undefined)} onOk={() => void saveEditor()} okText={t('workspace.save')} cancelText={t('workspace.cancel')} destroyOnHidden>
+      <Modal
+        title={createDay !== undefined ? t('workspace.addAttraction') : t('workspace.editAttraction')}
+        open={Boolean(editTarget) || createDay !== undefined}
+        onCancel={() => { setEditTarget(undefined); setCreateDay(undefined) }}
+        onOk={() => void (createDay !== undefined ? saveNewAttraction() : saveEditor())}
+        okText={createDay !== undefined ? t('workspace.addConfirm') : t('workspace.save')}
+        cancelText={t('workspace.cancel')}
+        destroyOnHidden
+      >
         <Form form={form} layout="vertical">
           <Row gutter={12}>
             <Col span={14}><Form.Item name="name" label={t('workspace.attractionName')} rules={[{ required: true, message: t('workspace.attractionNameRequired') }]}><Input /></Form.Item></Col>
