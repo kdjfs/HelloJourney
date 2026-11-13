@@ -20,7 +20,9 @@
     "github": "在 GitHub 上查看项目",
     "generate": "生成计划",
     "language": "界面语言",
-    "settings": "设置"
+    "settings": "设置",
+    "switchToDark": "切换到夜间模式",
+    "switchToLight": "切换到日间模式"
   },
   "settings": {
     "eyebrow": "SYSTEM READINESS",
@@ -251,6 +253,7 @@
     "legend": "路线图例",
     "expand": "全屏查看地图",
     "collapse": "退出全屏",
+    "spotsTitle": "行程景点",
     "driving": "驾车",
     "walking": "步行",
     "straight": "直线兜底",

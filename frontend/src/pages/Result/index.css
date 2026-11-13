@@ -5,7 +5,7 @@
 .result-shell {
   min-height: 100dvh;
   background:
-    radial-gradient(1100px 520px at 50% -240px, #fffdf8 0%, transparent 70%),
+    radial-gradient(1100px 520px at 50% -240px, var(--hj-bg-glow) 0%, transparent 70%),
     var(--hj-bg);
   color: var(--hj-text);
   padding-bottom: 96px;
@@ -38,7 +38,7 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(246, 243, 236, 0.88);
+  background: var(--hj-topbar-bg);
   border-bottom: 1px solid var(--hj-border);
   backdrop-filter: saturate(150%) blur(12px);
 }
@@ -106,6 +106,27 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.result-theme-toggle {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-pill);
+  background: var(--hj-surface);
+  color: var(--hj-text-2);
+  font-size: 15px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
+}
+
+.result-theme-toggle:hover {
+  border-color: var(--hj-primary);
+  background: var(--hj-primary-soft);
+  color: var(--hj-primary-strong);
 }
 
 /* 校验胶囊 */

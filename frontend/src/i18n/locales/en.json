@@ -20,7 +20,9 @@
     "github": "View project on GitHub",
     "generate": "Generate plan",
     "language": "Interface language",
-    "settings": "Settings"
+    "settings": "Settings",
+    "switchToDark": "Switch to dark mode",
+    "switchToLight": "Switch to light mode"
   },
   "settings": {
     "eyebrow": "SYSTEM READINESS",
@@ -251,6 +253,7 @@
     "legend": "Route legend",
     "expand": "View map fullscreen",
     "collapse": "Exit fullscreen",
+    "spotsTitle": "Itinerary stops",
     "driving": "Driving",
     "walking": "Walking",
     "straight": "Straight-line fallback",

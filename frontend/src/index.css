@@ -70,9 +70,62 @@
   --hj-gutter: 24px;
   --hj-control-h: 46px;
 
+  /* 半透明表面：导航栏 / 吸顶栏 / 页面顶部微光，暗色下需要跟着变 */
+  --hj-nav-bg: rgba(255, 255, 255, 0.92);
+  --hj-topbar-bg: rgba(246, 243, 236, 0.88);
+  --hj-bg-glow: #fffdf8;
+
   /* ---------- 别名：保持旧组件（每日行程工作区）继续可用的兼容令牌 ---------- */
   --hj-surface-muted: var(--hj-bg);
   --hj-text-2-legacy: var(--hj-text-2);
+}
+
+/* ---------- 暗色主题：只覆盖颜色令牌，组件 CSS 一律跟着变 ---------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --hj-primary: #4fb3a0;
+  --hj-primary-strong: #74d2c0;
+  --hj-primary-soft: #1c3a35;
+  --hj-primary-ring: rgba(79, 179, 160, 0.35);
+
+  --hj-accent: #e08a63;
+  --hj-accent-strong: #f2a884;
+  --hj-accent-soft: #3a2a22;
+
+  --hj-amber: #d9a13f;
+  --hj-amber-soft: #322817;
+  --hj-ok: #56b98a;
+  --hj-ok-soft: #16302a;
+  --hj-danger: #e0715c;
+  --hj-danger-soft: #3a2320;
+  --hj-info: #5a9fc0;
+  --hj-info-soft: #1a2d38;
+
+  --hj-bg: #11171a;
+  --hj-bg-sunken: #0c1113;
+  --hj-surface: #192227;
+  --hj-surface-2: #1f2a30;
+  --hj-surface-3: #26333a;
+
+  --hj-text: #e9eff3;
+  --hj-text-2: #bcc7ce;
+  --hj-text-muted: #8d9aa1;
+  --hj-text-faint: #6d7a81;
+  --hj-text-invert: #11171a;
+
+  --hj-border: #2c383f;
+  --hj-border-strong: #3d4b53;
+  --hj-border-soft: #232e34;
+
+  --hj-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --hj-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --hj-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --hj-shadow-lg: 0 28px 60px -28px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  --hj-nav-bg: rgba(25, 34, 39, 0.92);
+  --hj-topbar-bg: rgba(17, 23, 26, 0.9);
+  --hj-bg-glow: #1b2429;
 }
 
 html,

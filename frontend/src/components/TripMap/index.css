@@ -90,6 +90,108 @@
   color: var(--hj-primary-strong);
 }
 
+/* ---------- 左上角景点清单 ---------- */
+.trip-map-spots {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 6;
+  max-width: min(260px, 46%);
+  max-height: calc(100% - 28px);
+  padding: 10px;
+  border: 1px solid var(--hj-border);
+  border-radius: var(--hj-r-md);
+  background: var(--hj-nav-bg);
+  box-shadow: var(--hj-shadow);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.trip-map-spots-title {
+  margin: 0 0 6px;
+  padding: 0 4px;
+  color: var(--hj-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trip-map-spots ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  max-height: 340px;
+  list-style: none;
+}
+
+.trip-map-spot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--hj-r-xs);
+  background: transparent;
+  color: var(--hj-text-2);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.trip-map-spot:hover {
+  background: var(--hj-surface-3);
+  color: var(--hj-text);
+}
+
+.trip-map-spot.is-active {
+  background: var(--hj-primary-soft);
+  color: var(--hj-primary-strong);
+  font-weight: 650;
+}
+
+.trip-map-spot-index {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--hj-r-pill);
+  background: var(--hj-surface-3);
+  color: var(--hj-text-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.trip-map-spot.is-active .trip-map-spot-index {
+  background: var(--hj-primary);
+  color: #fff;
+}
+
+.trip-map-spot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .trip-map-spots {
+    max-width: min(210px, 62%);
+  }
+
+  .trip-map-spots ul {
+    max-height: 220px;
+  }
+}
+
 /* ---------- 全屏态：真正铺满整屏，不留缝 ---------- */
 .trip-map-shell.is-expanded {
   position: fixed;

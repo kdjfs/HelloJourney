@@ -1,9 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { isMockEnabled } from './utils/env'
+import { bootstrapTheme } from './theme/model/theme'
 import './index.css'
 import './styles/global.css'
 import AppProviders from './components/AppProviders'
+
+// 在 React 挂载前把主题写到 <html data-theme>，避免首屏闪白
+bootstrapTheme()
 
 async function enableMocking() {
   if (isMockEnabled()) {

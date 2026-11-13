@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FullscreenExitOutlined, FullscreenOutlined, LoadingOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { TripPlan } from '@/types/api'
@@ -9,6 +9,7 @@ import { createGoogleRenderer } from './googleRenderer'
 import { collectAttractionStops } from './mapGeometry'
 import { isMapRendererError } from './mapRenderer'
 import type { MapRenderer, MapRendererContext } from './mapRenderer'
+import type { MapAttractionStop } from './mapGeometry'
 import TripMapFallback from './TripMapFallback'
 import './index.css'
 
@@ -20,6 +21,8 @@ export interface TripMapSelection {
 interface TripMapProps {
   plan: TripPlan
   selectedAttraction?: TripMapSelection | null
+  /** 点击左上角景点清单时通知调用方，由调用方统一管理选中态 */
+  onSelectStop?: (selection: TripMapSelection) => void
 }
 
 type MapPhase = 'loading' | 'ready' | 'load-error' | 'security-code-missing'
@@ -57,7 +60,7 @@ function buildPlanSignature(plan: TripPlan): string {
   return parts.join('|')
 }
 
-function TripMap({ plan, selectedAttraction }: TripMapProps) {
+function TripMap({ plan, selectedAttraction, onSelectStop }: TripMapProps) {
   const { t, i18n } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<MapRenderer | null>(null)
@@ -81,6 +84,16 @@ function TripMap({ plan, selectedAttraction }: TripMapProps) {
   useEffect(() => {
     translateRef.current = t
   }, [t])
+
+  /** 聚焦某个景点：有父级回调就交给父级统一管理选中态，否则直接驱动渲染器 */
+  const focusSpot = useCallback((stop: MapAttractionStop) => {
+    const selection = { dayIndex: stop.dayIndex, attractionIndex: stop.attractionIndex }
+    if (onSelectStop) {
+      onSelectStop(selection)
+      return
+    }
+    rendererRef.current?.selectStop(`${stop.dayIndex}-${stop.attractionIndex}`)
+  }, [onSelectStop])
 
   /* 全屏：锁滚动 + Esc 退出 */
   useEffect(() => {
@@ -168,7 +181,8 @@ function TripMap({ plan, selectedAttraction }: TripMapProps) {
       renderer.clearSelection()
       return
     }
-    renderer.selectStop(`${selectedAttraction.dayIndex}-${selectedAttraction.attractionIndex}`)
+    const key = `${selectedAttraction.dayIndex}-${selectedAttraction.attractionIndex}`
+    renderer.selectStop(key)
   }, [phase, provider, selectedAttraction])
 
   if (!providerReady) return <TripMapFallback kind="missing-key" provider={provider} />
@@ -205,6 +219,35 @@ function TripMap({ plan, selectedAttraction }: TripMapProps) {
         </div>
       </div>
       <div ref={containerRef} id="trip-map-canvas" className="trip-map-canvas" data-trip-map-capture="true" />
+
+      {/* 左上角景点清单：点一下地图就聚焦到该点并弹出信息窗（全屏时同样可用） */}
+      {stops.length > 0 && (
+        <nav className="trip-map-spots" aria-label={t('tripMap.spotsTitle')}>
+          <p className="trip-map-spots-title">{t('tripMap.spotsTitle')}</p>
+          <ul>
+            {stops.map((stop) => {
+              const active = selectedAttraction
+                && selectedAttraction.dayIndex === stop.dayIndex
+                && selectedAttraction.attractionIndex === stop.attractionIndex
+              return (
+                <li key={stop.key}>
+                  <button
+                    type="button"
+                    className={`trip-map-spot${active ? ' is-active' : ''}`}
+                    onClick={() => focusSpot(stop)}
+                  >
+                    <span className="trip-map-spot-index" aria-hidden="true">
+                      {stop.dayIndex + 1}-{stop.attractionIndex + 1}
+                    </span>
+                    <span className="trip-map-spot-name">{stop.attraction.name}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+      )}
+
       {phase === 'loading' && (
         <div className="trip-map-loading" role="status">
           <LoadingOutlined spin />

@@ -1,8 +1,9 @@
 import { Select } from 'antd'
-import { GithubOutlined, SettingOutlined } from '@ant-design/icons'
+import { GithubOutlined, MoonOutlined, SettingOutlined, SunOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { normalizeAppLocale, type AppLocale } from '@/i18n'
+import { useAppTheme } from '@/theme/model/theme'
 import './index.css'
 
 interface NavBarProps {
@@ -15,6 +16,8 @@ interface NavBarProps {
 function NavBar({ onBrandClick, onCtaClick, transparent = false }: NavBarProps) {
   const { t, i18n } = useTranslation()
   const activeLocale = normalizeAppLocale(i18n.resolvedLanguage || i18n.language)
+  const [appTheme, toggleTheme] = useAppTheme()
+  const dark = appTheme === 'dark'
 
   return (
     <nav className={`site-nav${transparent ? ' site-nav--transparent' : ''}`} aria-label={t('navbar.toggle')}>
@@ -45,6 +48,17 @@ function NavBar({ onBrandClick, onCtaClick, transparent = false }: NavBarProps) 
             <SettingOutlined aria-hidden="true" />
             <span className="site-nav-link-text">{t('navbar.settings')}</span>
           </Link>
+
+          <button
+            type="button"
+            className="site-nav-icon site-nav-theme"
+            onClick={toggleTheme}
+            aria-label={dark ? t('navbar.switchToLight') : t('navbar.switchToDark')}
+            title={dark ? t('navbar.switchToLight') : t('navbar.switchToDark')}
+            aria-pressed={dark}
+          >
+            {dark ? <SunOutlined /> : <MoonOutlined />}
+          </button>
 
           <Select<AppLocale>
             className="site-nav-locale"

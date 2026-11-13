@@ -20,7 +20,9 @@
     "github": "GitHub でプロジェクトを見る",
     "generate": "プランを作成",
     "language": "表示言語",
-    "settings": "設定"
+    "settings": "設定",
+    "switchToDark": "ダークモードに切り替え",
+    "switchToLight": "ライトモードに切り替え"
   },
   "settings": {
     "eyebrow": "SYSTEM READINESS",
@@ -251,6 +253,7 @@
     "legend": "ルート凡例",
     "expand": "地図を全画面表示",
     "collapse": "全画面を終了",
+    "spotsTitle": "旅程の立ち寄り先",
     "driving": "車",
     "walking": "徒歩",
     "straight": "直線フォールバック",

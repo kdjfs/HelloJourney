@@ -13,6 +13,7 @@ import { normalizeAppLocale, type AppLocale } from '../../i18n'
 import App from '../../App'
 import AppErrorBoundary from '../AppErrorBoundary'
 import { GenerationProvider } from '../../features/generation/model/GenerationProvider'
+import { useAppTheme } from '../../theme/model/theme'
 
 const ANTD_LOCALES = { zh: zhCN, en: enUS, ja: jaJP }
 const DAYJS_LOCALES: Record<AppLocale, string> = { zh: 'zh-cn', en: 'en', ja: 'ja' }
@@ -64,8 +65,41 @@ const LIGHT_THEME: ThemeConfig = {
   },
 }
 
+/** 暗色主题：算法 + 与 index.css 暗色令牌一致的颜色 */
+const DARK_THEME: ThemeConfig = {
+  algorithm: theme.darkAlgorithm,
+  token: {
+    ...LIGHT_THEME.token,
+    colorPrimary: '#4fb3a0',
+    colorInfo: '#5a9fc0',
+    colorSuccess: '#56b98a',
+    colorWarning: '#d9a13f',
+    colorError: '#e0715c',
+    colorTextBase: '#e9eff3',
+    colorBgBase: '#11171a',
+    colorBgLayout: '#11171a',
+    colorBgContainer: '#192227',
+    colorBgElevated: '#1f2a30',
+    colorBorder: '#2c383f',
+    colorBorderSecondary: '#232e34',
+    colorTextSecondary: '#bcc7ce',
+    colorTextTertiary: '#8d9aa1',
+    colorTextQuaternary: '#6d7a81',
+    boxShadow: '0 12px 32px -16px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.35)',
+    boxShadowSecondary: '0 18px 40px -20px rgba(0, 0, 0, 0.8)',
+  },
+  components: {
+    ...LIGHT_THEME.components,
+    Segmented: { itemSelectedBg: '#26333a' },
+    Select: { optionSelectedBg: '#1c3a35' },
+    Tabs: { itemSelectedColor: '#4fb3a0', inkBarColor: '#4fb3a0' },
+    FloatButton: { colorPrimary: '#4fb3a0' },
+  },
+}
+
 export default function AppProviders() {
   const { i18n } = useTranslation()
+  const [appTheme] = useAppTheme()
   const locale = normalizeAppLocale(i18n.resolvedLanguage || i18n.language)
 
   useEffect(() => {
@@ -74,7 +108,7 @@ export default function AppProviders() {
   }, [locale])
 
   return (
-    <ConfigProvider locale={ANTD_LOCALES[locale]} theme={LIGHT_THEME}>
+    <ConfigProvider locale={ANTD_LOCALES[locale]} theme={appTheme === 'dark' ? DARK_THEME : LIGHT_THEME}>
       <BrowserRouter>
         <GenerationProvider>
           <AppErrorBoundary>

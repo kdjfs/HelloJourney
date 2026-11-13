@@ -14,6 +14,8 @@ import {
   ArrowLeftOutlined,
   CheckCircleFilled,
   CloseCircleFilled,
+  MoonOutlined,
+  SunOutlined,
   WarningFilled,
 } from '@ant-design/icons'
 import EditableTripDays from '../../features/trip-workspace/ui/EditableTripDays'
@@ -26,6 +28,7 @@ import { pollTaskStatus } from '../../services/tripApi'
 import { buildFallbackGraphData } from '../../utils/knowledgeGraph'
 import type { TripPlan, KnowledgeGraphData, WeatherInfo, TripReviewResult } from '../../types/api'
 import { normalizeAppLocale } from '../../i18n'
+import { useAppTheme } from '../../theme/model/theme'
 import './index.css'
 
 const KnowledgeGraph = lazy(() => import('../../components/KnowledgeGraph'))
@@ -289,6 +292,7 @@ function Result() {
 
   const [planId] = useState(urlPlanId || sessionStorage.getItem('planId') || '')
   const [tripRequest] = useState(readStoredTripRequest)
+  const [appTheme, toggleTheme] = useAppTheme()
   const [loading, setLoading] = useState(false)
   const [recoveryError, setRecoveryError] = useState('')
   const [activeSection, setActiveSection] = useState('overview')
@@ -523,8 +527,7 @@ function Result() {
           </div>
 
           <div className="result-topbar-actions">
-            {tripReview && (
-              <Popover
+            {tripReview && (              <Popover
                 trigger="click"
                 placement="bottomRight"
                 content={noticeBody}
@@ -542,6 +545,16 @@ function Result() {
                 </button>
               </Popover>
             )}
+            <button
+              type="button"
+              className="result-theme-toggle"
+              onClick={toggleTheme}
+              aria-label={appTheme === 'dark' ? t('navbar.switchToLight') : t('navbar.switchToDark')}
+              title={appTheme === 'dark' ? t('navbar.switchToLight') : t('navbar.switchToDark')}
+              aria-pressed={appTheme === 'dark'}
+            >
+              {appTheme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+            </button>
             <TripExportActions plan={effectiveTripPlan ?? tripPlan} planId={planId} />
           </div>
         </div>
@@ -613,7 +626,11 @@ function Result() {
                     </div>
                   )}
                 >
-                  <TripMap plan={effectiveTripPlan ?? tripPlan} selectedAttraction={selectedMapAttraction} />
+                  <TripMap
+                    plan={effectiveTripPlan ?? tripPlan}
+                    selectedAttraction={selectedMapAttraction}
+                    onSelectStop={setSelectedMapAttraction}
+                  />
                 </Suspense>
               </div>
 
