@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
+import { Select } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { apiClient } from '../../services/apiClient'
+import { listAvailableModels } from '../../services/chatApi'
+import { filterChatModels } from '../../features/llm-relay/model/modelCatalog'
 import { AILogo } from '../AILogo'
 import type { TripPlan, ChatMessage, TripChatRequest, TripChatResponse } from '../../types/api'
 
@@ -9,15 +12,55 @@ interface AIChatProps {
   mode?: 'floating' | 'embedded'
 }
 
+const MODEL_STORAGE_KEY = 'hj.chatModel'
+
+function readStoredModel(): string {
+  try {
+    return localStorage.getItem(MODEL_STORAGE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
 function AIChat({ tripPlan, mode = 'floating' }: AIChatProps) {
   const { t } = useTranslation()
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [chatLoading, setChatLoading] = useState(false)
+  const [model, setModel] = useState(readStoredModel)
+  const [models, setModels] = useState<string[]>([])
   const chatMessagesRef = useRef<HTMLDivElement>(null)
   const embedded = mode === 'embedded'
   const panelVisible = embedded || chatOpen
+
+  /* 打开面板时拉一次当前供应商可用的模型（5 分钟缓存由后端负责） */
+  useEffect(() => {
+    if (!panelVisible) return
+    let cancelled = false
+    void listAvailableModels()
+      .then((list) => {
+        if (!cancelled) setModels(filterChatModels(list))
+      })
+      .catch(() => {
+        if (!cancelled) setModels([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [panelVisible])
+
+  const changeModel = (value: string | undefined) => {
+    const next = value ?? ''
+    setModel(next)
+    try {
+      if (next) localStorage.setItem(MODEL_STORAGE_KEY, next)
+      else localStorage.removeItem(MODEL_STORAGE_KEY)
+    } catch {
+      // 忽略存储失败
+    }
+  }
+
   const quickQuestions = [
     { label: t('aiChat.budgetLabel'), question: t('aiChat.budgetQuestion') },
     { label: t('aiChat.audienceLabel'), question: t('aiChat.audienceQuestion') },
@@ -57,6 +100,7 @@ function AIChat({ tripPlan, mode = 'floating' }: AIChatProps) {
         message: text,
         trip_plan: tripPlan,
         history: chatHistory,
+        ...(model ? { model } : {}),
       } satisfies TripChatRequest)
 
       if (res.data.success) {
@@ -82,11 +126,27 @@ function AIChat({ tripPlan, mode = 'floating' }: AIChatProps) {
               <i className="chat-panel-logo"><AILogo size={22} /></i>
               {t('aiChat.title')}
             </span>
-            {!embedded && (
-              <button type="button" className="chat-panel-close" onClick={() => setChatOpen(false)} aria-label={t('aiChat.close')}>
-                ✕
-              </button>
-            )}
+            <span className="chat-panel-tools">
+              <Select
+                className="chat-model-select"
+                size="small"
+                value={model || undefined}
+                onChange={changeModel}
+                options={models.map((item) => ({ value: item, label: item }))}
+                placeholder={t('aiChat.modelDefault')}
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                notFoundContent={t('aiChat.modelEmpty')}
+                popupMatchSelectWidth={false}
+                aria-label={t('aiChat.modelLabel')}
+              />
+              {!embedded && (
+                <button type="button" className="chat-panel-close" onClick={() => setChatOpen(false)} aria-label={t('aiChat.close')}>
+                  ✕
+                </button>
+              )}
+            </span>
           </div>
 
           <div className="chat-panel-history" ref={chatMessagesRef}>

@@ -52,6 +52,7 @@ class ChatControllerTest {
         when(chatService.chatWithTripContext(
                 eq("故宫门票多少钱？"),
                 any(),
+                any(),
                 any()
         )).thenReturn("故宫门票60元");
 
@@ -66,7 +67,7 @@ class ChatControllerTest {
     @Test
     void askAboutTrip_serviceThrows_returns500() throws Exception {
         TripChatRequest request = buildValidRequest();
-        when(chatService.chatWithTripContext(any(), any(), any()))
+        when(chatService.chatWithTripContext(any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("AI服务异常"));
 
         mockMvc.perform(post("/api/chat/ask")

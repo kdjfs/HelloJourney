@@ -13,7 +13,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -32,6 +34,11 @@ public class LlmModelCatalogService {
 
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
+    /** 5 分钟缓存：AI 助手面板每次打开都会拉列表，没必要每次都打中转站 */
+    private static final long CACHE_TTL_MS = 5 * 60 * 1000L;
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+
+    private record CacheEntry(List<String> models, long expiresAt) {}
 
     public LlmModelCatalogService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -65,6 +72,18 @@ public class LlmModelCatalogService {
             }
             return parseModelIds(body);
         }
+    }
+
+    /** 带缓存的版本：同一 baseUrl 在 5 分钟内复用结果。 */
+    public List<String> listModelsCached(String baseUrl, String apiKey) throws IOException {
+        String key = baseUrl == null ? "" : baseUrl.trim();
+        CacheEntry entry = cache.get(key);
+        if (entry != null && entry.expiresAt() > System.currentTimeMillis()) {
+            return entry.models();
+        }
+        List<String> models = listModels(baseUrl, apiKey);
+        cache.put(key, new CacheEntry(models, System.currentTimeMillis() + CACHE_TTL_MS));
+        return models;
     }
 
     /** 把用户填写的地址补全成 /models 端点，同时容忍末尾斜杠与已带版本号的情况。 */

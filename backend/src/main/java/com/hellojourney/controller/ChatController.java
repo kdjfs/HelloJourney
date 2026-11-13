@@ -37,7 +37,8 @@ public class ChatController {
                         .map(m -> Map.of("role", m.getRole(), "content", m.getContent()))
                         .toList();
             }
-            String reply = chatService.chatWithTripContext(request.getMessage(), request.getTripPlan(), history);
+            String reply = chatService.chatWithTripContext(
+                    request.getMessage(), request.getTripPlan(), history, request.getModel());
             log.info("AI 回复: {}...", reply.substring(0, Math.min(80, reply.length())));
             return ResponseEntity.ok(TripChatResponse.builder().success(true).reply(reply).build());
         } catch (Exception e) {

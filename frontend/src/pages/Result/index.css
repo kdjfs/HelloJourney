@@ -1272,6 +1272,23 @@
   color: #fff;
 }
 
+.chat-panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-model-select {
+  width: 168px;
+  max-width: 42vw;
+  font-size: 11.5px;
+}
+
+.chat-model-select .ant-select-selector {
+  border-radius: var(--hj-r-pill) !important;
+}
+
 .chat-panel-close {
   width: 28px;
   height: 28px;

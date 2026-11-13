@@ -93,6 +93,28 @@ public class LlmService {
         return executeWithRetries(provider, prepared, Math.max(1, timeoutSeconds));
     }
 
+    /**
+     * 用指定模型跑一次对话，其余配置（供应商、密钥、baseUrl）沿用当前激活项。
+     * AI 助手面板要能在 GLM / Kimi / DeepSeek 之间临时切换，就是这个入口。
+     */
+    public String chatWithModel(List<Map<String, String>> messages, double temperature,
+                                int maxTokens, String model) throws IOException {
+        String target = model == null ? "" : model.trim();
+        if (target.isEmpty()) {
+            return chat(messages, temperature, maxTokens);
+        }
+        LlmProviderConfig active = getActiveProvider();
+        LlmProviderConfig overridden = LlmProviderConfig.builder()
+                .key(active.getKey())
+                .name(active.getName())
+                .apiKey(active.getApiKey())
+                .baseUrl(active.getBaseUrl())
+                .model(target)
+                .build();
+        LlmChatRequest prepared = prepareRequest(toRequest(messages, temperature, maxTokens), overridden);
+        return executeWithRetries(overridden, prepared, Math.max(1, appSettings.getLlmTimeout())).content();
+    }
+
     private LlmChatRequest toRequest(List<Map<String, String>> messages, double temperature, int maxTokens) {
         List<LlmMessage> typedMessages = messages.stream()
                 .map(message -> LlmMessage.builder()

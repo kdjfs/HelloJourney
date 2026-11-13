@@ -29,6 +29,14 @@ public class ChatService {
             + "5. 使用中文回答。";
 
     public String chatWithTripContext(String message, Map<String, Object> tripPlanDict, List<Map<String, String>> history) {
+        return chatWithTripContext(message, tripPlanDict, history, null);
+    }
+
+    /**
+     * @param model 指定模型（例如中转站里的 GLM / Kimi）；为空则用当前激活供应商的默认模型
+     */
+    public String chatWithTripContext(String message, Map<String, Object> tripPlanDict,
+                                      List<Map<String, String>> history, String model) {
         if (appSettings.getLlmApiKey() == null || appSettings.getLlmApiKey().isEmpty()) {
             return "抱歉，AI 服务尚未配置 API Key，请先在设置页面中完成配置。";
         }
@@ -46,7 +54,10 @@ public class ChatService {
 
             messages.add(Map.of("role", "user", "content", message));
 
-            return llmService.chat(messages, 0.7, 1024);
+            String override = model == null ? "" : model.trim();
+            return override.isEmpty()
+                    ? llmService.chat(messages, 0.7, 1024)
+                    : llmService.chatWithModel(messages, 0.7, 1024, override);
         } catch (IOException e) {
             log.error("LLM调用异常: {}", e.getMessage());
             return "抱歉，AI 出现了意外错误，请稍后重试 🙏";

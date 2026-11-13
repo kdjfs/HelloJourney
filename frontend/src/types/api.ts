@@ -238,6 +238,8 @@ export interface TripChatRequest {
   message: string
   trip_plan: TripPlan | Record<string, unknown>
   history: ChatMessage[]
+  /** 可选：在 AI 助手面板里临时切换的模型 */
+  model?: string
 }
 
 export interface TripChatResponse {

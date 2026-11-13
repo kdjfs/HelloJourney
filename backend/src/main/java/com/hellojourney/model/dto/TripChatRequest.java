@@ -29,4 +29,7 @@ public class TripChatRequest {
 
     @Schema(description = "对话历史记录")
     private List<ChatMessage> history;
+
+    @Schema(description = "临时指定模型（留空用当前激活供应商的默认模型）", example = "deepseek-ai/DeepSeek-V3")
+    private String model;
 }

@@ -181,6 +181,43 @@ public class SettingsController {
         }
     }
 
+    /**
+     * 当前中转站可用的模型列表（只读、公开）。
+     *
+     * <p>AI 助手面板要能随时切模型，但让用户为了看一个下拉框去填管理员令牌不合理，
+     * 所以这里公开"模型 id 列表"：不含密钥，密钥仍只存在服务端。结果缓存 5 分钟。</p>
+     */
+    @GetMapping("/llm/models")
+    @Operation(summary = "当前可用模型列表", description = "返回当前激活中转站可用的模型 id（不含任何密钥）")
+    public ResponseEntity<Map<String, Object>> availableModels() {
+        Map<String, Object> response = new LinkedHashMap<>();
+        AppSettings.LlmConfig llm = appSettings.getLlm();
+        LlmProviderConfig active = llm != null ? llm.getActiveProviderConfig() : null;
+        String baseUrl = active == null ? null : trimToNull(active.getBaseUrl());
+        String apiKey = active == null ? null : trimToNull(active.getApiKey());
+
+        if (baseUrl == null || apiKey == null) {
+            response.put("success", true);
+            response.put("message", "当前供应商没有可枚举的模型（未配置地址或密钥）");
+            response.put("data", Map.of("models", List.of(), "count", 0));
+            return ResponseEntity.ok(response);
+        }
+
+        try {
+            List<String> models = modelCatalogService.listModelsCached(baseUrl, apiKey);
+            response.put("success", true);
+            response.put("message", "ok");
+            response.put("data", Map.of("base_url", baseUrl, "models", models, "count", models.size()));
+            return ResponseEntity.ok(response);
+        } catch (IOException | IllegalArgumentException e) {
+            log.warn("枚举可用模型失败 (baseUrl={})", baseUrl);
+            response.put("success", true);
+            response.put("message", e.getMessage());
+            response.put("data", Map.of("models", List.of(), "count", 0));
+            return ResponseEntity.ok(response);
+        }
+    }
+
     private static String trimToNull(String value) {
         if (value == null) return null;
         String trimmed = value.trim();
