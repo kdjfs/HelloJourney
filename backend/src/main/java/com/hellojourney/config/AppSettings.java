@@ -53,6 +53,12 @@ public class AppSettings {
         private String xs = "";
         private String xsCommon = "";
         private String xt = "";
+        /**
+         * 本地小红书内容服务（签名边车）地址，例如 http://127.0.0.1:8010。
+         * 小红书搜索结果已不再由 SSR 页面下发，只有签名接口能拿到，签名算法依赖 Node；
+         * 配了这个地址就优先走它，留空则退回旧的 SSR 抓取。
+         */
+        private String serviceUrl = "";
     }
 
     @Data
@@ -146,6 +152,8 @@ public class AppSettings {
     public void setXhsXsCommon(String v) { xhs.setXsCommon(v); }
     public String getXhsXt() { return xhs.getXt(); }
     public void setXhsXt(String v) { xhs.setXt(v); }
+    public String getXhsServiceUrl() { return xhs.getServiceUrl(); }
+    public void setXhsServiceUrl(String v) { xhs.setServiceUrl(v); }
 
     public String getLlmApiKey() {
         LlmProviderConfig c = llm.getActiveProviderConfig();

@@ -182,12 +182,17 @@ public class XhsService {
     /**
      * 从 SSR 页面里提取 window.__INITIAL_STATE__。
      * 用括号配平替代原来的非贪婪正则：页面结构小幅调整（尾随多条赋值、压缩格式变化）也不会失配。
+     *
+     * <p>包级可见是为了单测：真实页面里的 JS 字面量（new Map([])、undefined）必须能被清洗。</p>
      */
-    private JsonNode extractInitialState(String html) {
+    JsonNode extractInitialState(String html) {
         if (html == null || html.isEmpty()) return null;
 
         int marker = html.indexOf("__INITIAL_STATE__");
-        if (marker < 0) return null;
+        if (marker < 0) {
+            log.warn("[XHS_SSR] 页面里找不到 __INITIAL_STATE__（htmlLength={}）", html.length());
+            return null;
+        }
 
         int start = html.indexOf('{', marker);
         if (start < 0) return null;
@@ -215,21 +220,98 @@ public class XhsService {
             } else if (c == '}') {
                 depth--;
                 if (depth == 0) {
-                    String json = html.substring(start, i + 1)
-                            .replaceAll("([:\\[,])undefined", "$1null");
+                    String json = sanitizeJsLiterals(html.substring(start, i + 1));
                     try {
                         return objectMapper.readTree(json);
                     } catch (Exception e) {
-                        log.debug("[XHS_SSR] INITIAL_STATE 解析失败: {}", e.getMessage());
+                        log.warn("[XHS_SSR] INITIAL_STATE 解析失败: {}（htmlLength={}）", e.getMessage(), html.length());
                         return null;
                     }
                 }
             }
         }
+        log.warn("[XHS_SSR] INITIAL_STATE 大括号未闭合（htmlLength={}）", html.length());
         return null;
     }
 
+    /**
+     * 把 SSR 页面里的 JS 字面量改成合法 JSON。
+     *
+     * <p>小红书的 __INITIAL_STATE__ 是 JS 对象而不是纯 JSON：早期只有零散的
+     * {@code undefined}，2026-11 起又插入了 {@code new Map([])}（例如
+     * {@code "AiNoteDetailStore":{"noteDetailMap":new Map([])}}），Jackson 一遇到
+     * {@code new} 就抛 Unrecognized token，整页解析失败——上层会误报成"Cookie 已被
+     * 登录跳转"，于是看起来像 cookie 失效。这里把它们替换成等价的 JSON 结构。</p>
+     */
+    private String sanitizeJsLiterals(String js) {
+        String result = replaceJsConstructor(js, "new Map", "{}");
+        result = replaceJsConstructor(result, "new Set", "[]");
+        return result
+                .replaceAll("([:\\[,])undefined", "$1null")
+                .replaceAll("([:\\[,])NaN", "$1null")
+                .replaceAll("([:\\[,])-?Infinity", "$1null");
+    }
+
+    /** 把 {@code new Xxx(...)} 整体替换掉，括号配平支持嵌套参数。 */
+    private String replaceJsConstructor(String source, String prefix, String replacement) {
+        StringBuilder out = new StringBuilder(source.length());
+        int index = 0;
+        while (true) {
+            int at = source.indexOf(prefix, index);
+            if (at < 0) {
+                out.append(source, index, source.length());
+                return out.toString();
+            }
+            int open = source.indexOf('(', at + prefix.length());
+            if (open < 0 || !source.substring(at + prefix.length(), open).isBlank()) {
+                out.append(source, index, at + prefix.length());
+                index = at + prefix.length();
+                continue;
+            }
+            int depth = 0;
+            char quote = 0;
+            boolean esc = false;
+            int close = -1;
+            for (int i = open; i < source.length(); i++) {
+                char c = source.charAt(i);
+                if (quote != 0) {
+                    if (esc) {
+                        esc = false;
+                    } else if (c == '\\') {
+                        esc = true;
+                    } else if (c == quote) {
+                        quote = 0;
+                    }
+                    continue;
+                }
+                if (c == '"' || c == '\'') {
+                    quote = c;
+                } else if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                    if (depth == 0) {
+                        close = i;
+                        break;
+                    }
+                }
+            }
+            if (close < 0) {
+                out.append(source, index, source.length());
+                return out.toString();
+            }
+            out.append(source, index, at).append(replacement);
+            index = close + 1;
+        }
+    }
+
     private JsonNode searchNotes(String keyword, int page, int sortType, int pageSize) throws IOException {
+        // 优先走签名边车：小红书的搜索结果已不由 SSR 页面下发，只有签名接口能拿到数据。
+        JsonNode proxied = proxySearch(keyword, page);
+        if (proxied != null) {
+            return proxied;
+        }
+
         String encodedKeyword = URLEncoder.encode(keyword, StandardCharsets.UTF_8);
         String sort = sortType == 1 ? "time_descending"
                 : sortType == 2 ? "popularity_descending"
@@ -287,7 +369,94 @@ public class XhsService {
         return result;
     }
 
+    // ------------------------------------------------------------------
+    // 签名边车（XHS_SERVICE_URL）：小红书内容获取的新通道
+    // ------------------------------------------------------------------
+
+    private String xhsServiceUrl() {
+        try {
+            String url = appSettings.getXhsServiceUrl();
+            return url == null ? "" : url.trim().replaceAll("/+$", "");
+        } catch (RuntimeException exception) {
+            return "";
+        }
+    }
+
+    /** 走边车搜索；未配置或不可用时返回 null，让调用方退回 SSR。 */
+    private JsonNode proxySearch(String keyword, int page) {
+        String base = xhsServiceUrl();
+        if (base.isEmpty()) {
+            return null;
+        }
+        String url = base + "/raw/search?keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8)
+                + "&page=" + page;
+        JsonNode json = fetchJsonOrNull(url, "搜索");
+        if (json == null) {
+            return null;
+        }
+        assertProxySuccess(json, "搜索");
+        log.info("[XHS_PROXY] 搜索到 {} 条笔记: {}",
+                json.path("data").path("items").size(), keyword);
+        return json;
+    }
+
+    private JsonNode proxyNoteDetail(String noteId, String xsecToken) {
+        String base = xhsServiceUrl();
+        if (base.isEmpty() || noteId == null || noteId.isBlank()) {
+            return null;
+        }
+        String url = base + "/raw/note?id=" + URLEncoder.encode(noteId, StandardCharsets.UTF_8)
+                + "&token=" + URLEncoder.encode(xsecToken == null ? "" : xsecToken, StandardCharsets.UTF_8);
+        JsonNode json = fetchJsonOrNull(url, "笔记详情");
+        if (json == null) {
+            return null;
+        }
+        assertProxySuccess(json, "笔记详情");
+        return json;
+    }
+
+    private JsonNode fetchJsonOrNull(String url, String what) {
+        try {
+            Request request = new Request.Builder()
+                    .url(url)
+                    .addHeader("Accept", "application/json")
+                    .get()
+                    .build();
+            try (Response response = httpClient.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    log.warn("[XHS_PROXY] {}失败 HTTP {}", what, response.code());
+                    return null;
+                }
+                return objectMapper.readTree(response.body().string());
+            }
+        } catch (Exception exception) {
+            log.warn("[XHS_PROXY] {}异常，退回 SSR: {}", what, exception.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 边车把小红书的真实错误码透传上来：300011 是风控/登录态失效，值得让用户换 cookie；
+     * 其他错误按普通抓取失败处理。
+     */
+    private void assertProxySuccess(JsonNode json, String what) {
+        if (json.path("success").asBoolean(false)) {
+            return;
+        }
+        long code = json.path("code").asLong(0);
+        String message = json.path("msg").asText("");
+        if (code == 300011L || message.contains("风控")) {
+            throw new XhsCookieExpiredError("小红书 Cookie 已被风控拦截（code=" + code + "），请重新登录后复制 Cookie");
+        }
+        throw new XhsFetchError("小红书" + what + "失败（code=" + code + "）：" + message);
+    }
+
     private JsonNode getNoteDetail(String noteId, String xsecToken) throws IOException {
+        JsonNode proxied = proxyNoteDetail(noteId, xsecToken);
+        if (proxied != null) {
+            return proxied;
+        }
+
         String url = "https://www.xiaohongshu.com/explore/" + noteId;
         if (xsecToken != null && !xsecToken.isEmpty()) {
             url += "?xsec_token=" + xsecToken + "&xsec_source=pc_search";

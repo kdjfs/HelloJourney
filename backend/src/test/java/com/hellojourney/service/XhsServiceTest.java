@@ -161,6 +161,75 @@ class XhsServiceTest {
     }
 
     @Nested
+    @DisplayName("extractInitialState（SSR 页面解析）")
+    class ExtractInitialState {
+
+        private final ObjectMapper mapper = new ObjectMapper();
+
+        private XhsService serviceWithRealMapper() {
+            return new XhsService(appSettings, mapper, llmService, mapDispatcher);
+        }
+
+        @Test
+        @DisplayName("普通 JSON 结构能解析")
+        void plainJson_parsed() {
+            String html = "<script>window.__INITIAL_STATE__={\"feed\":{\"notes\":[{\"id\":\"n1\"}]}}</script>";
+
+            var state = serviceWithRealMapper().extractInitialState(html);
+
+            assertThat(state).isNotNull();
+            assertThat(state.path("feed").path("notes").get(0).path("id").asText()).isEqualTo("n1");
+        }
+
+        @Test
+        @DisplayName("undefined 被清洗成 null")
+        void undefined_isSanitized() {
+            String html = "<script>window.__INITIAL_STATE__={\"user\":undefined,\"feed\":{\"xsecToken\":undefined}}</script>";
+
+            var state = serviceWithRealMapper().extractInitialState(html);
+
+            assertThat(state).isNotNull();
+            assertThat(state.path("user").isNull()).isTrue();
+            assertThat(state.path("feed").path("xsecToken").isNull()).isTrue();
+        }
+
+        @Test
+        @DisplayName("new Map([]) / new Set([]) 被替换成 JSON 结构（2026-11 起小红书页面出现）")
+        void jsConstructors_areReplaced() {
+            String html = "<script>window.__INITIAL_STATE__={"
+                    + "\"AiNoteDetailStore\":{\"noteDetailMap\":new Map([])},"
+                    + "\"tags\":new Set([\"a\",\"b\"]),"
+                    + "\"feed\":{\"noteList\":[{\"id\":\"n1\"}]}"
+                    + "}</script>";
+
+            var state = serviceWithRealMapper().extractInitialState(html);
+
+            assertThat(state).isNotNull();
+            // new Map([]) -> {}（空对象），new Set([...]) -> []（数组）
+            assertThat(state.path("AiNoteDetailStore").path("noteDetailMap").isObject()).isTrue();
+            assertThat(state.path("tags").isArray()).isTrue();
+            assertThat(state.path("feed").path("noteList").get(0).path("id").asText()).isEqualTo("n1");
+        }
+
+        @Test
+        @DisplayName("带嵌套括号的 new Map 也能整体替换")
+        void nestedJsConstructor_replaced() {
+            String html = "<script>window.__INITIAL_STATE__={\"m\":new Map([[\"a\",{\"b\":[1,2]}]])}</script>";
+
+            var state = serviceWithRealMapper().extractInitialState(html);
+
+            assertThat(state).isNotNull();
+            assertThat(state.path("m").isObject()).isTrue();
+        }
+
+        @Test
+        @DisplayName("找不到 INITIAL_STATE 返回 null")
+        void missingMarker_returnsNull() {
+            assertThat(serviceWithRealMapper().extractInitialState("<html></html>")).isNull();
+        }
+    }
+
+    @Nested
     @DisplayName("searchXhsAttractions")
     class SearchXhsAttractions {
 

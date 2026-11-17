@@ -25,6 +25,8 @@ app:
     xs: ${XHS_XS:}
     xs-common: ${XHS_XS_COMMON:}
     xt: ${XHS_XT:}
+    # 签名边车（小红书搜索结果需要签名接口）：配了就优先用它，留空退回 SSR 抓取
+    service-url: ${XHS_SERVICE_URL:}
 
   settings:
     allow-secret-updates: ${SETTINGS_ALLOW_SECRET_UPDATES:false}
