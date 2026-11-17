@@ -100,6 +100,9 @@ const DARK_THEME: ThemeConfig = {
 export default function AppProviders() {
   const { i18n } = useTranslation()
   const [appTheme] = useAppTheme()
+  // 子路径部署（VITE_BASE_PATH=/hellojourney/）时路由也要带上同一前缀，
+  // BASE_URL 由 Vite 注入，根路径部署时为 '/'，basename 传 undefined 保持原行为。
+  const routerBase = import.meta.env.BASE_URL.replace(/\/+$/, '')
   const locale = normalizeAppLocale(i18n.resolvedLanguage || i18n.language)
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export default function AppProviders() {
 
   return (
     <ConfigProvider locale={ANTD_LOCALES[locale]} theme={appTheme === 'dark' ? DARK_THEME : LIGHT_THEME}>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBase || undefined}>
         <GenerationProvider>
           <AppErrorBoundary>
             <App />

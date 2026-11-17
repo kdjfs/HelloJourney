@@ -194,6 +194,30 @@ sudo certbot --nginx -d journey.liufengwei.com
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+## 方案 C：主域名子路径（不需要动 DNS，已实际采用）
+
+如果不想加子域名记录，可以直接挂到 `https://liufengwei.com/hellojourney/`。前端支持 `VITE_BASE_PATH`，路由 basename 会自动跟随。
+
+```bash
+# 1) 构建（API 走同源根路径 /api，由 nginx 反代）
+cd frontend
+VITE_BASE_PATH=/hellojourney/ VITE_API_BASE_URL= npm run build
+
+# 2) 上传到主站目录（它的 root 是 /var/www/youxi）
+rsync -av dist/ user@server:/var/www/youxi/hellojourney/
+
+# 3) nginx：在 443 的 liufengwei.com server 块里加两段
+#    location /hellojourney/ { try_files $uri $uri/ /hellojourney/index.html; }
+#    location /api/          { proxy_pass http://127.0.0.1:8000; ... 620s ... }
+```
+
+要点：
+
+- `try_files` 必须回落到 `/hellojourney/index.html`，否则刷新深链（`/hellojourney/result`）会 404；
+- `/api/` 要单独加 `location`，并把 `Upgrade` 头透传，否则任务进度 WebSocket 连不上；
+- 前端产物里 **不能出现** `127.0.0.1:8001`，构建前确认 `VITE_API_BASE_URL` 为空；
+- 后端建议 `SERVER_ADDRESS=127.0.0.1`，只留 nginx 做公网入口。
+
 ## 4. 上线后的验收清单
 
 按顺序点一遍，每一条都对应一个真实故障：

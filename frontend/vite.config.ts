@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
 export default defineConfig({
+  // 部署到子路径（例如 https://liufengwei.com/hellojourney/）时用 VITE_BASE_PATH 覆盖；
+  // 默认 '/' 保持本地开发和根路径部署不变。
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [react()],
   test: {
     environment: 'jsdom',
