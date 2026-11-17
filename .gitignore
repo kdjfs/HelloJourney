@@ -32,3 +32,6 @@ runtime_settings.json
 *.njsproj
 *.sln
 *.sw?
+
+# 生产密钥（含真实 API Key），只保留模板
+deploy/env.production

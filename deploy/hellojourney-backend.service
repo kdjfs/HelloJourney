@@ -1,0 +1,30 @@
+[Unit]
+Description=HelloJourney (智途星旅) backend
+Documentation=https://github.com/kdjfs/HelloJourney
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/hellojourney
+# 密钥放这里（权限 600，属主 www-data），不要写进 unit 文件
+EnvironmentFile=/etc/hellojourney/env
+Environment=PORT=8000
+Environment=SPRING_PROFILES_ACTIVE=prod
+Environment=TRIP_TASK_DATA_DIR=/opt/hellojourney/data/trip_tasks
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8 -jar /opt/hellojourney/app.jar
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# 基本加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/hellojourney/data
+
+[Install]
+WantedBy=multi-user.target

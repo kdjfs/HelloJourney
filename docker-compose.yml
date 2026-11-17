@@ -1,0 +1,71 @@
+# 生产部署：前端（nginx 静态 + /api 反代） + 后端（Spring Boot）
+#
+#   首次部署：
+#     cp deploy/env.production.example deploy/env.production   # 填好密钥
+#     docker compose --env-file deploy/env.production up -d --build
+#     打开 http://<服务器IP>:8080 验证，再在宿主机 nginx 上挂 journey.liufengwei.com
+#
+#   说明：
+#   - 前端容器内已经有 nginx.conf（SPA 回退 + /api、/api/trip/ws 反代），
+#     所以宿主机 nginx 只需要把子域名整体转到 127.0.0.1:8080。
+#   - 后端只监听容器网络，不映射到公网端口。
+#   - VITE_* 是**构建期**变量（会被打进产物），改完必须 --build 重建前端镜像。
+name: hellojourney
+
+services:
+  backend:
+    build:
+      context: ./backend
+    image: hellojourney/backend:latest
+    env_file:
+      - ./deploy/env.production
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PORT: "8000"
+      TRIP_TASK_DATA_DIR: /app/data/trip_tasks
+      # 同源部署本来不需要 CORS；这里填公网地址，方便以后前端换域名时不用改后端
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:8080}
+    volumes:
+      # 行程任务/知识图谱缓存落在宿主机，容器重建不丢
+      - ./data:/app/data
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_USE_MOCK: "false"
+        # 留空 = 请求同源 /api，由容器内 nginx 转给 backend:8000
+        VITE_API_BASE_URL: ""
+        VITE_AMAP_WEB_JS_KEY: ${VITE_AMAP_WEB_JS_KEY:-}
+        VITE_AMAP_SECURITY_JS_CODE: ${VITE_AMAP_SECURITY_JS_CODE:-}
+        VITE_GOOGLE_MAPS_JS_KEY: ${VITE_GOOGLE_MAPS_JS_KEY:-}
+        VITE_GOOGLE_MAPS_MAP_ID: ${VITE_GOOGLE_MAPS_MAP_ID:-}
+    image: hellojourney/frontend:latest
+    ports:
+      # 只绑本机回环：公网入口必须是宿主机 nginx（带 HTTPS），
+      # 这样 8080 不会裸奔在公网上。想在服务器上直接看效果：
+      #   ssh -L 8080:127.0.0.1:8080 user@server  然后本地开 http://127.0.0.1:8080
+      - "127.0.0.1:8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
