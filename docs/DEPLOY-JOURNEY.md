@@ -218,6 +218,21 @@ rsync -av dist/ user@server:/var/www/youxi/hellojourney/
 - 前端产物里 **不能出现** `127.0.0.1:8001`，构建前确认 `VITE_API_BASE_URL` 为空；
 - 后端建议 `SERVER_ADDRESS=127.0.0.1`，只留 nginx 做公网入口。
 
+## 3.5 小红书能力（可选，需要签名边车）
+
+小红书搜索结果已不再由 SSR 页面下发（`feeds` 恒为空），必须调用带 `x-s` 签名的
+`/api/sns/web/v1/search/notes`。签名是混淆 JS，所以在后端旁边跑一个只监听
+`127.0.0.1:8010` 的 Python 边车：
+
+```
+浏览器 → nginx → Java(8000) → 签名边车(8010) → 小红书签名接口
+```
+
+- 代码与部署说明见 [`deploy/xhs-service/README.md`](../deploy/xhs-service/README.md)；
+- 两个变量：`XHS_COOKIE`（必须含 `web_session`）、`XHS_SERVICE_URL=http://127.0.0.1:8010`；
+- 没配 `XHS_SERVICE_URL` 时后端自动退回旧的 SSR 抓取（功能降级但不会报错）；
+- 服务器需要 **Node 18+**（node 12 会让签名包报 `window.mnsv2 is not a function`）。
+
 ## 4. 上线后的验收清单
 
 按顺序点一遍，每一条都对应一个真实故障：
