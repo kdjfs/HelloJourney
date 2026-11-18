@@ -13,12 +13,19 @@
         ┌──────────────────────────┼───────────────────────────┐
         │                          │                           │
   https://liufengwei.com/    blog.liufengwei.com        本项目
-  游戏作品集（13 个）         个人博客                  https://liufengwei.com/hellojourney/
+  作品集首页（占位）          个人博客                  https://liufengwei.com/hellojourney/
   /var/www/youxi             /var/www/blog             前端：/var/www/youxi/hellojourney
                                                        后端：/api/ → 127.0.0.1:8000
                                                               │
                                                      小红书签名边车 127.0.0.1:8010
 ```
+
+> **2026-11-18：原 13 个网页游戏已按要求下线。** `/var/www/youxi/games/` 已删除（旧地址 404），
+> `assets/data.js` 的 `games` 数组清空，首页显示"作品整理中 · 即将重新上线"并引导到 HelloJourney。
+> 整站原始文件（含全部 13 个游戏）备份在服务器 `/root/youxi-site-backup-20261118-182928.tgz`（8 MB）。
+>
+> 恢复：`cd /var/www && tar xzf /root/youxi-site-backup-20261118-182928.tgz`，
+> 然后把 `index.html`、`assets/data.js`、`assets/app.js` 也一并还原（备份包里都有）。
 
 三者的 nginx 配置**都在同一个文件**里：`/etc/nginx/sites-available/youxi`（软链到 `sites-enabled/`）。
 
@@ -52,7 +59,7 @@
 
 | 路径 | 内容 | 备注 |
 |---|---|---|
-| `/var/www/youxi/` | 游戏作品集 | `index.html`、`games/`、`assets/` |
+| `/var/www/youxi/` | 作品集首页（占位） | `index.html`、`assets/`；`games/` 已于 2026-11-18 删除 |
 | `/var/www/youxi/hellojourney/` | 本项目前端（`dist` 拷贝） | 每次部署整体覆盖 |
 | `/var/www/blog/` | 博客 | 独立 server 块 |
 | `/opt/hellojourney/app.jar` | 后端 jar | 92 MB |
@@ -105,6 +112,7 @@ certbot renew --dry-run && certbot certificates
 | 要备份什么 | 命令 |
 |---|---|
 | nginx 配置 | `cp /etc/nginx/sites-available/youxi /root/vhost-backup-$(date +%F-%H%M).conf`（**改之前**） |
+| 作品集整站（含游戏） | 已有快照：`/root/youxi-site-backup-20261118-182928.tgz`（`tar czf /root/youxi-site-backup-$(date +%F).tgz -C /var/www youxi`） |
 | 后端数据 | `tar czf /root/hj-data-$(date +%F).tgz -C /opt/hellojourney data` |
 | 上一版 jar | 覆盖前先 `cp /opt/hellojourney/app.jar /opt/hellojourney/app.jar.bak` |
 | 上一版前端 | 覆盖前先 `mv /var/www/youxi/hellojourney /var/www/youxi/hellojourney.bak` |

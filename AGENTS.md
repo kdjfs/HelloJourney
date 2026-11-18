@@ -27,11 +27,17 @@ HelloJourney（中文名"智途星旅"）——AI 旅行规划 Web 应用，前�
 
 | 访问地址 | 是什么 | 文件在哪 | 由哪个 nginx server 块服务 |
 |---|---|---|---|
-| `https://liufengwei.com/` | 浏览器游戏作品集（13 个静态游戏） | `/var/www/youxi/` | 443 `server_name liufengwei.com` |
-| `https://liufengwei.com/games/<name>/` | 单个游戏 | `/var/www/youxi/games/` | 同上 |
+| `https://liufengwei.com/` | 前端作品集**首页占位**（原 13 个游戏已于 2026-11-18 下线，页面显示"作品整理中"并引导到 HelloJourney） | `/var/www/youxi/`（`index.html` + `assets/`） | 443 `server_name liufengwei.com` |
+| ~~`https://liufengwei.com/games/<name>/`~~ | **已删除**（旧游戏地址 404） | 备份：`/root/youxi-site-backup-20261118-182928.tgz` | — |
 | `https://blog.liufengwei.com/` | 个人博客 | `/var/www/blog/` | 443 `server_name blog.liufengwei.com` |
 | **`https://liufengwei.com/hellojourney/`** | **本项目前端** | `/var/www/youxi/hellojourney/` | 同上（`location /hellojourney/`） |
 | **`https://liufengwei.com/api/`** | **本项目后端 API** | 反代到 `127.0.0.1:8000` | 同上（`location /api/`） |
+
+> 游戏库下线是在用户明确要求下做的：删除 `/var/www/youxi/games/`（13 个静态包，14 MB），
+> 并把 `assets/data.js` 的 `games` 数组清空、首页文案改成"作品整理中"。
+> 整站原始文件（含全部游戏）已打包到服务器 `/root/youxi-site-backup-20261118-182928.tgz`（8 MB），
+> 恢复方式：`tar xzf` 解回 `/var/www/` + 还原 `index.html`/`assets/data.js`/`assets/app.js`。
+> **不要再往首页加回游戏入口**，除非用户明确要求。
 
 **为什么本项目用子路径而不是子域名**：域名解析在阿里云，只有 `@` / `www` / `blog` 三条 A 记录，
 **没有泛解析**，加子域名要动 DNS；而用子路径只需改 nginx 一次，且复用现有证书。
@@ -150,7 +156,7 @@ ssh astrbot-server 'nginx -t && systemctl reload nginx'
 
 ## 7. 硬性约束（代理必须遵守，违反会弄坏别人的站点）
 
-1. **不要动** `/var/www/blog/`、`/var/www/youxi/games/`、`/var/www/youxi/index.html` —— 那是用户的博客与游戏作品集。
+1. **不要动** `/var/www/blog/`（博客）与 `/var/www/youxi/index.html`、`assets/`（作品集首页占位）。`games/` 已于 2026-11-18 按要求删除，**除非用户明确要求，不要恢复也不要重新添加游戏入口**。
 2. 改 `/etc/nginx/sites-available/youxi` 前**必须先备份**到 `/root/vhost-backup-*`；改完 `nginx -t` 通过再 reload。
 3. **不要把真实密钥写进仓库**。`.env`、`,env.*`、`deploy/env.production`、`frontend/.env.production.local` 均已 gitignore；只提交 `.example` 模板。
 4. 后端/边车**只监听 `127.0.0.1`**；不要让它们占 80/443/8080。
