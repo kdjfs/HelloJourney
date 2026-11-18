@@ -45,18 +45,23 @@ check_code "https://liufengwei.com/hellojourney/" 200
 check_code "https://liufengwei.com/hellojourney/result" 200
 check_code "https://liufengwei.com/api/settings" 200
 
-echo "== 3.1 作品集首页（游戏库已于 2026-11-18 下线）=="
+echo "== 3.1 个人主页（游戏内容已于 2026-11-18 彻底删除）=="
 if [ -d /var/www/youxi/games ]; then
   fail "/var/www/youxi/games 仍然存在（应已删除，见 AGENTS.md 第 2 节）"
 else
   pass "/var/www/youxi/games 已删除"
 fi
+if [ -d /var/www/youxi/assets ]; then
+  warn "/var/www/youxi/assets 仍存在（首页图标/封面应已删除）"
+else
+  pass "/var/www/youxi/assets 已删除"
+fi
 OLD_GAME=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -k https://liufengwei.com/games/xiangqi/)
 if [ "$OLD_GAME" = "404" ]; then pass "旧游戏地址已 404"; else warn "旧游戏地址返回 $OLD_GAME（预期 404）"; fi
-if curl -s --max-time 10 -k https://liufengwei.com/ | grep -q '作品整理中'; then
-  pass "首页显示「作品整理中」"
+if curl -s --max-time 10 -k https://liufengwei.com/ | grep -q '做会思考的界面'; then
+  pass "首页是新的个人主页"
 else
-  warn "首页没有「作品整理中」文案（是否被改回游戏列表？）"
+  warn "首页不是新的个人主页（是否被改回游戏列表？）"
 fi
 
 echo "== 4. 后端配置 =="

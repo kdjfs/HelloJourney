@@ -13,19 +13,23 @@
         ┌──────────────────────────┼───────────────────────────┐
         │                          │                           │
   https://liufengwei.com/    blog.liufengwei.com        本项目
-  作品集首页（占位）          个人博客                  https://liufengwei.com/hellojourney/
-  /var/www/youxi             /var/www/blog             前端：/var/www/youxi/hellojourney
+  个人主页（单文件）           个人博客                  https://liufengwei.com/hellojourney/
+  /var/www/youxi/index.html  /var/www/blog             前端：/var/www/youxi/hellojourney
                                                        后端：/api/ → 127.0.0.1:8000
                                                               │
                                                      小红书签名边车 127.0.0.1:8010
 ```
 
-> **2026-11-18：原 13 个网页游戏已按要求下线。** `/var/www/youxi/games/` 已删除（旧地址 404），
-> `assets/data.js` 的 `games` 数组清空，首页显示"作品整理中 · 即将重新上线"并引导到 HelloJourney。
-> 整站原始文件（含全部 13 个游戏）备份在服务器 `/root/youxi-site-backup-20261118-182928.tgz`（8 MB）。
+> **2026-11-18：游戏内容已彻底删除。** 两轮操作：先删 `/var/www/youxi/games/`（13 个静态包），
+> 再删掉首页整段游戏文案与 `assets/`（13 图标 + 13 封面 + 预览图 + 游戏目录数据）、`README.md`、`deploy/`。
+> 首页已换成单文件个人主页（`index.html`，样式内联），只留 "AI 旅行规划 / 博客" 两个入口。
+> `/var/www/youxi` 现在只有：`index.html`、`robots.txt`、`hellojourney/`。
 >
-> 恢复：`cd /var/www && tar xzf /root/youxi-site-backup-20261118-182928.tgz`，
-> 然后把 `index.html`、`assets/data.js`、`assets/app.js` 也一并还原（备份包里都有）。
+> 备份（**唯一副本，勿删**）：
+> - `/root/youxi-site-backup-20261118-182928.tgz`（8 MB，含全部 13 个游戏与原始首页与 assets）
+> - `/root/youxi-site-backup-20261118-183131.tgz`（2 MB，首页为"作品整理中"版本，含 assets）
+>
+> 恢复：`cd /var/www && tar xzf /root/youxi-site-backup-20261118-182928.tgz`。
 
 三者的 nginx 配置**都在同一个文件**里：`/etc/nginx/sites-available/youxi`（软链到 `sites-enabled/`）。
 
@@ -59,7 +63,7 @@
 
 | 路径 | 内容 | 备注 |
 |---|---|---|
-| `/var/www/youxi/` | 作品集首页（占位） | `index.html`、`assets/`；`games/` 已于 2026-11-18 删除 |
+| `/var/www/youxi/index.html` | 个人主页（单文件，样式内联） | 只有 `index.html` + `robots.txt` + `hellojourney/` |
 | `/var/www/youxi/hellojourney/` | 本项目前端（`dist` 拷贝） | 每次部署整体覆盖 |
 | `/var/www/blog/` | 博客 | 独立 server 块 |
 | `/opt/hellojourney/app.jar` | 后端 jar | 92 MB |

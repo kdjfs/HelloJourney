@@ -23,21 +23,25 @@ HelloJourney（中文名"智途星旅"）——AI 旅行规划 Web 应用，前�
 
 ## 2. 线上拓扑：**同一个域名下有三个站点**（最容易搞混的地方）
 
-域名 `liufengwei.com` 是**用户自己的博客 + 游戏作品集 + 本项目**共用，三者互不干扰：
+域名 `liufengwei.com` 是**用户自己的个人主页 + 博客 + 本项目**共用，三者互不干扰（原游戏作品集已于 2026-11-18 删除）：
 
 | 访问地址 | 是什么 | 文件在哪 | 由哪个 nginx server 块服务 |
 |---|---|---|---|
-| `https://liufengwei.com/` | 前端作品集**首页占位**（原 13 个游戏已于 2026-11-18 下线，页面显示"作品整理中"并引导到 HelloJourney） | `/var/www/youxi/`（`index.html` + `assets/`） | 443 `server_name liufengwei.com` |
-| ~~`https://liufengwei.com/games/<name>/`~~ | **已删除**（旧游戏地址 404） | 备份：`/root/youxi-site-backup-20261118-182928.tgz` | — |
+| `https://liufengwei.com/` | 个人主页（单文件 `index.html`，含"AI 旅行规划 / 博客"入口；**已无任何游戏内容**） | `/var/www/youxi/index.html` + `robots.txt` | 443 `server_name liufengwei.com` |
+| ~~`/games/…`、`/assets/…`~~ | **已全部删除**（2026-11-18：13 个游戏、13 图标、13 封面、游戏 README 与部署示例） | 备份见下方 | — |
 | `https://blog.liufengwei.com/` | 个人博客 | `/var/www/blog/` | 443 `server_name blog.liufengwei.com` |
 | **`https://liufengwei.com/hellojourney/`** | **本项目前端** | `/var/www/youxi/hellojourney/` | 同上（`location /hellojourney/`） |
 | **`https://liufengwei.com/api/`** | **本项目后端 API** | 反代到 `127.0.0.1:8000` | 同上（`location /api/`） |
 
-> 游戏库下线是在用户明确要求下做的：删除 `/var/www/youxi/games/`（13 个静态包，14 MB），
-> 并把 `assets/data.js` 的 `games` 数组清空、首页文案改成"作品整理中"。
-> 整站原始文件（含全部游戏）已打包到服务器 `/root/youxi-site-backup-20261118-182928.tgz`（8 MB），
-> 恢复方式：`tar xzf` 解回 `/var/www/` + 还原 `index.html`/`assets/data.js`/`assets/app.js`。
-> **不要再往首页加回游戏入口**，除非用户明确要求。
+> 游戏库是在用户明确要求下**彻底删除**的（两轮：先删 `games/`，再清掉首页游戏文案与全部图标/封面/资产）。
+> `/var/www/youxi` 现在只有 `index.html`、`robots.txt`、`hellojourney/` 三项。
+>
+> 备份（重要，唯一副本）：
+> - `/root/youxi-site-backup-20261118-182928.tgz`（8 MB，**含全部 13 个游戏与原始首页**）
+> - `/root/youxi-site-backup-20261118-183131.tgz`（2 MB，含图标/封面/README，首页为"作品整理中"版本）
+>
+> 恢复：`cd /var/www && tar xzf /root/youxi-site-backup-20261118-182928.tgz`。
+> **除非用户明确要求，不要恢复游戏内容，也不要往首页加回游戏入口。**
 
 **为什么本项目用子路径而不是子域名**：域名解析在阿里云，只有 `@` / `www` / `blog` 三条 A 记录，
 **没有泛解析**，加子域名要动 DNS；而用子路径只需改 nginx 一次，且复用现有证书。
@@ -156,7 +160,7 @@ ssh astrbot-server 'nginx -t && systemctl reload nginx'
 
 ## 7. 硬性约束（代理必须遵守，违反会弄坏别人的站点）
 
-1. **不要动** `/var/www/blog/`（博客）与 `/var/www/youxi/index.html`、`assets/`（作品集首页占位）。`games/` 已于 2026-11-18 按要求删除，**除非用户明确要求，不要恢复也不要重新添加游戏入口**。
+1. **不要动** `/var/www/blog/`（博客），也**不要重写** `/var/www/youxi/index.html`（个人主页，除非用户明确要求）。游戏内容已于 2026-11-18 按要求彻底删除，**不要恢复**。
 2. 改 `/etc/nginx/sites-available/youxi` 前**必须先备份**到 `/root/vhost-backup-*`；改完 `nginx -t` 通过再 reload。
 3. **不要把真实密钥写进仓库**。`.env`、`,env.*`、`deploy/env.production`、`frontend/.env.production.local` 均已 gitignore；只提交 `.example` 模板。
 4. 后端/边车**只监听 `127.0.0.1`**；不要让它们占 80/443/8080。
