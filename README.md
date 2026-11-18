@@ -71,3 +71,15 @@ uniapp/    Vue 3 cross-platform / WeChat mini-program client
 ## Status
 
 This is an active engineering project. The current README documents implemented capabilities and remaining roadmap items; external API credentials are intentionally required for live provider flows.
+
+## Live deployment
+
+The app runs at **<https://liufengwei.com/hellojourney/>** - a sub-path of the owner's personal
+domain, alongside an unrelated blog and game portfolio that share the same nginx instance.
+
+- **`AGENTS.md`** - the single source of truth for AI coding agents (topology, ports, deploy
+  commands, hard constraints, known issues). Codex / Claude Code / Cursor read it automatically.
+- **`docs/INFRA.md`** - the same facts for humans, plus a troubleshooting table.
+- **`docs/DEPLOY-JOURNEY.md`** - from-scratch deployment guide.
+- **`deploy/verify-prod.sh`** - one command to check production still matches those documents:
+  `ssh astrbot-server 'bash -s' < deploy/verify-prod.sh`.
