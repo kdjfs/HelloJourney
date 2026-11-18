@@ -1,9 +1,40 @@
 # 线上基础设施说明（INFRA）
 
-> 面向"人"的详细版；给 AI 代理的精简版在仓库根的 [`AGENTS.md`](../AGENTS.md)。
-> 两份必须同时更新。最后核对：2026-11-18。
+> ⚠️ **当前状态：已全部下线（2026-11-18）。** 本文件前半部分是"现在的事实"，后半部分是**历史记录**，
+> 仅在需要恢复时参考。给 AI 代理看的精简版在仓库根 [`AGENTS.md`](../AGENTS.md)。
+> 最后核对：2026-11-18。
 
-## 1. 一眼看懂：一个域名，三个站点
+## 1. 现在的事实
+
+| 事项 | 状态 |
+|---|---|
+| `liufengwei.com` / `www` / `blog` 解析 | **无 A 记录**（公共 DNS 已确认），全网访问不到 |
+| 域名注册 | 仍在用户名下（NS `dns29/30.hichina.com`），用户未删除域名 |
+| 网站内容 | 已删除：`/var/www/blog`（145 MB）、`/var/www/youxi`（个人主页 + 本项目前端） |
+| 后端与边车 | 已删除：`/opt/hellojourney`（jar + data）、`/opt/xhs-sign`；systemd 单元已移除，8000/8010 无监听 |
+| nginx | 仍在运行，唯一站点配置 `/etc/nginx/sites-available/parked`：80/443 一律 `return 410`，只保留 `/.well-known/acme-challenge/`（`root /var/www/acme`） |
+| 证书 | `/etc/letsencrypt/live/liufengwei.com/` 仍在（到期 2027-02-15）。**没有 DNS 就无法自动续期**，将来恢复上线要先加回解析再续 |
+| 服务器 | 阿里云 ECS `39.96.195.78`，Ubuntu 22.04，1 核 / 1.7 GB / 40 GB；还跑着与本项目无关的 1panel / astrbot |
+
+验证一条命令：
+
+```bash
+ssh astrbot-server 'bash -s' < deploy/verify-prod.sh
+# 期望：三域名均无 A 记录、HTTP/HTTPS 均 410、站点目录与 systemd 单元不存在、8000/8010 无监听
+```
+
+## 2. 如果要恢复上线（用户先决定，代理不要擅自做）
+
+1. **用户本人**在阿里云控制台加回解析：`A @ → 39.96.195.78`、`A www → 39.96.195.78`、`A blog → 39.96.195.78`；
+2. 按 [`DEPLOY-JOURNEY.md`](DEPLOY-JOURNEY.md) 的"方案 C（主域名子路径）"重新构建并上传前端、部署后端；
+3. 重建 systemd 服务（单元模板在 [`deploy/`](../deploy/)，边车见 [`deploy/xhs-service/README.md`](../deploy/xhs-service/README.md)）；
+4. 恢复后把本文件第 1 节与 `AGENTS.md` 第 1 节改回"已上线"。
+
+---
+
+# 历史记录（2026-11-18 之前的拓扑）
+
+## 3. 三个站点共用一个域名
 
 ```
                     liufengwei.com  (39.96.195.78, 阿里云 ECS, Ubuntu 22.04)
@@ -20,109 +51,47 @@
                                                      小红书签名边车 127.0.0.1:8010
 ```
 
-> **2026-11-18：游戏内容已彻底删除（三轮）。** 删 `/var/www/youxi/games/`（13 个静态包）→
-> 删首页游戏文案与 `assets/`（13 图标 + 13 封面 + 预览图 + 游戏目录数据）、`README.md`、`deploy/` →
-> 连服务器上的两份备份包一并删除。**“服务器备份勿删”的旧规则作废：现在没有任何副本，无法恢复。**
-> 首页已换成单文件个人主页（`index.html`，样式内联，含 `id="contact"` 锚点），源码入库在
-> `deploy/landing-page/index.html`。
-> `/var/www/youxi` 现在只有：`index.html`、`robots.txt`、`hellojourney/`。
+nginx 配置全部在 `/etc/nginx/sites-available/youxi`（六个 server 块：8080 默认站、80 跳转 ×2、
+443 主站、443 博客、443 www 跳转）。
 
-三者的 nginx 配置**都在同一个文件**里：`/etc/nginx/sites-available/youxi`（软链到 `sites-enabled/`）。
+## 4. 为什么用子路径而不是子域名
 
-| server 块 | 端口 | server_name | root | 说明 |
-|---|---|---|---|---|
-| #1 | 8080 | `_`（默认站） | `/var/www/youxi` | 历史遗留，供直连 IP:8080 预览 |
-| #2 | 80 | `liufengwei.com blog.liufengwei.com` | — | 301 跳 https |
-| #3 | 80 | `www.liufengwei.com` | — | 301 跳到主域 |
-| #4 | 443 | `liufengwei.com` | `/var/www/youxi` | 主站 + `/hellojourney/` + `/api/` |
-| #5 | 443 | `blog.liufengwei.com` | `/var/www/blog` | 博客 |
-| #6 | 443 | `www.liufengwei.com` | — | 301 跳到主域 |
+- 域名解析在阿里云，当时只有 `@` / `www` / `blog` 三条 A 记录，**没有泛解析**；
+- 加 `journey.liufengwei.com` 要动 DNS + 单独签证书，而子路径只需改 nginx 一次并复用现有证书；
+- 代价：前端必须 `VITE_BASE_PATH=/hellojourney/` 构建，路由 basename 跟随 `BASE_URL`。
 
-### 为什么是子路径而不是子域名
+## 5. 历史端口分配
 
-- 域名解析在阿里云（`dns29/30.hichina.com`），只有 `@`、`www`、`blog` 三条 A 记录，**没有泛解析**；
-- 加 `journey.liufengwei.com` 需要动 DNS + 单独签证书；
-- 子路径只需在 443 主站加两个 `location`，复用现有证书，改动最小。
-
-代价：前端必须用 `VITE_BASE_PATH=/hellojourney/` 构建（资源路径带前缀），路由 basename 跟随 `BASE_URL`。
-
-## 2. 端口分配
-
-| 端口 | 谁 | 绑定 | 说明 |
-|---|---|---|---|
-| 80 / 443 | nginx | `0.0.0.0` | 公网入口 |
-| 8080 | nginx 默认站 | `0.0.0.0` | 遗留，勿删 |
-| 8000 | Java 后端 | **127.0.0.1** | 只给 nginx 反代 |
-| 8010 | 小红书边车 | **127.0.0.1** | 只给 Java 调 |
-
-## 3. 目录与文件
-
-| 路径 | 内容 | 备注 |
+| 端口 | 谁 | 绑定 |
 |---|---|---|
-| `/var/www/youxi/index.html` | 个人主页（单文件，样式内联） | 只有 `index.html` + `robots.txt` + `hellojourney/` |
-| `/var/www/youxi/hellojourney/` | 本项目前端（`dist` 拷贝） | 每次部署整体覆盖 |
-| `/var/www/blog/` | 博客 | 独立 server 块 |
-| `/opt/hellojourney/app.jar` | 后端 jar | 92 MB |
-| `/opt/hellojourney/data/` | 任务/知识图谱落盘 + `runtime_settings.json` | 备份这个目录即可保住数据 |
-| `/opt/xhs-sign/` | 边车代码 + 签名 JS（第三方，来自 TripStar） | 约 4.3 MB |
-| `/etc/hellojourney/env` | 环境变量 | `640 root:www-data`，**含密钥** |
-| `/etc/systemd/system/hellojourney-*.service` | 两个服务单元 | — |
-| `/root/vhost-backup-*.conf` | nginx 配置备份 | 每次改动前生成 |
+| 80 / 443 | nginx | `0.0.0.0` |
+| 8080 | nginx 默认站（遗留） | `0.0.0.0` |
+| 8000 | Java 后端 | **127.0.0.1** |
+| 8010 | 小红书签名边车 | **127.0.0.1** |
 
-## 4. 常用运维命令
+## 6. 历史排障对照表
 
-```bash
-# 状态
-systemctl status hellojourney-backend hellojourney-xhs nginx --no-pager
-ss -tlnp | grep -E ':80 |:443 |:8000 |:8010 '
-
-# 日志（实时）
-journalctl -u hellojourney-backend -f
-journalctl -u hellojourney-xhs -f
-
-# 重启
-systemctl restart hellojourney-backend     # 会中断正在生成的行程
-systemctl restart hellojourney-xhs         # 换 cookie 后必须重启它
-
-# 改完 nginx
-nginx -t && systemctl reload nginx
-
-# 证书续期（certbot 已装，通常自动）
-certbot renew --dry-run && certbot certificates
-```
-
-## 5. 排障对照表
-
-| 现象 | 最可能的原因 | 处理 |
+| 现象 | 原因 | 处理 |
 |---|---|---|
-| `/hellojourney/` 白屏、控制台 404 `/assets/...` | 前端构建漏了 `VITE_BASE_PATH=/hellojourney/` | 重新构建并覆盖 |
-| 页面能开但接口全 404 | 产物里硬编码了 `http://127.0.0.1:8001` | 构建时 `VITE_API_BASE_URL=` 留空，重建 |
-| 刷新深链 404 | 缺 `try_files $uri $uri/ /hellojourney/index.html` | 补 location 并 reload |
-| 地图空白，控制台 `INVALID_USER_DOMAIN` | 前端 JS Key 未把 `liufengwei.com` 加进域名白名单 | 高德控制台加白名单 |
-| 地图空白，控制台无报错 | 安全密钥 `VITE_AMAP_SECURITY_JS_CODE` 与 JS Key 不配对 | 核对并重建前端 |
-| 景点图全变插画，日志 `infoCode=10007` | 后端 Key 开了「数字签名」 | 高德控制台关掉数字签名（无需重启后端） |
+| 子路径白屏、`/assets/*` 404 | 构建漏了 `VITE_BASE_PATH=/hellojourney/` | 重新构建 |
+| 接口全 404 | 产物里硬编码了 `http://127.0.0.1:8001` | 构建时 `VITE_API_BASE_URL=` 留空 |
+| 刷新深链 404 | 缺 `try_files … /hellojourney/index.html` | 补 location |
+| 地图空白 + `INVALID_USER_DOMAIN` | 前端 JS Key 未把域名加白名单 | 高德控制台加白名单 |
+| 景点图全变插画 + `infoCode=10007` | 后端 Key 开了「数字签名」 | 关掉（无需重启） |
 | 生成时 504 | 反代超时 < 620s | 调 `proxy_read_timeout/send_timeout` |
-| 生成一直"已用时…"不结束 | 大模型单次调用过慢（2 天以上行程常见） | 见 AGENTS.md「已知问题」；可减少小红书笔记长度 |
-| 小红书图片没了，日志 `code=300011` | cookie 被风控/退出登录 | 重新登录复制 cookie（含 `web_session`）→ 重启 `hellojourney-xhs` |
-| 边车启动报 `window.mnsv2 is not a function` | node 版本太老（12） | 升到 18+ |
-| 后端 OOM / 502 | 内存只有 1.7G，堆设太大 | 保持 `-Xmx512m`，别加常驻服务 |
+| 生成一直"已用时…" | 大模型单次调用过慢（2 天以上行程） | 减少小红书笔记长度、下调超时 |
+| 小红书图片消失 + `code=300011` | cookie 被风控 | 重新登录复制含 `web_session` 的 cookie → 重启边车 |
+| 边车 `window.mnsv2 is not a function` | node < 18 | 升级 node |
+| 验证脚本报 `000` | 服务器无 IPv6 路由 | 所有 `curl` 加 `-4` |
 
-## 6. 备份与回滚
+## 7. 历史备份习惯（恢复时照做）
 
-| 要备份什么 | 命令 |
+| 对象 | 命令 |
 |---|---|
-| nginx 配置 | `cp /etc/nginx/sites-available/youxi /root/vhost-backup-$(date +%F-%H%M).conf`（**改之前**） |
-| 作品集整站（含游戏） | **已按要求删除，无快照**（如需重建只能从零再写） |
+| nginx 配置 | `cp /etc/nginx/sites-available/youxi /root/vhost-backup-$(date +%F-%H%M).conf`（改之前） |
 | 后端数据 | `tar czf /root/hj-data-$(date +%F).tgz -C /opt/hellojourney data` |
-| 上一版 jar | 覆盖前先 `cp /opt/hellojourney/app.jar /opt/hellojourney/app.jar.bak` |
-| 上一版前端 | 覆盖前先 `mv /var/www/youxi/hellojourney /var/www/youxi/hellojourney.bak` |
+| 上一版 jar | `cp /opt/hellojourney/app.jar /opt/hellojourney/app.jar.bak` |
+| 上一版前端 | `mv /var/www/youxi/hellojourney /var/www/youxi/hellojourney.bak` |
 
-回滚 = 把 `.bak` 换回去 + `systemctl restart`。
-
-## 7. 验证
-
-```bash
-ssh astrbot-server 'bash -s' < deploy/verify-prod.sh
-```
-
-输出应全绿（服务 active、端口只绑回环、站点 200、`amap_maps_configured:true`、边车 ok）。
+> 2026-11-18 的删除是在用户明确要求下做的：站点内容、后端、边车、以及**服务器上仅存的两份游戏备份**
+> 全部删除，**没有保留任何副本**（博客源码在用户本地 git 仓库、HelloJourney 在 GitHub）。
