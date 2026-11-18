@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>刘凤伟 · 个人主页</title>
+<meta name="description" content="刘凤伟的个人主页：前端与图形开发，以及一个会自己规划行程的 AI 旅行助手。" />
+<meta property="og:title" content="刘凤伟 · 个人主页" />
+<meta property="og:description" content="前端与图形开发 · AI 旅行规划应用" />
+<meta name="theme-color" content="#07090d" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2307090d'/%3E%3Cpath d='M20 44 32 18l12 26' stroke='%2367e8f9' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #07090d;
+    --panel: #0e1319;
+    --line: #1d2630;
+    --text: #e8eef5;
+    --muted: #8b9aa8;
+    --accent: #67e8f9;
+    --accent-soft: rgba(103, 232, 249, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100dvh;
+    background:
+      radial-gradient(900px 480px at 78% -10%, rgba(103, 232, 249, 0.14), transparent 62%),
+      radial-gradient(700px 420px at 6% 10%, rgba(124, 108, 255, 0.12), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  .wrap { width: min(1080px, 100% - 48px); margin: 0 auto; }
+
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 0; border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+  .brand i {
+    width: 26px; height: 26px; border-radius: 8px; display: inline-grid; place-items: center;
+    background: var(--accent-soft); border: 1px solid rgba(103,232,249,.35);
+  }
+  .brand i svg { width: 14px; height: 14px; }
+  nav .links { display: flex; gap: 22px; font-size: 14.5px; color: var(--muted); }
+  nav .links a:hover { color: var(--text); }
+  @media (max-width: 640px) { nav .links { gap: 14px; font-size: 13.5px; } }
+
+  header.hero { padding: 84px 0 64px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; margin-bottom: 22px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(255,255,255,.02);
+    color: var(--muted); font-size: 13px; letter-spacing: .06em;
+  }
+  .kicker .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  h1 {
+    margin: 0 0 18px;
+    font-size: clamp(40px, 7vw, 76px);
+    line-height: 1.06; letter-spacing: -0.02em; font-weight: 800;
+  }
+  h1 .grad {
+    background: linear-gradient(100deg, var(--accent), #a5b4fc 70%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lede { margin: 0 0 34px; max-width: 620px; color: var(--muted); font-size: 17px; }
+  .lede strong { color: var(--text); font-weight: 650; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 20px; border-radius: 12px; font-weight: 650; font-size: 15px;
+    border: 1px solid var(--line); transition: transform .16s ease, background .16s ease, border-color .16s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #06272c; }
+  .btn-primary:hover { background: #8ff2ff; }
+  .btn-ghost { background: rgba(255,255,255,.03); color: var(--text); }
+  .btn-ghost:hover { border-color: #33414f; }
+
+  section.panel {
+    margin: 0 0 20px; padding: 26px 26px 24px;
+    border: 1px solid var(--line); border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,.028), rgba(255,255,255,.008));
+  }
+  section.panel h2 { margin: 0 0 10px; font-size: 19px; letter-spacing: .01em; }
+  section.panel p { margin: 0; color: var(--muted); font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    padding: 5px 11px; border-radius: 999px; font-size: 12.5px; color: var(--muted);
+    border: 1px solid var(--line); background: rgba(255,255,255,.02);
+  }
+
+  section.contact { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; }
+  section.contact h2 { margin: 0; font-size: 17px; }
+  section.contact a { color: var(--accent); font-size: 14.5px; border-bottom: 1px dashed rgba(103,232,249,.35); }
+  section.contact a:hover { border-bottom-style: solid; }
+
+  footer {
+    display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between;
+    margin-top: 52px; padding: 24px 0 40px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="/">
+        <i aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#67e8f9" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 18 12 5l6 13" />
+          </svg>
+        </i>
+        liufengwei.com
+      </a>
+      <div class="links">
+        <a href="/hellojourney/">AI 旅行规划</a>
+        <a href="https://blog.liufengwei.com/">博客</a>
+        <a href="#contact">联系</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <p class="kicker"><span class="dot" aria-hidden="true"></span>前端 · 图形 · AI 应用</p>
+      <h1>刘凤伟<br /><span class="grad">做会思考的界面</span></h1>
+      <p class="lede">
+        前端与图形开发为主，喜欢把复杂的东西做成能用、好看的样子。
+        最近在做 <strong>智途星旅（HelloJourney）</strong>——一个从一句话需求出发、
+        自己规划完整行程的 AI 旅行助手。
+      </p>
+      <div class="actions">
+        <a class="btn btn-primary" href="/hellojourney/">打开 AI 旅行规划 →</a>
+        <a class="btn btn-ghost" href="https://blog.liufengwei.com/">读博客</a>
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>在做什么</h2>
+      <p>
+        把大模型、地图与真实数据接成一个能落地的产品：一句话说清需求，
+        自动查景点/交通/住宿、排出每天的动线，并给出预算与备选方案。
+      </p>
+      <div class="chips">
+        <span class="chip">React</span>
+        <span class="chip">TypeScript</span>
+        <span class="chip">Spring Boot</span>
+        <span class="chip">大模型应用</span>
+        <span class="chip">高德地图</span>
+      </div>
+    </section>
+
+    <section class="panel contact" id="contact">
+      <h2>联系</h2>
+      <a href="https://blog.liufengwei.com/">博客</a>
+      <a href="https://github.com/kdjfs">GitHub</a>
+      <a href="/hellojourney/">项目：智途星旅</a>
+    </section>
+
+    <footer>
+      <span>© 2026 刘凤伟</span>
+      <span>静态托管于 liufengwei.com</span>
+    </footer>
+  </div>
+</body>
+</html>

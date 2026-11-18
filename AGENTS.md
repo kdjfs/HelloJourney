@@ -27,21 +27,20 @@ HelloJourney（中文名"智途星旅"）——AI 旅行规划 Web 应用，前�
 
 | 访问地址 | 是什么 | 文件在哪 | 由哪个 nginx server 块服务 |
 |---|---|---|---|
-| `https://liufengwei.com/` | 个人主页（单文件 `index.html`，含"AI 旅行规划 / 博客"入口；**已无任何游戏内容**） | `/var/www/youxi/index.html` + `robots.txt` | 443 `server_name liufengwei.com` |
-| ~~`/games/…`、`/assets/…`~~ | **已全部删除**（2026-11-18：13 个游戏、13 图标、13 封面、游戏 README 与部署示例） | 备份见下方 | — |
+| `https://liufengwei.com/` | 个人主页（单文件 `index.html`，含"AI 旅行规划 / 博客 / 联系"；**已无任何游戏内容**） | `/var/www/youxi/index.html` + `robots.txt`；源码在 `deploy/landing-page/` | 443 `server_name liufengwei.com` |
+| ~~`/games/…`、`/assets/…`、`/README.md`~~ | **已彻底删除**（2026-11-18：13 个游戏、13 图标、13 封面、游戏说明与部署示例，连服务器备份一并删除） | 无副本 | — |
 | `https://blog.liufengwei.com/` | 个人博客 | `/var/www/blog/` | 443 `server_name blog.liufengwei.com` |
 | **`https://liufengwei.com/hellojourney/`** | **本项目前端** | `/var/www/youxi/hellojourney/` | 同上（`location /hellojourney/`） |
 | **`https://liufengwei.com/api/`** | **本项目后端 API** | 反代到 `127.0.0.1:8000` | 同上（`location /api/`） |
 
-> 游戏库是在用户明确要求下**彻底删除**的（两轮：先删 `games/`，再清掉首页游戏文案与全部图标/封面/资产）。
-> `/var/www/youxi` 现在只有 `index.html`、`robots.txt`、`hellojourney/` 三项。
+> 游戏作品集是在用户明确要求下**彻底删除**的（2026-11-18，分三轮：删 `games/` → 删首页游戏文案与
+> `assets/` → 删除服务器上的备份）。**服务器与本机都不再有游戏代码的任何副本，无法恢复。**
 >
-> 备份（重要，唯一副本）：
-> - `/root/youxi-site-backup-20261118-182928.tgz`（8 MB，**含全部 13 个游戏与原始首页**）
-> - `/root/youxi-site-backup-20261118-183131.tgz`（2 MB，含图标/封面/README，首页为"作品整理中"版本）
+> `/var/www/youxi` 现在只有：`index.html`（个人主页）、`robots.txt`、`hellojourney/`。
+> 主页源码已入库：[`deploy/landing-page/index.html`](deploy/landing-page/index.html)（单文件、样式内联）。
+> 主页保留了 `id="contact"` 锚点，历史上指向 `/#contact` 的外链仍然有效。
 >
-> 恢复：`cd /var/www && tar xzf /root/youxi-site-backup-20261118-182928.tgz`。
-> **除非用户明确要求，不要恢复游戏内容，也不要往首页加回游戏入口。**
+> **不要恢复游戏内容，也不要往主页加回游戏入口**，除非用户明确要求。
 
 **为什么本项目用子路径而不是子域名**：域名解析在阿里云，只有 `@` / `www` / `blog` 三条 A 记录，
 **没有泛解析**，加子域名要动 DNS；而用子路径只需改 nginx 一次，且复用现有证书。

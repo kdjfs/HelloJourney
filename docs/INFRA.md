@@ -20,16 +20,12 @@
                                                      小红书签名边车 127.0.0.1:8010
 ```
 
-> **2026-11-18：游戏内容已彻底删除。** 两轮操作：先删 `/var/www/youxi/games/`（13 个静态包），
-> 再删掉首页整段游戏文案与 `assets/`（13 图标 + 13 封面 + 预览图 + 游戏目录数据）、`README.md`、`deploy/`。
-> 首页已换成单文件个人主页（`index.html`，样式内联），只留 "AI 旅行规划 / 博客" 两个入口。
+> **2026-11-18：游戏内容已彻底删除（三轮）。** 删 `/var/www/youxi/games/`（13 个静态包）→
+> 删首页游戏文案与 `assets/`（13 图标 + 13 封面 + 预览图 + 游戏目录数据）、`README.md`、`deploy/` →
+> 连服务器上的两份备份包一并删除。**“服务器备份勿删”的旧规则作废：现在没有任何副本，无法恢复。**
+> 首页已换成单文件个人主页（`index.html`，样式内联，含 `id="contact"` 锚点），源码入库在
+> `deploy/landing-page/index.html`。
 > `/var/www/youxi` 现在只有：`index.html`、`robots.txt`、`hellojourney/`。
->
-> 备份（**唯一副本，勿删**）：
-> - `/root/youxi-site-backup-20261118-182928.tgz`（8 MB，含全部 13 个游戏与原始首页与 assets）
-> - `/root/youxi-site-backup-20261118-183131.tgz`（2 MB，首页为"作品整理中"版本，含 assets）
->
-> 恢复：`cd /var/www && tar xzf /root/youxi-site-backup-20261118-182928.tgz`。
 
 三者的 nginx 配置**都在同一个文件**里：`/etc/nginx/sites-available/youxi`（软链到 `sites-enabled/`）。
 
@@ -116,7 +112,7 @@ certbot renew --dry-run && certbot certificates
 | 要备份什么 | 命令 |
 |---|---|
 | nginx 配置 | `cp /etc/nginx/sites-available/youxi /root/vhost-backup-$(date +%F-%H%M).conf`（**改之前**） |
-| 作品集整站（含游戏） | 已有快照：`/root/youxi-site-backup-20261118-182928.tgz`（`tar czf /root/youxi-site-backup-$(date +%F).tgz -C /var/www youxi`） |
+| 作品集整站（含游戏） | **已按要求删除，无快照**（如需重建只能从零再写） |
 | 后端数据 | `tar czf /root/hj-data-$(date +%F).tgz -C /opt/hellojourney data` |
 | 上一版 jar | 覆盖前先 `cp /opt/hellojourney/app.jar /opt/hellojourney/app.jar.bak` |
 | 上一版前端 | 覆盖前先 `mv /var/www/youxi/hellojourney /var/www/youxi/hellojourney.bak` |

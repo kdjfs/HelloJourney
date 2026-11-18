@@ -36,8 +36,9 @@ for p in 8000 8010; do
 done
 
 echo "== 3. 站点可访问性 =="
-check_code() {  # $1=url 期望 200（-k 允许自签/本地）
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -k "$1")
+check_code() {  # $1=url 期望 200（-k 允许自签/本地；-4 避免走 IPv6 无路由；失败重试两次）
+  code=$(curl -4 -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+    --retry 2 --retry-connrefused --retry-delay 1 -k "$1" 2>/dev/null || echo 000)
   if [ "$code" = "$2" ]; then pass "$1 → $code"; else fail "$1 期望 $2，实际 $code"; fi
 }
 check_code "https://liufengwei.com/" 200
@@ -45,7 +46,7 @@ check_code "https://liufengwei.com/hellojourney/" 200
 check_code "https://liufengwei.com/hellojourney/result" 200
 check_code "https://liufengwei.com/api/settings" 200
 
-echo "== 3.1 个人主页（游戏内容已于 2026-11-18 彻底删除）=="
+echo "== 3.1 个人主页（游戏内容已于 2026-11-18 彻底删除，无备份）=="
 if [ -d /var/www/youxi/games ]; then
   fail "/var/www/youxi/games 仍然存在（应已删除，见 AGENTS.md 第 2 节）"
 else
@@ -56,16 +57,32 @@ if [ -d /var/www/youxi/assets ]; then
 else
   pass "/var/www/youxi/assets 已删除"
 fi
-OLD_GAME=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -k https://liufengwei.com/games/xiangqi/)
+OLD_GAME=$(curl -4 -s -o /dev/null -w '%{http_code}' --max-time 15 -k https://liufengwei.com/games/xiangqi/)
 if [ "$OLD_GAME" = "404" ]; then pass "旧游戏地址已 404"; else warn "旧游戏地址返回 $OLD_GAME（预期 404）"; fi
-if curl -s --max-time 10 -k https://liufengwei.com/ | grep -q '做会思考的界面'; then
-  pass "首页是新的个人主页"
+HOME_HTML=$(curl -4 -s --max-time 15 -k https://liufengwei.com/)
+if printf '%s' "$HOME_HTML" | grep -q '做会思考的界面'; then
+  pass "首页是当前个人主页"
 else
-  warn "首页不是新的个人主页（是否被改回游戏列表？）"
+  warn "首页不是当前个人主页（是否被改回旧站？）"
+fi
+if printf '%s' "$HOME_HTML" | grep -qE '游戏|街机|可玩作品'; then
+  fail "首页仍出现游戏字样（应已彻底清除）"
+else
+  pass "首页无游戏字样"
+fi
+if printf '%s' "$HOME_HTML" | grep -q 'id="contact"'; then
+  pass "首页保留 #contact 锚点（旧外链可用）"
+else
+  warn "首页缺少 #contact 锚点（历史外链会落到页首）"
+fi
+if ls /root/youxi-site-backup-*.tgz >/dev/null 2>&1; then
+  warn "服务器上仍有 youxi 备份包（用户要求全部删除）"
+else
+  pass "服务器无游戏备份残留"
 fi
 
 echo "== 4. 后端配置 =="
-SETTINGS=$(curl -s --max-time 15 https://liufengwei.com/api/settings)
+SETTINGS=$(curl -4 -s --max-time 15 https://liufengwei.com/api/settings)
 for key in amap_maps_configured xhs_configured; do
   if echo "$SETTINGS" | grep -q "\"$key\":true"; then pass "$key = true"; else fail "$key 不是 true"; fi
 done
