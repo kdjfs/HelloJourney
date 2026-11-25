@@ -12,14 +12,16 @@
 
 | 事项 | 状态 |
 |---|---|
-| 线上站点 | **已恢复**（2026-11-25）。个人主页、HelloJourney、个人博客都已重新部署 |
-| 公网 DNS | ⚠️ **`@` / `www` / `blog` 三条 A 记录仍缺失**（2026-11-18 被删）。加回 `A → 39.96.195.78` 后即可公网访问 |
+| 线上站点 | **已恢复并全部可公网访问**（2026-11-25）。个人主页、HelloJourney、个人博客都在线 |
+| 公网 DNS | ✅ 已恢复：`@` / `www` / `blog` 三条 A 记录均指向 `39.96.195.78`（公共 DNS 实测可解析） |
 | 服务器 | 已恢复：内容、后端、边车、systemd、nginx 全部就位；仅回环端口 8000/8010 |
 | 游戏作品集 | **已彻底删除且不恢复**（用户明确要求，连备份都没有） |
 | 项目代码 | GitHub `kdjfs/HelloJourney` + 本地 `D:\lfw-code\HelloJourney` |
 
 > 验证命令：`ssh astrbot-server 'bash -s' < deploy/verify-prod.sh`
 > 该脚本用 `--resolve` 直连本机核对（不依赖 DNS），公网 DNS 缺失只报 WARN。
+> 实测（2026-11-25）：主页 200、`/hellojourney/` 200、`/api/settings` 200、博客 200，
+> 且一次真实的 1 天行程生成在公网链路上 **179 秒完成**（3 个景点）。
 
 ---
 
@@ -111,10 +113,16 @@ scp deploy/landing-page/index.html astrbot-server:/var/www/youxi/index.html
 ### 5.4 博客（Astro）
 
 ```bash
-cd ../liufengwei-personal-blog-v3 && npm run build     # 生成 dist（astro build + pagefind）
+# ⚠️ 必须带 SITE_URL：仓库默认 site 是 https://liufengwei-personal-blog.vercel.app，
+# 不带会把 canonical / og:url / sitemap / rss 全写成 Vercel 域名
+cd ../liufengwei-personal-blog-v3
+SITE_URL=https://blog.liufengwei.com npm run build   # astro build + pagefind
 scp -r dist astrbot-server:/tmp/blog-dist
 ssh astrbot-server 'rm -rf /var/www/blog/* && cp -r /tmp/blog-dist/. /var/www/blog/ && rm -rf /tmp/blog-dist'
 ```
+
+> 如果产物已经上传、才发现 canonical 还指向 vercel.app，可以在服务器上就地修正（注意文件名含空格，必须 `-0`）：
+> `grep -rlZ 'liufengwei-personal-blog\.vercel\.app' /var/www/blog | xargs -0 -r sed -i 's|https\?://liufengwei-personal-blog\.vercel\.app|https://blog.liufengwei.com|g'`
 
 ### 5.5 小红书边车
 

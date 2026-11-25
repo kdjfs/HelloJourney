@@ -12,7 +12,7 @@
 | 后端与边车 | 已恢复：`/opt/hellojourney`（jar + data）、`/opt/xhs-sign`；`hellojourney-backend`、`hellojourney-xhs` 两个 systemd 服务 enabled + active |
 | 端口 | 80/443 nginx；8000（后端）、8010（边车）**只绑回环**；8080 默认站（历史遗留） |
 | nginx | 唯一配置 `/etc/nginx/sites-available/liufengwei.com`（源码 `deploy/nginx-liufengwei.conf`）：`/hellojourney/` 静态、`/api/` 与 `/api/trip/ws/` 反代（620s）、`blog.liufengwei.com` 独立 server 块、80 跳 https + ACME 目录 |
-| 公网 DNS | ⚠️ **`@`/`www`/`blog` 三条 A 记录仍缺失**（2026-11-18 被删）。服务器侧全部就绪，加回解析即可公网访问 |
+| 公网 DNS | ✅ 已恢复：`@` / `www` / `blog` 三条 A 记录均指向 `39.96.195.78`（2026-11-25 由用户加回，公共 DNS 与第三方 DoH 实测可解析） |
 | 证书 | `/etc/letsencrypt/live/liufengwei.com/`（到期 2027-02-15）。DNS 缺失期间无法自动续期；加回解析后 `certbot renew` 正常 |
 | 游戏作品集 | **已彻底删除且不再恢复**（2026-11-18，用户明确要求，无副本） |
 | 服务器 | 阿里云 ECS `39.96.195.78`，Ubuntu 22.04，1 核 / 1.7 GB / 40 GB，nginx **1.18**；另有与本项目无关的 1panel / astrbot |
@@ -24,7 +24,7 @@ ssh astrbot-server 'bash -s' < deploy/verify-prod.sh
 # 期望：三个服务 active、站点与接口 200、amap/xhs=true、边车 ok；DNS 缺失只报 WARN
 ```
 
-## 2. 仍需用户本人操作（代理做不了）
+## 2. DNS 记录（2026-11-25 已由用户加回，留作参考）
 
 在阿里云「云解析 DNS → liufengwei.com → 解析设置」添加三条记录（TTL 默认 10 分钟）：
 
@@ -34,7 +34,7 @@ ssh astrbot-server 'bash -s' < deploy/verify-prod.sh
 | `www` | A | `39.96.195.78` |
 | `blog` | A | `39.96.195.78` |
 
-> 2026-11-18 删掉的就是这三条。加回后约 1~10 分钟生效；
+> 2026-11-18 删掉的就是这三条，2026-11-25 已加回并生效。以后如需重建 Zone，照此表添加；
 > 然后 `ssh astrbot-server 'certbot renew --dry-run'` 确认证书续期链路恢复。
 
 ---
