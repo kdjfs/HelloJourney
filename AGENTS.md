@@ -2,9 +2,8 @@
 
 > 这是给 **Codex / Claude Code / Cursor** 等编码代理看的"项目记忆"。接手本仓库前先读完本文件。
 >
-> **最后核对：2026-11-25。当前状态：已恢复上线。**
-> 例外：`liufengwei.com` 的三条 A 记录当时被删过，**需要用户在阿里云控制台加回**才能公网访问；
-> 服务器上一切就绪（详见第 1 节）。
+> **最后核对：2026-11-25。当前状态：已恢复上线，且已开启访问密码（仅本人可访问）。**
+> 站点内容、后端、边车、DNS、证书全部就绪；未登录访问一律 401（详见第 1 节）。
 
 ---
 
@@ -16,6 +15,7 @@
 | 公网 DNS | ✅ 已恢复：`@` / `www` / `blog` 三条 A 记录均指向 `39.96.195.78`（公共 DNS 实测可解析） |
 | 服务器 | 已恢复：内容、后端、边车、systemd、nginx 全部就位；仅回环端口 8000/8010 |
 | 游戏作品集 | **已彻底删除且不恢复**（用户明确要求，连备份都没有） |
+| **访问控制** | **HTTP Basic Auth 已开启**：主页 / `hellojourney` / `/api` / 博客 / 8080 全部要求密码，未登录一律 401（用户 `lfw`，凭据在服务器 `/root/basic-auth-credentials.txt`，600 权限）。ACME 校验路径免鉴权，否则证书续不了 |
 | 项目代码 | GitHub `kdjfs/HelloJourney` + 本地 `D:\lfw-code\HelloJourney` |
 
 > 验证命令：`ssh astrbot-server 'bash -s' < deploy/verify-prod.sh`
@@ -50,7 +50,9 @@ HelloJourney（智途星旅）——AI 旅行规划 Web 应用：
 | ~~`/games/*`~~ | 游戏作品集：**已删除，不再恢复** | 无 | — |
 
 - 唯一 nginx 配置文件：`/etc/nginx/sites-available/liufengwei.com`（源码 `deploy/nginx-liufengwei.conf`）；
-- 80 端口：跳 https（保留 ACME 校验目录 `/var/www/acme`）；8080：默认站（历史遗留，直接托管 `/var/www/youxi`）；
+- 80 端口：跳 https（保留 ACME 校验目录 `/var/www/acme`，**不要求密码**）；8080：默认站（历史遗留，同样要求密码）；
+- 密码文件：`/etc/nginx/htpasswd-liufengwei`（`root:www-data 640`，apr1 哈希）。改密码：
+  `printf "lfw:%s\n" "$(openssl passwd -apr1 '新密码')" > /etc/nginx/htpasswd-liufengwei && systemctl reload nginx`
 - 证书：Let's Encrypt，`/etc/letsencrypt/live/liufengwei.com/`，覆盖 `liufengwei.com` + `www` + `blog`（无 wildcard）。
 
 ---
@@ -171,6 +173,8 @@ ssh astrbot-server 'nginx -t && systemctl reload nginx'
 6. 服务器 1.7 GB 内存：JVM `-Xmx512m`，Docker 构建会 OOM（构建放本地）。
 7. nginx 1.18：`http2` 只能写在 `listen` 后面（见 5.6 的警告）。
 8. 改完 nginx 后如果行为没变，先确认 `nginx -t` 通过、reload 成功——reload 失败时旧配置会一直在跑。
+9. **不要把 Basic Auth 密码写进仓库**；只在服务器 `/root/basic-auth-credentials.txt` 与 `/etc/nginx/htpasswd-liufengwei`。
+10. 动 nginx 的 `auth_basic` 时要保证 `/.well-known/acme-challenge/`（80 端口）仍然免鉴权，否则证书续期会失败。
 
 ---
 

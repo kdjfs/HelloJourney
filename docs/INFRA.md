@@ -15,6 +15,7 @@
 | 公网 DNS | ✅ 已恢复：`@` / `www` / `blog` 三条 A 记录均指向 `39.96.195.78`（2026-11-25 由用户加回，公共 DNS 与第三方 DoH 实测可解析） |
 | 证书 | `/etc/letsencrypt/live/liufengwei.com/`（到期 2027-02-15）。DNS 缺失期间无法自动续期；加回解析后 `certbot renew` 正常 |
 | 游戏作品集 | **已彻底删除且不再恢复**（2026-11-18，用户明确要求，无副本） |
+| 访问控制 | **HTTP Basic Auth**：主页 / hellojourney / /api / 博客 / 8080 均需密码，未登录 401；密码文件 /etc/nginx/htpasswd-liufengwei（root:www-data 640），明文凭据 /root/basic-auth-credentials.txt（600）。80 端口的 ACME 校验路径免鉴权 |
 | 服务器 | 阿里云 ECS `39.96.195.78`，Ubuntu 22.04，1 核 / 1.7 GB / 40 GB，nginx **1.18**；另有与本项目无关的 1panel / astrbot |
 
 验证一条命令（用 `--resolve` 直连本机，不依赖 DNS）：
