@@ -1,38 +1,45 @@
 # 线上基础设施说明（INFRA）
 
-> ⚠️ **当前状态：已全部下线（2026-11-18）。** 本文件前半部分是"现在的事实"，后半部分是**历史记录**，
-> 仅在需要恢复时参考。给 AI 代理看的精简版在仓库根 [`AGENTS.md`](../AGENTS.md)。
-> 最后核对：2026-11-18。
+> **当前状态：已恢复上线（2026-11-25）。** 剩下唯一待办：`liufengwei.com` 的 `@` / `www` / `blog`
+> 三条 **A 记录需要用户在阿里云控制台加回**（`A → 39.96.195.78`），加回后公网即可访问。
+> 给 AI 代理看的精简版在仓库根 [`AGENTS.md`](../AGENTS.md)。最后核对：2026-11-25。
 
 ## 1. 现在的事实
 
 | 事项 | 状态 |
 |---|---|
-| `liufengwei.com` / `www` / `blog` 解析 | **无 A 记录**（公共 DNS 已确认），全网访问不到 |
-| 域名注册 | 仍在用户名下（NS `dns29/30.hichina.com`），用户未删除域名 |
-| 网站内容 | 已删除：`/var/www/blog`（145 MB）、`/var/www/youxi`（个人主页 + 本项目前端） |
-| 后端与边车 | 已删除：`/opt/hellojourney`（jar + data）、`/opt/xhs-sign`；systemd 单元已移除，8000/8010 无监听 |
-| nginx | 仍在运行，唯一站点配置 `/etc/nginx/sites-available/parked`：80/443 一律 `return 410`，只保留 `/.well-known/acme-challenge/`（`root /var/www/acme`） |
-| 证书 | `/etc/letsencrypt/live/liufengwei.com/` 仍在（到期 2027-02-15）。**没有 DNS 就无法自动续期**，将来恢复上线要先加回解析再续 |
-| 服务器 | 阿里云 ECS `39.96.195.78`，Ubuntu 22.04，1 核 / 1.7 GB / 40 GB；还跑着与本项目无关的 1panel / astrbot |
+| 网站内容 | 已恢复：`/var/www/youxi/`（个人主页 + `hellojourney/` 前端，2.6 MB）、`/var/www/blog/`（Astro 博客，28 MB） |
+| 后端与边车 | 已恢复：`/opt/hellojourney`（jar + data）、`/opt/xhs-sign`；`hellojourney-backend`、`hellojourney-xhs` 两个 systemd 服务 enabled + active |
+| 端口 | 80/443 nginx；8000（后端）、8010（边车）**只绑回环**；8080 默认站（历史遗留） |
+| nginx | 唯一配置 `/etc/nginx/sites-available/liufengwei.com`（源码 `deploy/nginx-liufengwei.conf`）：`/hellojourney/` 静态、`/api/` 与 `/api/trip/ws/` 反代（620s）、`blog.liufengwei.com` 独立 server 块、80 跳 https + ACME 目录 |
+| 公网 DNS | ⚠️ **`@`/`www`/`blog` 三条 A 记录仍缺失**（2026-11-18 被删）。服务器侧全部就绪，加回解析即可公网访问 |
+| 证书 | `/etc/letsencrypt/live/liufengwei.com/`（到期 2027-02-15）。DNS 缺失期间无法自动续期；加回解析后 `certbot renew` 正常 |
+| 游戏作品集 | **已彻底删除且不再恢复**（2026-11-18，用户明确要求，无副本） |
+| 服务器 | 阿里云 ECS `39.96.195.78`，Ubuntu 22.04，1 核 / 1.7 GB / 40 GB，nginx **1.18**；另有与本项目无关的 1panel / astrbot |
 
-验证一条命令：
+验证一条命令（用 `--resolve` 直连本机，不依赖 DNS）：
 
 ```bash
 ssh astrbot-server 'bash -s' < deploy/verify-prod.sh
-# 期望：三域名均无 A 记录、HTTP/HTTPS 均 410、站点目录与 systemd 单元不存在、8000/8010 无监听
+# 期望：三个服务 active、站点与接口 200、amap/xhs=true、边车 ok；DNS 缺失只报 WARN
 ```
 
-## 2. 如果要恢复上线（用户先决定，代理不要擅自做）
+## 2. 仍需用户本人操作（代理做不了）
 
-1. **用户本人**在阿里云控制台加回解析：`A @ → 39.96.195.78`、`A www → 39.96.195.78`、`A blog → 39.96.195.78`；
-2. 按 [`DEPLOY-JOURNEY.md`](DEPLOY-JOURNEY.md) 的"方案 C（主域名子路径）"重新构建并上传前端、部署后端；
-3. 重建 systemd 服务（单元模板在 [`deploy/`](../deploy/)，边车见 [`deploy/xhs-service/README.md`](../deploy/xhs-service/README.md)）；
-4. 恢复后把本文件第 1 节与 `AGENTS.md` 第 1 节改回"已上线"。
+在阿里云「云解析 DNS → liufengwei.com → 解析设置」添加三条记录（TTL 默认 10 分钟）：
+
+| 主机记录 | 类型 | 记录值 |
+|---|---|---|
+| `@` | A | `39.96.195.78` |
+| `www` | A | `39.96.195.78` |
+| `blog` | A | `39.96.195.78` |
+
+> 2026-11-18 删掉的就是这三条。加回后约 1~10 分钟生效；
+> 然后 `ssh astrbot-server 'certbot renew --dry-run'` 确认证书续期链路恢复。
 
 ---
 
-# 历史记录（2026-11-18 之前的拓扑）
+# 附：拓扑细节与排障（与上线状态无关的常青内容）
 
 ## 3. 三个站点共用一个域名
 
