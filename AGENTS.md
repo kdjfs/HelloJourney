@@ -112,19 +112,35 @@ ssh astrbot-server 'rm -rf /var/www/youxi/hellojourney/* \
 scp deploy/landing-page/index.html astrbot-server:/var/www/youxi/index.html
 ```
 
-### 5.4 博客（Astro）
+### 5.4 博客（astro-koharu）
+
+线上博客 **不是** `liufengwei-personal-blog-v3`（那套 Astro 博客已退役），而是
+`D:\lfw-code\AI-apikey\lfw-boke`（astro-koharu 主题）的构建产物：
 
 ```bash
-# ⚠️ 必须带 SITE_URL：仓库默认 site 是 https://liufengwei-personal-blog.vercel.app，
-# 不带会把 canonical / og:url / sitemap / rss 全写成 Vercel 域名
-cd ../liufengwei-personal-blog-v3
-SITE_URL=https://blog.liufengwei.com npm run build   # astro build + pagefind
-scp -r dist astrbot-server:/tmp/blog-dist
-ssh astrbot-server 'rm -rf /var/www/blog/* && cp -r /tmp/blog-dist/. /var/www/blog/ && rm -rf /tmp/blog-dist'
+cd /d/lfw-code/AI-apikey/lfw-boke
+# 已有 dist（output: 'static'，canonical 已指向 https://blog.liufengwei.com/）
+tar czf /tmp/boke.tgz -C dist .          # 2305 文件 / 放服务器上约 145 MB
+scp /tmp/boke.tgz astrbot-server:/tmp/
+ssh astrbot-server 'tar czf /root/blog-backup-$(date +%F-%H%M).tgz -C /var/www blog
+  tar xzf /tmp/boke.tgz -C /var/www/blog --overwrite && chown -R www-data:www-data /var/www/blog'
 ```
 
-> 如果产物已经上传、才发现 canonical 还指向 vercel.app，可以在服务器上就地修正（注意文件名含空格，必须 `-0`）：
-> `grep -rlZ 'liufengwei-personal-blog\.vercel\.app' /var/www/blog | xargs -0 -r sed -i 's|https\?://liufengwei-personal-blog\.vercel\.app|https://blog.liufengwei.com|g'`
+- 若改了站名/域名，改 `config/site.yaml` 后重新 `pnpm build`（`output: 'static'`）；
+- 大文件上传容易被网络重置（55 MB 断过一次）：先 `tar czf` 再 `split -b 12M` 分片传、服务器 `cat part* > x.tgz` 拼回；
+- 回滚：`/root/blog-backup-*.tgz` 解回 `/var/www/blog`。
+
+### 5.7 游戏作品集（仅本地，**不上线**）
+
+原 13 个游戏在 2026-11-18 已彻底删除（无副本）。现在按原清单重做，位置 `D:\lfw-code\youxi-rebuild`：
+
+```powershell
+cd D:\lfw-code\youxi-rebuild; node serve.mjs 8081   # http://127.0.0.1:8081/
+```
+
+- 清单在 `assets/data.js`，每格 `status: "ready" | "todo"`；`ready` 才可点开；
+- 已完成：`goldminer`（黄金矿工，纯 Canvas 单文件）；其余 12 个待重做；
+- **用户明确要求：本地端口先预览，不要上传到域名。**
 
 ### 5.5 小红书边车
 
